@@ -1,0 +1,135 @@
+package com.kiy.cloud.data.bean;
+
+import java.sql.Timestamp;
+
+public class UserIconBean {
+
+	/**
+	 * 表ID
+	 */
+	private long id;
+	
+	/**
+	 * 关联用户ID
+	 */
+	private String user_id;
+	
+	/**
+	 * 关联服务器ID
+	 */
+	private String servo_id;
+	
+	/**
+	 * 用户头像
+	 */
+	private String user_icon;
+	
+	/**
+	 * 创建时间
+	 */
+	private Timestamp created;	
+	
+	/**
+	 * 更新时间
+	 */
+	private Timestamp updated;
+
+	
+	/**
+	 * 获取表ID
+	 * @return
+	 */
+	public long getId() {
+		return id;
+	}
+
+	/**
+	 * 设置表ID
+	 * @param id
+	 */
+	public void setId(long id) {
+		this.id = id;
+	}
+
+	/**
+	 * 获取关联用户ID
+	 * @return
+	 */
+	public String getUserId() {
+		return user_id;
+	}
+
+	/**
+	 * 设置关联用户ID
+	 * @param userId
+	 */
+	public void setUserId(String userId) {
+		this.user_id = userId;
+	}
+
+	/**
+	 * 获取关联服务器ID
+	 * @return
+	 */
+	public String getServoId() {
+		return servo_id;
+	}
+
+	/**
+	 * 设置关联服务器ID
+	 * @param servoId
+	 */
+	public void setServoId(String servoId) {
+		this.servo_id = servoId;
+	}
+
+	/**
+	 * 获取用户头像
+	 * @return
+	 */
+	public String getUserIcon() {
+		return user_icon;
+	}
+
+	/**
+	 * 设置用户头像
+	 * @param user_icon
+	 */
+	public void setUserIcon(String user_icon) {
+		this.user_icon = user_icon;
+	}
+
+	/**
+	 * 获取创建时间
+	 * @return
+	 */
+	public Timestamp getCreated() {
+		return created;
+	}
+
+	/**
+	 * 设置创建时间
+	 * @param created
+	 */
+	public void setCreated(Timestamp created) {
+		this.created = created;
+	}
+
+	/**
+	 * 获取更新时间
+	 * @return
+	 */
+	public Timestamp getUpdated() {
+		return updated;
+	}
+
+	/**
+	 * 设置更新时间
+	 * @param updated
+	 */
+	public void setUpdated(Timestamp updated) {
+		this.updated = updated;
+	}
+	
+	
+}

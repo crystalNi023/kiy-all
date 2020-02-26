@@ -1,0 +1,1037 @@
+package com.kiy.controller;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.MenuAdapter;
+import org.eclipse.swt.events.MenuEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.common.Role;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Unit;
+import com.kiy.common.User;
+//import com.kiy.protocol.Messages.Command;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+public class FUserAndRole implements FormMessage/* , VirtualTableListener */{
+	private Servo servo;
+	private Shell shell;
+	private ServoManager servoManager;
+
+	private Table tableUser;
+	private Table tableRole;
+
+	private final Map<User, TableItem> userItems; // 用于存放用户tableItem
+	private final List<User> userList; // 显示的用户集合
+	private final Map<Role, TableItem> roleItems; // 用于存放角色tableItem
+	private final List<Role> roleList; // 显示的角色集合
+
+	public FUserAndRole() {
+		userList = new ArrayList<User>();
+		userItems = new ConcurrentHashMap<>();
+
+		roleList = new ArrayList<Role>();
+		roleItems = new ConcurrentHashMap<>();
+	}
+
+	public void open(Servo servo, ServoManager servomanager) {
+		servoManager = servomanager;
+		this.servo = servo;
+
+		Display display = Display.getDefault();
+		createContent();		
+
+		shell.open();
+		shell.layout();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	public void createContent() {
+		shell = new Shell();
+		shell.setSize(900, 500);
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		shell.setText(Lang.getString("FUserAndRole.ShellName.text") + servo.toString());
+		shell.setLocation(Display.getCurrent().getClientArea().width / 2 - shell.getShell().getSize().x / 2, Display.getCurrent().getClientArea().height / 2 - shell.getSize().y / 2);
+
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		// 选项卡
+		final TabFolder tabFolder = new TabFolder(shell, SWT.NONE);
+
+		// 用户选项卡
+		TabItem tabUser = new TabItem(tabFolder, SWT.NONE);
+		tabUser.setText(Lang.getString("FUserAndRole.TabUser.text"));
+
+		tableUser = new Table(tabFolder, SWT.VIRTUAL | SWT.BORDER | SWT.FULL_SELECTION);
+		tabUser.setControl(tableUser);
+		tableUser.setHeaderVisible(true);
+		tableUser.setLinesVisible(true);
+
+		tableUser.addListener(SWT.SetData, new Listener() {
+			@Override
+			public void handleEvent(Event arg0) {
+				if (tableUser.isDisposed()) {
+					return;
+				}
+				showUser(arg0);
+			}
+		});
+
+		{
+			TableColumn tblUserNameColumn = new TableColumn(tableUser, SWT.LEFT);
+			tblUserNameColumn.setText(Lang.getString("FUserAndRole.tblUserNameColumn.text"));
+			tblUserNameColumn.setWidth(120);
+			tblUserNameColumn.addListener(SWT.Selection, columnListener);
+
+			TableColumn tblUserStatusColumn = new TableColumn(tableUser, SWT.LEFT);
+			tblUserStatusColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblUserStatusColumn.setWidth(100);
+			tblUserStatusColumn.addListener(SWT.Selection, columnListener);
+
+			TableColumn tblUserRoleCountColumn = new TableColumn(tableUser, SWT.LEFT);
+			tblUserRoleCountColumn.setText(Lang.getString("FuserAndRole.tblUserRoleCountColumn.text"));
+			tblUserRoleCountColumn.setWidth(120);
+			tblUserRoleCountColumn.addListener(SWT.Selection, columnListener);
+
+			TableColumn tblUserZoneColumn = new TableColumn(tableUser, SWT.LEFT);
+			tblUserZoneColumn.setText(Lang.getString("FUserAndRole.tblUserZoneColumn.text"));
+			tblUserZoneColumn.setWidth(120);
+			tblUserZoneColumn.addListener(SWT.Selection, columnListener);
+
+			TableColumn tblUserRealNameColumn = new TableColumn(tableUser, SWT.LEFT);
+			tblUserRealNameColumn.setText(Lang.getString("FUserAndRole.tblUserRealNameColumn.text"));
+			tblUserRealNameColumn.setWidth(160);
+			tblUserRealNameColumn.addListener(SWT.Selection, columnListener);
+
+			TableColumn tblUserRemark = new TableColumn(tableUser, SWT.LEFT);
+			tblUserRemark.setText(Lang.getString("FUserAndRole.tblUserRemarkNameColumn.text"));
+			tblUserRemark.setWidth(228);
+			tblUserRemark.addListener(SWT.Selection, columnListener);
+			
+			tableUser.setSortColumn(tblUserNameColumn);
+			tableUser.setSortDirection(SWT.UP);
+
+		}
+
+		// 角色选项卡
+		TabItem tabRole = new TabItem(tabFolder, SWT.NONE);
+		tabRole.setText(Lang.getString("FUserAndRole.tabRole.text"));
+		tableRole = new Table(tabFolder, SWT.VIRTUAL | SWT.BORDER | SWT.FULL_SELECTION);
+		tabRole.setControl(tableRole);
+		tableRole.setHeaderVisible(true);
+		tableRole.setLinesVisible(true);
+
+		tableRole.addListener(SWT.SetData, new Listener() {
+			@Override
+			public void handleEvent(Event arg0) {
+				if (tableRole.isDisposed()) {
+					return;
+				}
+				showRole(arg0);
+			}
+		});
+
+		{
+			TableColumn tblRoleNameColumn = new TableColumn(tableRole, SWT.NONE);
+			tblRoleNameColumn.setText(Lang.getString("FUserAndRole.tblRoleNameColumn.text"));
+			tblRoleNameColumn.setWidth(150);
+			tblRoleNameColumn.addListener(SWT.Selection, columnListener1);
+
+			TableColumn tblRoleCommandCountColumn = new TableColumn(tableRole, SWT.NONE);
+			tblRoleCommandCountColumn.setText(Lang.getString("FUserAndRole.tblRoleCommandCountColumn.text"));
+			tblRoleCommandCountColumn.setWidth(150);
+			tblRoleCommandCountColumn.addListener(SWT.Selection, columnListener1);
+
+			TableColumn tblRoleHasUserCountColum = new TableColumn(tableRole, SWT.NONE);
+			tblRoleHasUserCountColum.setText(Lang.getString("FUserAndRole.tblRoleHasUserCountColum.text"));
+			tblRoleHasUserCountColum.setWidth(150);
+			tblRoleHasUserCountColum.addListener(SWT.Selection, columnListener1);
+			
+			TableColumn tblRoleRemark = new TableColumn(tableRole, SWT.NONE);
+			tblRoleRemark.setText(Lang.getString("FUserAndRole.tblRoleRemarkColumn.text"));
+			tblRoleRemark.setWidth(260);
+			tblRoleRemark.addListener(SWT.Selection, columnListener1);
+			
+			tableRole.setSortColumn(tblRoleNameColumn);
+			tableRole.setSortDirection(SWT.UP);
+		}
+
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+
+		// 操作item
+		MenuItem actionItem = new MenuItem(menu, SWT.CASCADE);
+		actionItem.setText(Lang.getString("FUserAndRole.actionItem.text"));
+		{
+			// 操作
+			Menu menuActions = new Menu(actionItem);
+			actionItem.setMenu(menuActions);
+
+			// 新建
+			MenuItem createItem = new MenuItem(menuActions, SWT.CASCADE);
+			createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+			createItem.setData(new ActionCase[] { ActionCase.CREATE_USER, ActionCase.CREATE_ROLE });
+			// 新建菜单
+			{
+				Menu menuCreates = new Menu(createItem);
+				createItem.setMenu(menuCreates);
+
+				// 用户...
+				MenuItem createUserItem = new MenuItem(menuCreates, SWT.CASCADE);
+				createUserItem.setText(Lang.getString("FUserAndRole.createUserItem.text"));
+				createUserItem.addSelectionListener(new ACreateUser(this,servo, tableRole));
+				createUserItem.setData(new ActionCase[] { ActionCase.CREATE_USER });
+
+				// 角色...
+				MenuItem createRoleItem = new MenuItem(menuCreates, SWT.CASCADE);
+				createRoleItem.setText(Lang.getString("FUserAndRole.createRoleItemRole.text"));
+				createRoleItem.addSelectionListener(new ACreateRole(this,servo));
+				createRoleItem.setData(new ActionCase[] { ActionCase.CREATE_ROLE });
+
+				menuCreates.addMenuListener(new MenuAdapter() {
+					@Override
+					public void menuShown(MenuEvent arg0) {
+						Menu m = (Menu) arg0.widget;
+						MenuItem[] items = m.getItems();
+
+						MenuCommandUtil mcu = new MenuCommandUtil(servo);
+						mcu.LoadMenuForCommand(items);
+					}
+				});
+			}
+			// 编辑菜单
+			MenuItem editItem = new MenuItem(menuActions, SWT.CASCADE);
+			editItem.setText(Lang.getString("FUserAndRole.editItem.text"));
+			editItem.addSelectionListener(new AModifyUserAndRole(this, servo, tableUser, tableRole));
+			editItem.setData("tag", "edit");
+
+			MenuItem checkInfoItem = new MenuItem(menuActions, SWT.CASCADE);
+			checkInfoItem.setText(Lang.getString("FUserAndrole.checkInfoItem.text"));
+			checkInfoItem.addSelectionListener(new ACheckUserAndRoleInfo(this, tableUser, tableRole));
+
+			// 删除菜单
+			MenuItem deleteItem = new MenuItem(menuActions, SWT.CASCADE);
+			deleteItem.setText(Lang.getString("FUserAndRole.deleteRoleItem.text"));
+			deleteItem.addSelectionListener(new ADeleteUserOrRole( this,servo, tableUser, tableRole));
+			deleteItem.setData("tag", "delete");
+
+			MenuItem queryAllLogItem = new MenuItem(menuActions, SWT.CASCADE);
+			queryAllLogItem.setText(Lang.getString("FUserAndRole.queryAllLogItem.text"));
+			queryAllLogItem.addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent arg0) {
+					FQueryLog fQueryLog = new FQueryLog(shell);
+					servoManager.add(fQueryLog, servo);
+					fQueryLog.open(null, servo);
+					servoManager.off(fQueryLog);
+				}
+			});
+
+			queryAllLogItem.setData(new ActionCase[] { ActionCase.QUERY_LOG });
+
+			menuActions.addMenuListener(new MenuAdapter() {
+				public void menuShown(MenuEvent arg0) {
+					Menu m = (Menu) arg0.widget;
+					MenuItem[] items = m.getItems();
+					
+					MenuCommandUtil mcu = new MenuCommandUtil(servo);
+					mcu.LoadMenuForCommand(items);
+					
+					for (MenuItem item : items) {
+						String value = (String) item.getData("tag");
+						if (!Tool.isEmpty(value)) {
+							User user = servo.getUser();
+							int selectionIndex = tabFolder.getSelectionIndex();// 当前选择选项卡下标，用于判断菜单是对用户还是角色进行操作
+							if (user != null) {
+								switch (value) {
+								case "edit":
+									if (selectionIndex == 0) {
+										if (user.allow(ActionCase.UPDATE_USER.getNumber())) {
+											editItem.setEnabled(true);
+										} else {
+											editItem.setEnabled(false);
+										}
+									} else if (selectionIndex == 1) {
+										if (user.allow(ActionCase.UPDATE_ROLE.getNumber())) {
+											editItem.setEnabled(true);
+										} else {
+											editItem.setEnabled(false);
+										}
+									}
+									break;
+								case "delete":
+									if (selectionIndex == 0) {
+										if (user.allow(ActionCase.DELETE_USER.getNumber())) {
+											deleteItem.setEnabled(true);
+										} else {
+											deleteItem.setEnabled(false);
+										}
+									} else if (selectionIndex == 1) {
+										if (user.allow(ActionCase.DELETE_ROLE.getNumber())) {
+											deleteItem.setEnabled(true);
+										} else {
+											deleteItem.setEnabled(false);
+										}
+									}
+									break;
+								default:
+									break;
+								}
+							} else {
+								// 用户为空
+							}
+						} else {
+							// tag 为空
+						}
+					}
+				}
+			});
+		}
+
+		mouseUserRightClick();
+		mouseRoleRightClick();
+
+		// 初始化用户表格
+		Set<User> users = servo.getUsers();
+		userList.addAll(users);
+		tableUser.setItemCount(userList.size());
+
+		// 初始化角色表格
+		Set<Role> roles = servo.getRoles();
+		roleList.addAll(roles);
+		tableRole.setItemCount(roleList.size());
+
+	}
+
+	/**
+	 * 鼠标右击打开用户编辑Menu
+	 */
+	private void mouseUserRightClick() {
+		Menu userMenu = new Menu(shell, SWT.POP_UP);
+		MenuItem createUser = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem createRole = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem editItem = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem checkInfoItem = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem deleteItem = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem queryLogItem = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem modifyPasswordItem = new MenuItem(userMenu, SWT.PUSH);
+		MenuItem setEnable = new MenuItem(userMenu, SWT.PUSH);
+
+		createUser.setText(Lang.getString("FUserAndRole.createUser.text"));
+		createRole.setText(Lang.getString("FUserAndRole.createRole.text"));
+		editItem.setText(Lang.getString("FUserAndRole.editItem.text"));
+		checkInfoItem.setText(Lang.getString("FUserAndrole.checkInfoItem.text"));
+		deleteItem.setText(Lang.getString("FUserAndRole.deleteItem.text"));
+		queryLogItem.setText(Lang.getString("FUserAndRole.queryLogItem.text"));
+		modifyPasswordItem.setText(Lang.getString("FUserAndRole.modifyPasswordItem.text"));
+		setEnable.setText(Lang.getString("FUserAndRole.enable.text"));
+
+		checkInfoItem.addSelectionListener(new ACheckUserAndRoleInfo(this, tableUser, tableRole));
+
+		createUser.setData(new ActionCase[] { ActionCase.CREATE_USER });
+		createRole.setData(new ActionCase[] { ActionCase.CREATE_ROLE });
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_USER });
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_USER });
+		queryLogItem.setData(new ActionCase[] { ActionCase.QUERY_LOG });
+		modifyPasswordItem.setData(new ActionCase[] { ActionCase.UPDATE_USER });
+		setEnable.setData(new ActionCase[] { ActionCase.UPDATE_USER });
+
+		userMenu.addMenuListener(new MenuAdapter() {
+			@Override
+			public void menuShown(MenuEvent arg0) {
+				Menu m = (Menu) arg0.widget;
+				MenuItem[] items = m.getItems();
+
+				MenuCommandUtil mcu = new MenuCommandUtil(servo);
+				mcu.LoadMenuForCommand(items);
+			}
+
+		});
+
+		tableUser.setMenu(userMenu);
+
+		// table双击事件
+		tableUser.addListener(SWT.MouseDoubleClick, new Listener() {
+
+			@Override
+			public void handleEvent(Event arg0) {
+				checkUserInfoOnTable();
+			}
+		});
+
+		tableUser.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent arg0) {
+				if (arg0.keyCode == SWT.CR) {
+					checkUserInfoOnTable();
+				}
+
+			}
+		});
+
+		setEnable.addSelectionListener(new ASetUserEnable(this, tableUser, servo));
+
+		modifyPasswordItem.addSelectionListener(new AModifyPassword(this, tableUser, servo));
+		// 新建用户
+		createUser.addSelectionListener(new ACreateUser(this,servo));
+		// 新建角色
+		createRole.addSelectionListener(new ACreateRole(this,servo));
+		// 更新用户
+		editItem.addSelectionListener(new AUpdateUser(this,servo, tableUser));
+		// 删除用户
+		deleteItem.addSelectionListener(new ADeleteUser(this, tableUser));
+		// 查询日志
+		queryLogItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				int selectionIndex = tableUser.getSelectionIndex();
+				if (selectionIndex != -1) {
+					TableItem item = tableUser.getItem(selectionIndex);
+					Object data = item.getData();
+					if (data != null) {
+						if (data instanceof User) {
+							User user = (User) data;
+							FQueryLog fQueryLog = new FQueryLog(shell);
+							servoManager.add(fQueryLog, servo);
+							fQueryLog.open(user, servo);
+							servoManager.off(fQueryLog);
+						}
+					}
+				} else {
+					F.mbInformation(shell, Lang.getString("FUserAndRole.MessageBoxQueryLogTitle.text"), Lang.getString("FUserAndRole.MessageBoxQueryLogContent.text"));
+					return;
+				}
+			}
+
+		});
+	}
+
+	/**
+	 * 鼠标右击打开角色编辑Menu
+	 */
+	private void mouseRoleRightClick() {
+		Menu roleMenu = new Menu(shell, SWT.POP_UP);
+		MenuItem createUserIten = new MenuItem(roleMenu, SWT.PUSH);
+		MenuItem createRoleItem = new MenuItem(roleMenu, SWT.PUSH);
+		MenuItem roleItem = new MenuItem(roleMenu, SWT.PUSH);
+		MenuItem checkInfoItem = new MenuItem(roleMenu, SWT.PUSH);
+		MenuItem deleteItem = new MenuItem(roleMenu, SWT.PUSH);
+
+		createUserIten.setText(Lang.getString("FUserAndRole.createUserItemRole.text"));
+		createRoleItem.setText(Lang.getString("FUserAndRole.createRoleItem.text"));
+		checkInfoItem.setText(Lang.getString("FUserAndrole.checkInfoItem.text"));
+		deleteItem.setText(Lang.getString("FUserAndRole.deleteRoleItem.text"));
+		roleItem.setText(Lang.getString("FUserAndRole.editRoleItem.text"));
+
+		checkInfoItem.addSelectionListener(new ACheckUserAndRoleInfo(this, tableUser, tableRole));
+
+		createUserIten.setData(new ActionCase[] { ActionCase.CREATE_USER });
+		createRoleItem.setData(new ActionCase[] { ActionCase.CREATE_ROLE });
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_ROLE });
+		roleItem.setData(new ActionCase[] { ActionCase.UPDATE_ROLE });
+
+		roleMenu.addMenuListener(new MenuAdapter() {
+			@Override
+			public void menuShown(MenuEvent arg0) {
+				Menu m = (Menu) arg0.widget;
+				MenuItem[] items = m.getItems();
+
+				MenuCommandUtil mcu = new MenuCommandUtil(servo);
+				mcu.LoadMenuForCommand(items);
+			}
+
+		});
+
+		tableRole.setMenu(roleMenu);
+
+		// table双击事件
+		tableRole.addListener(SWT.MouseDoubleClick, new Listener() {
+
+			@Override
+			public void handleEvent(Event arg0) {
+				checkRoleInfoOnTable();
+			}
+		});
+
+		tableRole.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyPressed(KeyEvent arg0) {
+				if (arg0.keyCode == SWT.CR) {
+					checkRoleInfoOnTable();
+				}
+			}
+		});
+
+		// 删除角色
+		deleteItem.addSelectionListener(new ADeleteRole(this, tableRole));
+
+		// 新建角色
+		createRoleItem.addSelectionListener(new ACreateRole(this,servo));
+
+		// 新建用户
+		createUserIten.addSelectionListener(new ACreateUser(this,servo, tableRole));
+
+		// 更新角色
+		roleItem.addSelectionListener(new ARoleUpdate(this,servo, tableRole));
+
+	}
+
+	private void checkUserInfoOnTable() {
+		int listHaveChoose = tableUser.getSelectionIndex();
+		if (listHaveChoose != -1/* 未选中 */) {
+			TableItem ti = tableUser.getItem(listHaveChoose);
+			Object obj = ti.getData();
+			if (obj != null) {
+				if (obj instanceof User) {
+					User user = (User) obj;
+					FUserDetails f = new FUserDetails(shell, user);
+					f.open();
+				}
+			}
+		} else {
+			// no selected user
+		}
+	}
+
+	private void checkRoleInfoOnTable() {
+		int listHaveChoose = tableRole.getSelectionIndex();
+		if (listHaveChoose != -1/* 未选中 */) {
+			TableItem ti = tableRole.getItem(listHaveChoose);
+			Object obj = ti.getData();
+			if (obj != null) {
+				if (obj instanceof Role) {
+					Role role = (Role) obj;
+					FRoleDetails f = new FRoleDetails(shell, role);
+					f.open();
+				}
+			}
+		} else {
+			// no selected role
+		}
+	}
+
+	/**
+	 * 显示用户表格
+	 * 
+	 * @param e
+	 */
+	private void showUser(Event e) {
+		// 每个item第一次显示时
+
+		User user = null;
+		TableItem item = (TableItem) e.item;
+		if (e.index >= 0 && e.index < userList.size())
+			user = userList.get(e.index);
+
+		if (user == null)
+			return;
+		item.setData(user);
+		userItems.put(user, item);
+		updateUser(user);
+	}
+
+	/**
+	 * 显示角色表格
+	 * 
+	 * @param e
+	 */
+	private void showRole(Event e) {
+		// 每个item第一次显示时
+
+		Role role = null;
+		TableItem item = (TableItem) e.item;
+		if (e.index >= 0 && e.index < roleList.size())
+			role = roleList.get(e.index);
+
+		if (role == null)
+			return;
+		// User user = userList.get(e.index);
+		item.setData(role);
+		roleItems.put(role, item);
+		updateRole(role);
+	}
+
+	/**
+	 * 更新用户
+	 * 
+	 * @param user
+	 */
+	private void updateUser(User user) {
+		if (tableUser.isDisposed()) {
+			return;
+		}
+
+		if (user == null)
+			return;
+
+		if (userList.contains(user)) {
+			TableItem item = userItems.get(user);
+			if (item == null)
+				return;
+			tableUser.setItemCount(userList.size());
+
+			item.setText(0, user.getName());
+			if (user.getEnable()) {
+				item.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_able.png")));
+				item.setText(1, Lang.getString("FUserAndRole.userEnable.text"));
+				item.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+			} else {
+				item.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_unable.png")));
+				item.setText(1, Lang.getString("FUserAndRole.userUnenable.text"));
+				item.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+			}
+
+			if (user.getRoles() == null) {
+				item.setText(2, "0");
+			} else {
+				item.setText(2, Integer.valueOf(user.getRoles().size()).toString());
+			}
+
+			// 设置区域
+			if (user.getZone() == null) {
+				item.setText(3, Lang.getString("FUserAndRole.noZone.text"));
+			} else {
+				item.setText(3, user.getZone().getName());
+			}
+
+			item.setText(4, user.getRealname());
+
+			item.setText(5, user.getRemark());
+			item.setData(user);
+		} else {
+			// 添加该用户
+		}
+
+	}
+
+	/**
+	 * 更新角色
+	 * 
+	 * @param user
+	 */
+	private void updateRole(Role role) {
+		if (tableRole.isDisposed()) {
+			return;
+		}
+
+		if (role == null)
+			return;
+
+		if (roleList.contains(role)) {
+			TableItem item = roleItems.get(role);
+			if (item == null)
+				return;
+			tableRole.setItemCount(roleList.size());
+
+			item.setText(0, role.getName() == null ? "" : role.getName());
+			item.setText(1, role.getCommands() == null ? "0" : role.getCommands().size() + "");
+			item.setText(2, role.getUsers() == null ? "0" : role.getUsers().size() + "");
+			item.setText(3, role.getRemark() == null ? "" : role.getRemark());
+		} else {
+			// 添加该用户
+		}
+
+	}
+
+	/**
+	 * 添加用户
+	 * 
+	 * @param user
+	 */
+	private void insert(User user) {
+		if (tableUser.isDisposed()) {
+			return;
+		}
+
+		if (user == null) {
+			return;
+		}
+
+		userList.add(user);
+		tableUser.setItemCount(userList.size());
+		tableUser.clearAll();
+	}
+
+	/**
+	 * 添加角色
+	 * 
+	 * @param user
+	 */
+	private void insert(Role role) {
+		if (tableRole.isDisposed()) {
+			return;
+		}
+
+		if (role == null) {
+			return;
+		}
+
+		roleList.add(role);
+		tableRole.setItemCount(roleList.size());
+		tableRole.clearAll();
+	}
+
+	/**
+	 * 删除用户
+	 * 
+	 * @param user
+	 */
+	private void remove(User user) {
+		if (tableUser.isDisposed()) {
+			return;
+		}
+
+		if (user == null) {
+			return;
+		}
+
+		if (userList.contains(user)) {
+			userList.remove(user);
+			if (userItems.containsKey(user)) {
+				userItems.remove(user);
+			}
+			tableUser.setItemCount(userList.size());
+			tableUser.clearAll();
+		}
+
+	}
+
+	/**
+	 * 删除角色
+	 * 
+	 * @param user
+	 */
+	private void remove(Role role) {
+		if (tableRole.isDisposed()) {
+			return;
+		}
+
+		if (role == null) {
+			return;
+		}
+
+		if (roleList.contains(role)) {
+			roleList.remove(role);
+			if (roleItems.containsKey(role)) {
+				roleItems.remove(role);
+			}
+			tableRole.setItemCount(roleList.size());
+			tableRole.clearAll();
+		}
+	}
+
+	/**
+	 * 用户列表排序
+	 */
+	private void sortUser(TableColumn c) {
+		TableColumn column = tableUser.getSortColumn();
+		if (c == null && column == null)
+			return;
+
+		int dir = tableUser.getSortDirection();
+		if (c == null) {
+			c = column;
+		} else if (column == c) {
+			dir = dir == SWT.UP ? SWT.DOWN : SWT.UP;
+			tableUser.setSortDirection(dir);
+		} else {
+			dir = SWT.UP;
+			tableUser.setSortColumn(c);
+			tableUser.setSortDirection(dir);
+		}
+
+		final int direction = dir;
+		switch (tableUser.indexOf(c)) {
+		case 0:
+			Collections.sort(userList, new Comparator<User>() {
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getName(), b.getName());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getName(), a.getName());
+				}
+			});
+			break;
+		case 1:
+			Collections.sort(userList, new Comparator<User>() {
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return Boolean.compare(a.getEnable(), b.getEnable());
+					else
+						return Boolean.compare(b.getEnable(), a.getEnable());
+				}
+			});
+			break;
+		case 2:
+			Collections.sort(userList, new Comparator<User>() {
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return Integer.compare(a.getRoles() == null ? 0 : a.getRoles().size(), b.getRoles() == null ? 0 : b.getRoles().size());
+					else
+						return Integer.compare(b.getRoles() == null ? 0 : b.getRoles().size(), a.getRoles() == null ? 0 : a.getRoles().size());
+				}
+			});
+			break;
+		case 3:
+			Collections.sort(userList, new Comparator<User>() {
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getZone() == null ? Lang.getString("FUserAndRole.noZone.text") : a.getZone().getName(), b.getZone() == null ? Lang.getString("FUserAndRole.noZone.text") : b.getZone().getName());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getZone() == null ? Lang.getString("FUserAndRole.noZone.text") : b.getZone().getName(), a.getZone() == null ? Lang.getString("FUserAndRole.noZone.text") : a.getZone().getName());
+				}
+			});
+			break;
+		case 4:
+			Collections.sort(userList, new Comparator<User>() {
+
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getRealname() == null ? "" : a.getRealname(), b.getRealname() == null ? "" : b.getRealname());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getRealname() == null ? "" : b.getRealname(), a.getRealname() == null ? "" : a.getRealname());
+				}
+
+			});
+
+			break;
+		case 5:
+			Collections.sort(userList, new Comparator<User>() {
+
+				@Override
+				public int compare(User a, User b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark() == null ? "" : a.getRemark(), b.getRemark() == null ? "" : b.getRemark());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark() == null ? "" : b.getRemark(), a.getRemark() == null ? "" : a.getRemark());
+				}
+			});
+			break;
+		default:
+			break;
+		}
+		tableUser.clearAll();
+	}
+
+	private void sortRole(TableColumn c) {
+		TableColumn column = tableRole.getSortColumn();
+		if (c == null && column == null)
+			return;
+
+		int dir = tableRole.getSortDirection();
+		if (c == null) {
+			c = column;
+		} else if (column == c) {
+			dir = dir == SWT.UP ? SWT.DOWN : SWT.UP;
+			tableRole.setSortDirection(dir);
+		} else {
+			dir = SWT.UP;
+			tableRole.setSortColumn(c);
+			tableRole.setSortDirection(dir);
+		}
+
+		final int direction = dir;
+		switch (tableRole.indexOf(c)) {
+		case 0:
+			Collections.sort(roleList, new Comparator<Role>() {
+
+				@Override
+				public int compare(Role a, Role b) {
+
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getName(), b.getName());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getName(), a.getName());
+				}
+			});
+			break;
+		case 1:
+			Collections.sort(roleList, new Comparator<Role>() {
+
+				@Override
+				public int compare(Role o1, Role o2) {
+					if (SWT.UP == direction)
+						return Integer.compare(o1.getCommands() == null ? 0 : o1.getCommands().size(), o2.getCommands() == null ? 0 : o2.getCommands().size());
+					else
+						return Integer.compare(o2.getCommands() == null ? 0 : o2.getCommands().size(), o1.getCommands() == null ? 0 : o1.getCommands().size());
+				}
+			});
+			break;
+		case 2:
+			Collections.sort(roleList, new Comparator<Role>() {
+
+				@Override
+				public int compare(Role o1, Role o2) {
+					if (SWT.UP == direction)
+						return Integer.compare(o1.getUsers() == null ? 0 : o1.getUsers().size(), o2.getUsers() == null ? 0 : o2.getUsers().size());
+					else
+						return Integer.compare(o2.getUsers() == null ? 0 : o2.getUsers().size(), o1.getUsers() == null ? 0 : o1.getUsers().size());
+				}
+
+			});
+			break;
+		case 3:
+			Collections.sort(roleList, new Comparator<Role>() {
+
+				@Override
+				public int compare(Role o1, Role o2) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(o1.getRemark(), o2.getRemark());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(o2.getRemark(), o1.getRemark());
+				}
+
+			});
+			break;
+		default:
+			break;
+		}
+		tableRole.clearAll();
+	}
+
+	@Override
+	public void received(Servo s, Message m,HashMap<Message, Unit> units) {
+		Result status = m.getResult(); // 返回状态
+		ActionCase command = m.getActionCase(); // 消息指令
+		// 创建用户处理
+		if (command == ActionCase.CREATE_USER) {
+			if (status == Result.SUCCESS) {
+//				User user = (User) m.getUnit();
+				User user = (User) units.get(m);
+				insert(user);
+			} else{
+				F.mbWaring(shell, Lang.getString("FuserAndRole.MessageBoxCreateUserTitle.text"), Lang.getString("FUserAndRole.MessageBoxCreateUserContent.text"));
+			} 
+		}
+
+		// 创建角色处理
+		if (command == ActionCase.CREATE_ROLE) {
+			if (status == Result.SUCCESS) {
+//				Role role = (Role) m.getUnit();
+				Role role = (Role) units.get(m);
+				insert(role);
+			} else {
+				F.mbWaring(shell, Lang.getString("FUserAndRole.MessageBoxCreateRoleTitle.text"), Lang.getString("FUserAndRole.MessageBoxCreateRoleContent.text"));
+			}
+		}
+
+		// 更新用户
+		if (command == ActionCase.UPDATE_USER) {
+			if (status == Result.SUCCESS) {
+//				User user = (User) m.getUnit();
+				User user = (User) units.get(m);
+				updateUser(user);
+			} else {
+				F.mbWaring(shell, Lang.getString("FUserAndRole.MessageBoxUpdateUserTitle.text"), Lang.getString("FUserAndRole.MessageBoxUpdateUserContent.text"));
+			}
+		}
+
+		// 更新角色
+		if (command == ActionCase.UPDATE_ROLE) {
+			if (status == Result.SUCCESS) {
+//				Role role = (Role) m.getUnit();
+				Role role = (Role) units.get(m);
+				updateRole(role);
+			} else {
+				F.mbWaring(shell, Lang.getString("FUserAndRole.MessageBoxUpdateRoleTitle.text"), Lang.getString("FUserAndRole.MessageBoxUpdateRoleContent.text"));
+			}
+		}
+
+		// 删除用户
+		if (command == ActionCase.DELETE_USER) {
+			if (status == Result.SUCCESS) {
+//				User user = (User) m.getUnit();
+				User user = (User) units.get(m);
+				remove(user);
+			} else {
+				F.mbWaring(shell, Lang.getString("FUserAndRole.MessageBoxDeleteUserTitle.text"), Lang.getString("FUserAndRole.MessageBoxDeleteUserContent.text"));
+			}
+		}
+
+		// 删除角色
+		if (command == ActionCase.DELETE_ROLE) {
+			if (status == Result.SUCCESS) {
+//				Role role = (Role) m.getUnit();
+				Role role = (Role) units.get(m);
+				remove(role);
+			} else {
+				F.mbWaring(shell, Lang.getString("FUserAndRole.MessageBoxDeleteRoleTitle.text"), Lang.getString("FUserAndRole.MessageBoxDeleteRoleContent.text"));
+			}
+		}
+
+	}
+
+	@Override
+	public void close() {
+		servoManager.off(this);
+
+	}
+
+	Listener columnListener = new Listener() {
+		@Override
+		public void handleEvent(Event e) {
+			if (tableUser.isDisposed()) {
+				return;
+			}
+			sortUser((TableColumn) e.widget);
+		}
+	};
+	
+	Listener columnListener1 = new Listener() {
+		@Override
+		public void handleEvent(Event e) {
+			if (tableRole.isDisposed()) {
+				return;
+			}
+			sortRole((TableColumn) e.widget);
+		}
+	};
+
+
+	public Shell getShell(){
+		return shell;
+	}
+}

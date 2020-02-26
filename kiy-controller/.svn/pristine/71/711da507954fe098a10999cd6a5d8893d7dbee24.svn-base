@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+	<div>
+		<h1>修改区域，设备</h1>
+		<hr>
+		<h2>修改区域</h2>
+		<p>
+			首先在<a href="parameterList.html">结构视图</a>中或<a
+				href="parameterList.html">状态视图</a>中选择你要修改的区域, 选择[伺服器]->[属性]或在<a
+				href="parameterList.html">结构视图</a>中点击右键->[属性]打开修改区域窗口。如下图所示
+		</p>
+		<img src="modifyZoneOrDevice_2.png" />
+		<p>修改区域信息后，点击[确定]提交修改信息</p>
+		<h2>修改设备</h2>
+		<p>
+			首先在<a href="parameterList.html">结构视图</a>中或<a
+				href="parameterList.html">状态视图</a>中选择你要修改的设备, 选择[伺服器]->[属性]或在<a
+				href="parameterList.html">结构视图</a>，<a href="parameterList.html">状态视图</a>中点击右键->[属性]打开修改设备窗口。如下图所示
+		</p>
+		<img src="modifyZoneOrDevice_1.png" />
+		<p>修改设备信息后，点击[确定]提交修改信息</p>
+
+	</div>
+</body>
+</html>

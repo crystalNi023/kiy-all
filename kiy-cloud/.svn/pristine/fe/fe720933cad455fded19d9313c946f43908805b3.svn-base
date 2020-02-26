@@ -1,0 +1,24 @@
+package com.kiy.cloud.data.bean;
+
+public class ServoBean {
+	/**
+	 * 服务器ID
+	 */
+	private String id;
+	
+	/**
+	 * 服务器类型
+	 */
+	private int type;
+	
+	/**
+	 * 客户id
+	 */
+	private String customer_id;
+	
+	/**
+	 * 服务器名称
+	 */
+	private String name;
+	
+}

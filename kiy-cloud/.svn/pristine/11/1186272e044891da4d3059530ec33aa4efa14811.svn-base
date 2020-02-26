@@ -1,0 +1,57 @@
+package test;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import com.alibaba.fastjson.JSON;
+import com.kiy.cloud.Config;
+import com.kiy.cloud.recognize.HttpResponse;
+import com.kiy.cloud.recognize.HttpUtil;
+
+public class test {
+	public static void main(String[] args) throws IOException {
+		// ServoDao servoDao = new ServoDaoImpl();
+		// try {
+		// String findUserById =
+		// servoDao.findCustomerIdById("1575f7ba-7753-11e7-bb87-4061866d97d0");
+		// System.out.println(findUserById);
+		// } catch (Exception e) {
+		// e.printStackTrace();
+		// }
+		// FeedbackBean feedbackBean = new FeedbackBean();
+		// feedbackBean.setUsername("test");
+		// feedbackBean.setContent("AAAAAAAA");
+		// feedbackBean.setImg_url("dcccccccccc");
+		// feedbackBean.setChoice(1);
+		// feedbackBean.setServoId("1575f7ba-7753-11e7-bb87-4061866d97d0");
+		// boolean createFeedBack = false;
+		// try {
+		// createFeedBack = new FeedBackDaoImpl().createFeedBack(feedbackBean);
+		// } catch (Exception e) {
+		// // TODO Auto-generated catch block
+		// e.printStackTrace();
+		// }
+		// System.out.println(createFeedBack);
+
+		// UserBean userBean = new UserBean();
+		// userBean.setServoId("1575f7ba-7753-11e7-bb87-4061866d97d0");
+		// userBean.setUserId("123");
+		// userBean.setUserIcon("abc");
+		// boolean createUserBean = false;
+		// try {
+		// createUserBean = new UserDaoImpl().createUser(userBean);
+		// } catch (Exception e) {
+		// // TODO Auto-generated catch block
+		// e.printStackTrace();
+		// }
+		// System.out.println(createUserBean);
+
+		// 读取本地的语音文件
+		Path path = FileSystems.getDefault().getPath("C:\\Users\\Administrator\\Desktop\\kiy-home\\kiy-cloud\\12.wav");
+		byte[] data = Files.readAllBytes(path);
+		HttpResponse response = HttpUtil.sendAsrPost(data, "pcm", 16000, Config.RECOGNIZE_URL, Config.RECOGNIZE_ACCESS_KEY_ID, Config.RECOGNIZE_ACCESS_KEY_SECRET);
+		System.err.println(JSON.toJSONString(response));
+	}
+}

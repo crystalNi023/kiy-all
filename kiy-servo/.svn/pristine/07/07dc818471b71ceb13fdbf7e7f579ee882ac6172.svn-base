@@ -1,0 +1,68 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.driver.rs485;
+
+import com.kiy.common.Device;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Status;
+import com.kiy.servo.Config;
+import com.kiy.servo.driver.SerialPortAdpater;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class YYSerialPort extends SerialPortAdpater {
+
+	public YYSerialPort(Device d) {
+		super(d);
+		coder = new YYCoder();
+		data_bits = 8;
+		stop_bits = 1;
+		parity_check = 0;
+	}
+
+	@Override
+	public void initialize() {
+	}
+
+	@Override
+	public synchronized void getStatus(Device d) {
+		if (device.equals(d)) {
+			d.setStatus(isActive() ? Status.NONE : Status.OFFLINE);
+			return;
+		}
+		
+		if(d.getKind()==Kind.AUDIBLE_VISUAL_ALARM){
+			return;
+		}
+		
+		if (System.currentTimeMillis() - d.getTickStatus() > Config.DRIVER_INTERVAL * 1000) {
+			if(d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.SENSOR_SWITCHING_OPEN){
+				//send(d,YYCoder.STATUS_WATER_DOOR,0);
+				send(d, YYCoder.STATUS, 0);
+			}else{
+				send(d, YYCoder.STATUS, 0);
+			}
+			d.setTickStatus(System.currentTimeMillis());
+		}
+	}
+
+	@Override
+	public synchronized void setStatus(Device d) {
+		if (device.equals(d))
+			return;
+
+		send(d, YYCoder.SET_STATUS, 0);
+		d.setTickStatus(System.currentTimeMillis());
+	}
+
+	@Override
+	public synchronized void getConfig(Device d) {
+	}
+
+	@Override
+	public synchronized void setConfig(Device d) {
+	}
+}

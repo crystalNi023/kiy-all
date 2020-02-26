@@ -1,0 +1,113 @@
+package com.kiy.cloud.http;
+
+import java.util.Date;
+import java.util.UUID;
+
+import com.kiy.common.ContextException;
+
+public class User {
+	// ID
+	private String id;
+	// 手机号
+	private String phone;
+	// 服务器ID
+	private String servoId;
+	// 用户名
+	private String userName;
+	// 创建时间
+	private Date created;
+	// 更新时间
+	private Date updated;
+
+	/**
+	 * 获取用户Id
+	 */
+	public String getId() {
+		return id;
+	}
+
+	/**
+	 * 获取手机号
+	 */
+	public String getPhone() {
+		return phone;
+	}
+
+	/**
+	 * 设置手机号
+	 */
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+
+	/**
+	 * 获取服务器Id
+	 */
+	public String getServoId() {
+		return servoId;
+	}
+
+	/**
+	 * 设置服务器Id
+	 */
+	public void setServoId(String servoId) {
+		this.servoId = servoId;
+	}
+
+	/**
+	 * 设置用户名
+	 */
+	public String getUserName() {
+		return userName;
+	}
+
+	/**
+	 * 获取用户名
+	 */
+	public void setUserName(String userName) {
+		this.userName = userName;
+	}
+
+	/**
+	 * 获取创建时间
+	 */
+	public Date getCreated() {
+		return created;
+	}
+
+	/**
+	 * 获取更新时间
+	 */
+	public Date getUpdated() {
+		return updated;
+	}
+
+	/**
+	 * 为实体对象生成一个新ID
+	 */
+	public void newId() {
+		if (id == null)
+			id = UUID.randomUUID().toString();
+		else
+			throw new ContextException("Unit object already has ID");
+	}
+
+	/**
+	 * ID相同即为相等
+	 */
+	public boolean equals(User u) {
+		if (u == null)
+			return false;
+
+		if (this == u)
+			return true;
+
+		if (u.id == null)
+			return false;
+		if (id == null)
+			return false;
+		return id.equals(u.id);
+
+	}
+
+}

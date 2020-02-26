@@ -1,0 +1,38 @@
+package com.kiy.servo.mqtt;
+
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+
+/**
+ * MQTT服务(东软智能家居设备)
+ * @author HLX Tel:18996470535 
+ * @date 2018年6月25日 
+ * Copyright:Copyright(c) 2018
+ */
+public final class MQTT {
+	private static MQTTServer mqttServer;
+
+	private MQTT() {
+		// 对象只能有一个实例
+	}
+
+	public static void initialize() {
+		Log.info("MQTT initialize ...");
+		mqttServer = new MQTTServer(Config.MQTT_SUBSCRIPTION_TOPIC); 
+		Log.info("MQTT initialized");
+	}
+	
+	public static void start() {
+		Log.info("MQTT start ...");
+		mqttServer.start();
+		Log.info("MQTT started");
+	}
+
+
+	public static void destroy() {
+		Log.info("MQTT destroy ...");
+		mqttServer.stop();
+		Log.info("MQTT destroyed");
+	}
+
+}

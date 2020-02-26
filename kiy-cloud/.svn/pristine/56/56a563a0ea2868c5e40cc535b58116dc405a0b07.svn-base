@@ -1,0 +1,30 @@
+package test;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+
+import com.alibaba.fastjson.JSON;
+import com.kiy.cloud.Config;
+import com.kiy.cloud.recognize.HttpResponse;
+import com.kiy.cloud.recognize.HttpUtil;
+
+public class test {
+	public static void main(String[] args) throws IOException {
+		// 读取本地的语音文件
+		Path path = FileSystems.getDefault().getPath("C:\\Users\\Administrator\\Desktop\\kiy-home\\kiy-cloud\\phonetic_recognition.pcm");
+		byte[] data = Files.readAllBytes(path);
+		HttpResponse response = HttpUtil.sendAsrPost(data, "pcm", 16000, Config.RECOGNIZE_URL, Config.RECOGNIZE_ACCESS_KEY_ID, Config.RECOGNIZE_ACCESS_KEY_SECRET);
+		String result = response.getResult();
+		System.err.println(result);
+		System.err.println(JSON.toJSONString(response));
+		
+//		String filename = UUID.randomUUID().toString().replace("-", "");
+//		
+//		HttpResponse sendTtsPost = HttpUtil.sendTtsPost("测试的样例", filename);
+//		String filePath = sendTtsPost.getFilePath();
+//		System.err.println(filePath);
+	}
+}

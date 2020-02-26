@@ -1,0 +1,418 @@
+package com.kiy.controller;
+
+import java.util.Comparator;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Scene;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.controller.view.VTable;
+import com.kiy.protocol.Messages.DeleteScene;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Messages.UpdateSceneStatus;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * 
+ * 查询场景列表
+ *
+ */
+public class FSceneRecord extends Dialog implements FormMessage {
+
+	private Shell shell;
+	private FVTable vt;
+
+	private Servo servo;
+	private CtrClient client;
+
+	private Table tableScene;
+
+	public FSceneRecord(Shell parent) {
+		super(parent, 0);
+	}
+
+	public void open(Servo s) {
+		servo = s;
+		createContents();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FSceneRecord.ShellName.text") + servo.toString());
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		client = servo.getClient();
+
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		tableScene = new Table(shell, SWT.VIRTUAL | SWT.BORDER | SWT.FULL_SELECTION);
+		tableScene.setHeaderVisible(true);
+		tableScene.setLinesVisible(true);
+		{
+			// 场景名称
+			TableColumn tblTaskrNameColumn = new TableColumn(tableScene, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FSceneRecord.tblPlanName.text"));
+			tblTaskrNameColumn.setWidth(120);
+			// 状态
+			tblTaskrNameColumn = new TableColumn(tableScene, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblTaskrNameColumn.setWidth(100);
+			// 备注
+			tblTaskrNameColumn = new TableColumn(tableScene, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserRemarkNameColumn.text"));
+			tblTaskrNameColumn.setWidth(200);
+			// 创建时间
+			tblTaskrNameColumn = new TableColumn(tableScene, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text1"));
+			tblTaskrNameColumn.setWidth(200);
+			// 更新时间
+			tblTaskrNameColumn = new TableColumn(tableScene, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text2"));
+			tblTaskrNameColumn.setWidth(200);
+		}
+		vt = new FVTable(tableScene);
+
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+		// 新建顶部菜单
+		MenuItem createItem = new MenuItem(menu, SWT.CASCADE);
+		createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createItem.addSelectionListener(createSceneSelectionAdapter);
+		createItem.setData(new ActionCase[] { ActionCase.CREATE_SCENE });
+
+		// 编辑顶部菜单
+		MenuItem editItem = new MenuItem(menu, SWT.CASCADE);
+		editItem.setText(Lang.getString("FSceneRecord.MenuEdit.text"));
+		editItem.addSelectionListener(updateSceneSelectionAdapter);
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_SCENE });
+
+		// 删除顶部菜单
+		MenuItem deleteItem = new MenuItem(menu, SWT.CASCADE);
+		deleteItem.setText(Lang.getString("FScene.delete"));
+		deleteItem.addSelectionListener(deleteSceneSelectionAdapter);
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_SCENE });
+
+		// 右键菜单
+		Menu taskMenu = new Menu(shell, SWT.POP_UP);
+		// 右键新建菜单
+		MenuItem createSceneItem = new MenuItem(taskMenu, SWT.PUSH);
+		createSceneItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createSceneItem.setData(new ActionCase[] { ActionCase.CREATE_SCENE });
+		createSceneItem.addSelectionListener(createSceneSelectionAdapter);
+
+		// 右键编辑菜单
+		MenuItem editScene = new MenuItem(taskMenu, SWT.PUSH);
+		editScene.setText(Lang.getString("FSceneRecord.MenuEdit.text"));
+		editScene.setData(new ActionCase[] { ActionCase.UPDATE_SCENE });
+		editScene.addSelectionListener(updateSceneSelectionAdapter);
+		
+		// 打开/关闭菜单
+		MenuItem updateStatusScene = new MenuItem(taskMenu, SWT.CASCADE);
+		updateStatusScene.setText(Lang.getString("FSceneRecord.MenuUpdate.text"));
+		updateStatusScene.addSelectionListener(updateSceneStatusSelectionAdapter);
+		updateStatusScene.setData(new ActionCase[] { ActionCase.UPDATE_SCENE_STATUS });
+
+		// 右键删除菜单
+		MenuItem deleScene = new MenuItem(taskMenu, SWT.PUSH);
+		deleScene.setText(Lang.getString("FScene.delete"));
+		deleScene.setData(new ActionCase[] { ActionCase.DELETE_SCENE });
+		deleScene.addSelectionListener(deleteSceneSelectionAdapter);
+
+		tableScene.setMenu(taskMenu);
+		vt.beginUpdate();
+		vt.add(servo.getScenes());
+		vt.endUpdate();
+
+	}
+
+	/**
+	 * 创建场景
+	 */
+	private void createScene() {
+		new ASceneCreate().sendMessage(servo, client, getParent());
+	}
+
+	/**
+	 * 创建场景点击监听
+	 */
+	private SelectionAdapter createSceneSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			createScene();
+		}
+	};
+
+	/**
+	 * 更新场景
+	 */
+	private void updateScene() {
+		Scene scene = vt.getSelection();
+		if (scene != null) {
+			new AUpdateScene(FSceneRecord.this, servo, scene).sendMessage();
+		} else {
+			F.mbInformation(shell, Lang.getString("FSceneRecord.edit"), Lang.getString("FSceneRecord.edit.tip"));
+		}
+	}
+
+	/**
+	 * 更新场景监听
+	 */
+	private SelectionAdapter updateSceneSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			updateScene();
+		}
+	};
+
+	/**
+	 * 删除场景
+	 */
+	private void deleteScene() {
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive)
+			return;
+		Scene selection = vt.getSelection();
+		if (selection != null) {
+			int open = F.mbQuestionCancel(shell, Lang.getString("FSceneRecord.MessageBoxDeleteTaskTitle.text"), String.format(Lang.getString("ADeleteUnit.deleteQuesion.text"), selection.getName()));
+			if (open == SWT.OK) {
+				Message.Builder b_m = Message.newBuilder();
+				b_m.setKey(CtrClient.getKey());
+				b_m.setUserId(servo.getUser().getId());
+				DeleteScene.Builder deleteScene = DeleteScene.newBuilder();
+				deleteScene.setId(selection.getId());
+				b_m.setDeleteScene(deleteScene);
+				client.send(b_m.build());
+			} else {
+				// 删除提示框选择取消，不删除
+			}
+		} else {
+			F.mbInformation(shell, Lang.getString("FSceneRecord.delete"), Lang.getString("FSceneRecord.delete.tip"));
+		}
+	}
+
+	/**
+	 * 删除场景监听
+	 */
+	private SelectionAdapter deleteSceneSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			deleteScene();
+		}
+	};
+
+	/**
+	 * 修改场景状态
+	 */
+	private void updateSceneStatus() {
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive)
+			return;
+		Scene selection = vt.getSelection();
+		if (selection != null) {
+			Message.Builder msg = Message.newBuilder();
+			msg.setUserId(servo.getUser().getId());
+			msg.setKey(CtrClient.getKey());
+			UpdateSceneStatus.Builder updateSceneStatus = UpdateSceneStatus.newBuilder();
+			updateSceneStatus.setId(selection.getId());
+			updateSceneStatus.setSwitchStatus(!selection.getSwitchStatu());
+			msg.setUpdateSceneStatus(updateSceneStatus.build());
+			client.send(msg.build());
+		} else {
+			F.mbInformation(shell, Lang.getString("FSceneRecord.update"), Lang.getString("FSceneRecord.update.tip"));
+		}
+
+	}
+
+	/**
+	 * 修改场景状态监听
+	 */
+	private SelectionAdapter updateSceneStatusSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			updateSceneStatus();
+		}
+	};
+
+	private class FVTable extends VTable<Scene> {
+
+		public FVTable(Table t) {
+			super(t);
+		}
+
+		@Override
+		public void row(TableItem tableItem, Scene scene) {
+			tableItem.setText(0, scene.getName());
+			if (scene.getSwitchStatu()) {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_able.png")));
+				tableItem.setText(1, Lang.getString("FSceneRecord.open.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+			} else {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_unable.png")));
+				tableItem.setText(1, Lang.getString("FSceneRecord.off.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+			}
+			tableItem.setText(2, scene.getRemark());
+			tableItem.setText(3, F.format(scene.getCreated()));
+			tableItem.setText(4, F.format(scene.getUpdated()));
+		}
+
+		@Override
+		public void column(TableColumn column, int direction) {
+			switch (vt.getColumnIndex(column)) {
+				case 0:
+					vt.sort(new Comparator<Scene>() {
+						@Override
+						public int compare(Scene a, Scene b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getName() == null ? "" : a.getName(), b.getName() == null ? "" : b.getName());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getName() == null ? "" : b.getName(), a.getName() == null ? "" : a.getName());
+						}
+					});
+					break;
+				case 1:
+					vt.sort(new Comparator<Scene>() {
+						@Override
+						public int compare(Scene a, Scene b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark() == null ? "" : a.getRemark(), b.getRemark() == null ? "" : b.getRemark());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark() == null ? "" : b.getRemark(), a.getRemark() == null ? "" : a.getRemark());
+						}
+					});
+					break;
+				case 2:
+					vt.sort(new Comparator<Scene>() {
+						@Override
+						public int compare(Scene a, Scene b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getCreated().getTime(), b.getCreated().getTime());
+							else
+								return Long.compare(b.getCreated().getTime(), a.getCreated().getTime());
+						}
+					});
+					break;
+				case 3:
+					vt.sort(new Comparator<Scene>() {
+						@Override
+						public int compare(Scene a, Scene b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getUpdated().getTime(), b.getUpdated().getTime());
+							else
+								return Long.compare(b.getUpdated().getTime(), a.getUpdated().getTime());
+						}
+					});
+					break;
+			}
+
+		}
+
+	}
+
+	@Override
+	public void received(Servo s, Message m, Map<Message, Unit> units) {
+		// 返回状态
+		Result status = m.getResult();
+		// 返回指令
+		ActionCase command = m.getActionCase();
+		// 刷新表格处理
+		if (command == ActionCase.CREATE_SCENE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.add((Scene) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FSceneRecord.MessageBoxCreateTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FSceneRecord.MessageBoxCreateTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 删除场景
+		if (command == ActionCase.DELETE_SCENE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.remove((Scene) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FSceneRecord.MessageBoxDeleteTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FSceneRecord.MessageBoxDeleteTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 更新场景状态
+		if (command == ActionCase.UPDATE_SCENE_STATUS) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.refresh((Scene) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FSceneRecord.MessageBoxModifyTaskTitle.text2"));
+				mb.setMessage(String.format(Lang.getString("FSceneRecord.MessageBoxModifyTaskContent.text2"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 修改计划
+		if (command == ActionCase.UPDATE_SCENE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.refresh((Scene) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FSceneRecord.MessageBoxModifyTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FSceneRecord.MessageBoxModifyTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		// 无处理
+	}
+
+	public Shell getShell() {
+		return shell;
+	}
+
+}

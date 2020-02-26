@@ -1,0 +1,547 @@
+package test;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Shell;
+
+import com.google.protobuf.ByteString;
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Linkage;
+import com.kiy.common.LinkageDevice;
+import com.kiy.common.Scene;
+import com.kiy.common.SceneDevice;
+import com.kiy.common.Servo;
+import com.kiy.controller.FMain;
+import com.kiy.protocol.Messages.CreateLinkage;
+import com.kiy.protocol.Messages.CreateScene;
+import com.kiy.protocol.Messages.DeleteScene;
+import com.kiy.protocol.Messages.EnsureMessage;
+import com.kiy.protocol.Messages.GetCameraConfig;
+import com.kiy.protocol.Messages.GetMessage;
+import com.kiy.protocol.Messages.GetWeatherData;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ModifyPassword;
+import com.kiy.protocol.Messages.ReadAllDeviceStatus;
+import com.kiy.protocol.Messages.SpeechRecognition;
+import com.kiy.protocol.Messages.SpeechRecognition.Builder;
+import com.kiy.protocol.Messages.UpdateCameraList;
+import com.kiy.protocol.Messages.UpdateLinkage;
+import com.kiy.protocol.Messages.UpdateLinkageStatus;
+import com.kiy.protocol.Messages.UpdateScene;
+import com.kiy.protocol.Messages.UpdateSceneStatus;
+import com.kiy.protocol.Units.MDHCamera;
+import com.kiy.protocol.Units.MLinkage;
+import com.kiy.protocol.Units.MLinkageDevice;
+import com.kiy.protocol.Units.MScene;
+import com.kiy.protocol.Units.MSceneDevice;
+
+public class Test {
+	private Servo servo;
+	public final static String MAP_FILE = "test";
+
+	private Shell shell;
+
+	public Test(Servo servo1,FMain f) {
+		servo = servo1;
+		shell = f.getShell();
+	}
+
+	public void run(){
+//		getCameraConfig();
+//		getDevices();
+//		getSMSMessage("18996470535");
+//		verifyCode("18996470535", "362162");
+//		ModifyPassword("18996470535", Tool.MD5("hu110112113114"));
+//		TestFile();
+//		testSpeechRecognize("离家");
+//		testDeviceClassify();
+//		testCamera();
+//		testReadAllDeviceStatus();
+//		testSceneUpdate();
+//		testLinkageCreate();
+//		testSelectLinkages();
+//		testDeleteLinkage();
+//		testUpdateLinkageStatus();
+		testLinkageUpdate();
+	}
+	
+	/**
+	 * 测试联动
+	 */
+	@SuppressWarnings("unused")
+	private void testLinkageUpdate(){
+		Linkage linkage = new Linkage();
+		linkage.setId("d8394d5d-a8d2-490d-bf54-3be3cb35ca17");
+		linkage.setName("测试联动  修改");
+		linkage.setEnable(true);
+		linkage.setRemark("备注  修改");
+		LinkageDevice linkageDevice = new LinkageDevice();
+		linkageDevice.setId(UUID.randomUUID().toString());
+		linkageDevice.setLinkageId(linkage.getId());
+		linkageDevice.setDeviceId("c1f71fac-22e9-4fdf-a258-4c04b5f35a88");
+		linkageDevice.setPriority(1);
+		linkageDevice.setFeatureIndex(0);
+		linkageDevice.setFeatureValue(1);
+		linkage.addLinkageDevice(linkageDevice);
+		Message.Builder msg = Message.newBuilder();
+		UpdateLinkage.Builder ul = UpdateLinkage.newBuilder();
+		MLinkage.Builder mLinkage = MLinkage.newBuilder();
+		mLinkage.setId(linkage.getId());
+		mLinkage.setName(linkage.getName());
+		mLinkage.setEnable(linkage.isEnable());
+		mLinkage.setRemark(linkage.getRemark());
+		
+		for (LinkageDevice linkageDevice2 : linkage.getLinkageDevice()) {
+			MLinkageDevice.Builder mlinkageDevice = MLinkageDevice.newBuilder();
+			mlinkageDevice.setId(linkageDevice2.getId());
+			mlinkageDevice.setLinkageId(linkageDevice2.getLinkageId());
+			mlinkageDevice.setDeviceId(linkageDevice2.getDeviceId());
+			mlinkageDevice.setPriority(linkageDevice2.getPriority());
+			mlinkageDevice.setFeatureIndex(linkageDevice2.getFeatureIndex());
+			mlinkageDevice.setFeatureValue(linkageDevice2.getFeatureValue());
+			mLinkage.addLinkageDevice(mlinkageDevice);
+		}
+		ul.setItem(mLinkage);
+		msg.setUpdateLinkage(ul.build());
+		servo.getClient().send(msg.build());
+	}
+	/**
+	 * 测试联动状态更新
+	 */
+	private void testUpdateLinkageStatus(){
+		Message.Builder msg = Message.newBuilder();
+		UpdateLinkageStatus.Builder updateLinkagestatus = UpdateLinkageStatus.newBuilder();
+		updateLinkagestatus.setId("d8394d5d-a8d2-490d-bf54-3be3cb35ca17");
+		updateLinkagestatus.setSwitchStatus(false);
+		msg.setUpdateLinkageStatus(updateLinkagestatus.build());
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+		System.err.println(msg.toString());
+	}
+
+	@SuppressWarnings("unused")
+	private void testReadAllDeviceStatus(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setReadAllDeviceStatus(ReadAllDeviceStatus.newBuilder().build());
+		servo.getClient().send(msg.build());
+	}
+	
+	@SuppressWarnings("unused")
+	private void testCamera(){
+		Message.Builder msg = Message.newBuilder();
+		UpdateCameraList.Builder updateCameraListBuilder = msg.getUpdateCameraListBuilder();
+		MDHCamera.Builder newBuilder = MDHCamera.newBuilder();
+		newBuilder.setCameraId("4E0828CPAG01C1D");
+		newBuilder.setChannelId(0);
+		updateCameraListBuilder.addItems(newBuilder.build());
+		
+//		MDHCamera.Builder newBuilder1 = MDHCamera.newBuilder();
+//		newBuilder1.setCameraId("4E0828CPAG01C2E");
+//		newBuilder1.setChannelId(1);
+//		updateCameraListBuilder.addItems(newBuilder1.build());
+//		
+//		MDHCamera.Builder newBuilder3 = MDHCamera.newBuilder();
+//		newBuilder3.setCameraId("1232138CPAG01C2E");
+//		newBuilder3.setChannelId(1);
+//		updateCameraListBuilder.addItems(newBuilder3.build());
+		
+		msg.setUserId(servo.getUser().getId());
+		msg.setUpdateCameraList(updateCameraListBuilder.build());
+		
+		servo.getClient().send(msg.build());
+	}
+	
+	@SuppressWarnings("unused")
+	private void testDeviceClassify(){
+		System.err.println("所有安防设备:");
+		printDeviceSet(servo.getSafeProtectionDevices());
+		System.err.println("安防气体监测点:");
+		printDeviceSet(servo.getSafeProtectionGasDevices());
+		System.err.println("安防烟雾监测点:");
+		printDeviceSet(servo.getSafeProtectionSmokeDevices());
+		System.err.println("安防水浸监测点:");
+		printDeviceSet(servo.getSafeProtectionSensorWaterDevices());
+		System.err.println("安防入户门监测点:");
+		printDeviceSet(servo.getSafeProtectionDoorDevices());
+		System.err.println("安防通断监测点:");
+		printDeviceSet(servo.getSafeProtectionSwitchDevices());
+		System.err.println("安防入户监测点:");
+		printDeviceSet(servo.getSafeProtectionHouseHoldsDevices());
+		System.err.println("照明设备:");
+		printDeviceSet(servo.getIlluminationDevices());
+		System.err.println("空调地暖:");
+		printDeviceSet(servo.getAironditioningOrHeatingFloorDevices());
+		System.err.println("通风系统:");
+		printDeviceSet(servo.getVentilatingSystemDevices());
+		System.err.println("环境系统:");
+		printDeviceSet(servo.getEnvironmentSystemDevices());
+		System.err.println("鱼缸:");
+		printDeviceSet(servo.getFishTankDevices());
+		System.err.println("灌溉系统:");
+		printDeviceSet(servo.getIrrigationSystemDevices());
+	}
+
+	private void printDeviceSet(Set<Device> devices){
+		for (Device device : devices) {
+			System.err.println(device.getName());
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void testSpeechRecognize(String string){
+		Message.Builder msg = Message.newBuilder();
+		Builder newBuilder = SpeechRecognition.newBuilder();
+		newBuilder.setSpeech(string);
+		msg.setSpeechRecognition(newBuilder.build());
+		servo.getClient().send(msg.build());
+	}
+
+	@SuppressWarnings("unused")
+	private void ModifyPassword(String phone,String password){
+		Message.Builder msg = Message.newBuilder();
+		ModifyPassword.Builder newBuilder = ModifyPassword.newBuilder();
+		newBuilder.setPhone(phone);
+		newBuilder.setPassword(password);
+		msg.setModifyPassword(newBuilder.build()).build();
+		servo.getClient().send(msg.build());
+	}
+
+	
+	@SuppressWarnings("unused")
+	private void verifyCode(String phone,String code){
+		Message.Builder msg = Message.newBuilder();
+		EnsureMessage.Builder newBuilder = EnsureMessage.newBuilder();
+		newBuilder.setPhone(phone);
+		newBuilder.setPassCode(code);
+		msg.setEnsureMessage(newBuilder.build()).build();
+		servo.getClient().send(msg.build());
+	}
+
+	@SuppressWarnings("unused")
+	private void getSMSMessage(String phone){
+		Message.Builder msg = Message.newBuilder();
+		GetMessage.Builder newBuilder = GetMessage.newBuilder();
+		newBuilder.setPhone(phone);
+		msg.setGetMessage(newBuilder.build()).build();
+		servo.getClient().send(msg.build());
+	}
+
+
+	@SuppressWarnings("unused")
+	private void getWeather(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		GetWeatherData.Builder newBuilder = GetWeatherData.newBuilder();
+		msg.setGetWeatherData(newBuilder.build()).build();
+		servo.getClient().send(msg.build());
+
+	}
+
+	@SuppressWarnings("unused")
+	private void updateSceneStatus(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		UpdateSceneStatus.Builder updateSceneStatus = UpdateSceneStatus.newBuilder();
+		updateSceneStatus.setId("e2005fdb-6b42-42f0-a51d-eafb833ebe54");
+		updateSceneStatus.setSwitchStatus(false);
+		msg.setUpdateSceneStatus(updateSceneStatus.build());
+
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+
+		System.err.println(msg.toString());
+
+	}
+
+
+	/**
+	 * 删除场景
+	 */
+	@SuppressWarnings("unused")
+	private void testDeleteScene(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		DeleteScene.Builder deleteScene = DeleteScene.newBuilder();
+		deleteScene.setId("b1ce7f77-3cbf-4f3c-960e-bad65997efbd");
+		msg.setDeleteScene(deleteScene.build());
+
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+
+
+	/**
+	 * 测试更新场景
+	 */
+	@SuppressWarnings("unused")
+	private void testSceneUpdate(){
+		Scene scene = new Scene();
+		scene.setId("e6f160ad-132e-4672-b4d4-d050086fcf73");
+		scene.setName("测试场景 修改后");
+		scene.setSwitchStatu(false);
+		scene.setUpdated(new Date());
+		SceneDevice sceneDevice11 = new SceneDevice();
+		sceneDevice11.setDeviceId("83cc7e02-df69-4b9f-bfa5-2110dc6f3942");
+		sceneDevice11.setFeatureIndex(0);
+		sceneDevice11.setFeatureValue(0);
+		sceneDevice11.setSwitchStatus(true);
+		scene.addOpenSceneDevice(sceneDevice11);
+		SceneDevice sceneDevice111 = new SceneDevice();
+		sceneDevice111.setDeviceId("83cc7e02-df69-4b9f-bfa5-2110dc6f3942");
+		sceneDevice111.setFeatureIndex(0);
+		sceneDevice111.setFeatureValue(0);
+		sceneDevice111.setSwitchStatus(false);
+		scene.addOffSceneDevice(sceneDevice111);
+		SceneDevice sceneDevice1111 = new SceneDevice();
+		sceneDevice1111.setDeviceId("83cc7e02-df69-4b9f-bfa5-2110dc6f3942");
+		sceneDevice1111.setFeatureIndex(0);
+		sceneDevice1111.setFeatureValue(0);
+		sceneDevice1111.setSwitchStatus(true);
+		scene.addOpenSceneDevice(sceneDevice1111);
+		SceneDevice sceneDevice11111 = new SceneDevice();
+		sceneDevice11111.setDeviceId("83cc7e02-df69-4b9f-bfa5-2110dc6f3942");
+		sceneDevice11111.setFeatureIndex(3);
+		sceneDevice11111.setFeatureValue(5);
+		sceneDevice11111.setSwitchStatus(false);
+		scene.addOffSceneDevice(sceneDevice11111);
+		scene.setRemark("备注 修改");
+
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		UpdateScene.Builder updateBuilder = UpdateScene.newBuilder();
+		MScene.Builder mScene = MScene.newBuilder();
+		mScene.setId(scene.getId());
+		mScene.setName(scene.getName());
+		mScene.setSwitch(scene.getSwitchStatu());
+		mScene.setRemark(scene.getRemark());
+		mScene.setUpdated(scene.getUpdated().getTime());
+		List<SceneDevice> offDevices = scene.getOffDevices();
+		for (SceneDevice sceneDevice2 : offDevices) {
+			MSceneDevice.Builder mSBuilder = MSceneDevice.newBuilder();
+			mSBuilder.setDeviceId(sceneDevice2.getDeviceId());
+			mSBuilder.setSwitch(sceneDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(sceneDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(sceneDevice2.getFeatureValue());
+			mScene.addOffDevices(mSBuilder.build());
+		}
+		List<SceneDevice> openDevice = scene.getOpenDevices();
+		for (SceneDevice sceneDevice2 : openDevice) {
+			MSceneDevice.Builder mSBuilder = MSceneDevice.newBuilder();
+			mSBuilder.setDeviceId(sceneDevice2.getDeviceId());
+			mSBuilder.setSwitch(sceneDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(sceneDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(sceneDevice2.getFeatureValue());
+			mScene.addOpenDevices(mSBuilder.build());
+		}
+
+		updateBuilder.setItem(mScene);
+		msg.setUpdateScene(updateBuilder.build());
+
+		System.err.println(msg.toString());
+
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+
+
+	/**
+	 * 测试创建场景
+	 */
+	@SuppressWarnings("unused")
+	private void TestSceneCreate(){
+		/**
+		 * Test Scene MessageCreated
+		 */
+		Scene scene = new Scene();
+		scene.newId();
+		scene.setName("测试场景 勿改 勿删");
+		scene.setSwitchStatu(false);
+		scene.setCreated(new Date());
+		SceneDevice sceneDevice = new SceneDevice();
+		sceneDevice.setDeviceId("13b1a43d-ed41-4cdd-b0b8-9949fa4127cb");  //水晶球灯
+		sceneDevice.setFeatureIndex(2);
+		sceneDevice.setFeatureValue(1);
+		sceneDevice.setSwitchStatus(true);
+		scene.addOpenSceneDevice(sceneDevice);
+		SceneDevice sceneDevice1 = new SceneDevice();
+		sceneDevice1.setDeviceId("13b1a43d-ed41-4cdd-b0b8-9949fa4127cb");
+		sceneDevice1.setFeatureIndex(2);
+		sceneDevice1.setFeatureValue(0);
+		sceneDevice1.setSwitchStatus(false);
+		scene.addOffSceneDevice(sceneDevice1);
+		SceneDevice sceneDevice11 = new SceneDevice();
+		sceneDevice11.setDeviceId("f6bbb522-45c8-4f20-9d74-c511542add00");
+		sceneDevice11.setFeatureIndex(2);
+		sceneDevice11.setFeatureValue(1);
+		sceneDevice11.setSwitchStatus(true);
+		scene.addOpenSceneDevice(sceneDevice11);
+		SceneDevice sceneDevice111 = new SceneDevice();
+		sceneDevice111.setDeviceId("f6bbb522-45c8-4f20-9d74-c511542add00");
+		sceneDevice111.setFeatureIndex(2);
+		sceneDevice111.setFeatureValue(0);
+		sceneDevice111.setSwitchStatus(false);
+		scene.addOffSceneDevice(sceneDevice111);
+		scene.setRemark("测试 场景 备注");
+
+
+
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("d6231455-ac66-4e5b-a164-7e36c1e53afb");
+		msg.setKey(1);
+		CreateScene.Builder createScene = CreateScene.newBuilder();
+		MScene.Builder mScene = createScene.getItemBuilder();
+		mScene.setId(scene.getId());
+		mScene.setName(scene.getName());
+		mScene.setRemark(scene.getRemark());
+		mScene.setSwitch(scene.getSwitchStatu());
+		mScene.setCreated(scene.getCreated().getTime());
+		List<SceneDevice> offDevices = scene.getOffDevices();
+		for (SceneDevice sceneDevice2 : offDevices) {
+			MSceneDevice.Builder mSBuilder = MSceneDevice.newBuilder();
+			mSBuilder.setDeviceId(sceneDevice2.getDeviceId());
+			mSBuilder.setSwitch(sceneDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(sceneDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(sceneDevice2.getFeatureValue());
+			mScene.addOffDevices(mSBuilder.build());
+		}
+		List<SceneDevice> openDevice = scene.getOpenDevices();
+		for (SceneDevice sceneDevice2 : openDevice) {
+			MSceneDevice.Builder mSBuilder = MSceneDevice.newBuilder();
+			mSBuilder.setDeviceId(sceneDevice2.getDeviceId());
+			mSBuilder.setSwitch(sceneDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(sceneDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(sceneDevice2.getFeatureValue());
+			mScene.addOpenDevices(mSBuilder.build());
+		}
+		createScene.setItem(mScene);
+		msg.setCreateScene(createScene).build();
+
+		System.err.println(msg.toString());
+
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+
+	/**
+	 * 测试新增联动
+	 */
+	@SuppressWarnings("unused")
+	private void testLinkageCreate(){
+		Linkage linkage = new Linkage();
+		linkage.newId();
+		linkage.setName("测试联动");
+		linkage.setEnable(true);
+		linkage.setRemark("备注");
+		
+		LinkageDevice linkageDevice = new LinkageDevice();
+		linkageDevice.setId(UUID.randomUUID().toString());
+		linkageDevice.setLinkageId(linkage.getId());
+		linkageDevice.setDeviceId("b183e64e-ff91-4ca6-9ef8-75c05ea8a2b5");//电灯1
+		linkageDevice.setPriority(1);
+		linkageDevice.setFeatureIndex(0);
+		linkageDevice.setFeatureValue(1);//开
+		
+		LinkageDevice linkageDevice1 = new LinkageDevice();
+		linkageDevice1.setId(UUID.randomUUID().toString());
+		linkageDevice1.setLinkageId(linkage.getId());
+		linkageDevice1.setDeviceId("c1f71fac-22e9-4fdf-a258-4c04b5f35a88");//电灯4
+		linkageDevice1.setFeatureIndex(0);
+		linkageDevice1.setFeatureValue(1);//开
+		
+		linkage.addLinkageDevice(linkageDevice);
+		linkage.addLinkageDevice(linkageDevice1);
+		
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("d6231455-ac66-4e5b-a164-7e36c1e53afb");
+		msg.setKey(1);
+		CreateLinkage.Builder createLinkage = CreateLinkage.newBuilder();
+		MLinkage.Builder mLinkage = createLinkage.getItemBuilder();
+		mLinkage.setId(linkage.getId());
+		mLinkage.setName(linkage.getName());
+		mLinkage.setEnable(linkage.isEnable());
+		mLinkage.setRemark(linkage.getRemark());
+		List<LinkageDevice> linkageDevices = linkage.getLinkageDevice();
+		for (LinkageDevice linkageDevice2 : linkageDevices) {
+			MLinkageDevice.Builder mLinkageDevice = MLinkageDevice.newBuilder();
+			mLinkageDevice.setId(linkageDevice2.getId());
+			mLinkageDevice.setLinkageId(linkageDevice2.getLinkageId());
+			mLinkageDevice.setDeviceId(linkageDevice2.getDeviceId());
+			mLinkageDevice.setPriority(linkageDevice2.getPriority());
+			mLinkageDevice.setFeatureIndex(linkageDevice2.getFeatureIndex());
+			mLinkageDevice.setFeatureValue(linkageDevice2.getFeatureValue());
+			mLinkage.addLinkageDevice(mLinkageDevice.build());
+		}
+		createLinkage.setItem(mLinkage);
+		msg.setCreateLinkage(createLinkage).build();
+		System.err.println(msg.toString());
+		
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+		
+	}
+	
+	@SuppressWarnings("unused")
+	private void TestFile(){
+		FileDialog fd = new FileDialog(shell, SWT.OPEN);
+		fd.setFilterNames(new String[] { "All Files(*.*)" });
+		String file = fd.open();
+
+		File  fsdFile = new File(file);
+		long length = fsdFile.length();
+		System.out.println(length);
+		String name = fsdFile.getName();
+		System.out.println(name);
+
+		FileInputStream fileInputStream;
+		ByteString byteString = null;
+		try {
+			fileInputStream = new FileInputStream(file);
+			ByteString.Output out = ByteString.newOutput();
+			int value = 0;
+			while ((value = fileInputStream.read()) >= 0) {
+				out.write(value);
+			}
+			byteString = out.toByteString();
+		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		CtrClient client = servo.getClient();
+
+	}
+	
+	@SuppressWarnings("unused")
+	private void getDevices(){
+		servo.getSecurityDevices();
+	}
+	
+	@SuppressWarnings("unused")
+	private void getCameraConfig(){
+		Message.Builder message = Message.newBuilder();
+		message.setKey(CtrClient.getKey());
+        message.setUserId(servo.getUser().getId());
+        GetCameraConfig.Builder builder =GetCameraConfig.newBuilder();
+        message.setGetCameraConfig(builder);
+        servo.getClient().send(message.build());
+
+	}
+
+}
+
+
+

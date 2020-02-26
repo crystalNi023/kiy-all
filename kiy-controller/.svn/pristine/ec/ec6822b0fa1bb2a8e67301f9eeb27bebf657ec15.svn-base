@@ -1,0 +1,331 @@
+package test;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Shell;
+
+import com.google.protobuf.ByteString;
+import com.kiy.client.CtrClient;
+import com.kiy.common.Sence;
+import com.kiy.common.SenceDevice;
+import com.kiy.common.Servo;
+import com.kiy.controller.FMain;
+import com.kiy.protocol.Messages.CreateFeedback;
+import com.kiy.protocol.Messages.CreateFeedback.Builder;
+import com.kiy.protocol.Messages.CreateSence;
+import com.kiy.protocol.Messages.DeleteSence;
+import com.kiy.protocol.Messages.GetWeatherData;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.UpdateSence;
+import com.kiy.protocol.Messages.UpdateSenceStatus;
+import com.kiy.protocol.Units.MFeedback;
+import com.kiy.protocol.Units.MSence;
+import com.kiy.protocol.Units.MSenceDevice;
+
+public class Test {
+	private Servo servo;
+	public final static String MAP_FILE = "test";
+	
+	private Shell shell;
+
+	public Test(Servo servo1,FMain f) {
+		servo = servo1;
+		shell = f.getShell();
+	}
+	
+	public void run(){
+//		TestSenceCreate();
+//		testDeleteSence();
+//		testSenceUpdate();
+		
+//		updateSenceStatus();
+		getWeather();
+	}
+	
+	private void getWeather(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		GetWeatherData.Builder newBuilder = GetWeatherData.newBuilder();
+		msg.setGetWeatherData(newBuilder.build()).build();
+		servo.getClient().send(msg.build());
+		
+	}
+	
+	@SuppressWarnings("unused")
+	private void updateSenceStatus(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		UpdateSenceStatus.Builder updateSenceStatus = UpdateSenceStatus.newBuilder();
+		updateSenceStatus.setId("cdf39b9c-70d9-4e06-97b4-628796f6a5fa");
+		updateSenceStatus.setSwitchStatus(false);
+		msg.setUpdateSenceStatus(updateSenceStatus.build());
+		
+		CtrClient client = servo.getClient();
+		client.send(msg.build());	
+		
+		System.err.println(msg.toString());
+		
+	}
+	
+	
+	/**
+	 * 删除场景
+	 */
+	@SuppressWarnings("unused")
+	private void testDeleteSence(){
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		DeleteSence.Builder deleteSence = DeleteSence.newBuilder();
+		deleteSence.setId("b1ce7f77-3cbf-4f3c-960e-bad65997efbd");
+		msg.setDeleteSence(deleteSence.build());
+		
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+	
+	
+	/**
+	 * 测试更新场景
+	 */
+	@SuppressWarnings("unused")
+	private void testSenceUpdate(){
+		Sence sence = new Sence();
+		sence.setId("a5332fbc-cbd9-4fa5-9b83-d633410eeaf9");;
+		sence.setName("测试场景 修改后");
+		sence.setSwitchStatu(false);
+		sence.setUpdated(new Date());
+		SenceDevice senceDevice11 = new SenceDevice();
+		senceDevice11.setDeviceId("78715205-006c-4f5f-b3a3-ca218d900fd7");
+		senceDevice11.setFeatureIndex(3);
+		senceDevice11.setFeatureValue(10);
+		senceDevice11.setSwitchStatus(true);
+		sence.addOpenSenceDevice(senceDevice11);
+		SenceDevice senceDevice111 = new SenceDevice();
+		senceDevice111.setDeviceId("78715205-006c-4f5f-b3a3-ca218d900fd7");
+		senceDevice111.setFeatureIndex(3);
+		senceDevice111.setFeatureValue(8);
+		senceDevice111.setSwitchStatus(false);
+		sence.addOffSenceDevice(senceDevice111);
+		SenceDevice senceDevice1111 = new SenceDevice();
+		senceDevice1111.setDeviceId("e99c1e8e-9a34-4ad2-b168-f89e40e90e47");
+		senceDevice1111.setFeatureIndex(3);
+		senceDevice1111.setFeatureValue(4);
+		senceDevice1111.setSwitchStatus(true);
+		sence.addOpenSenceDevice(senceDevice1111);
+		SenceDevice senceDevice11111 = new SenceDevice();
+		senceDevice11111.setDeviceId("e99c1e8e-9a34-4ad2-b168-f89e40e90e47");
+		senceDevice11111.setFeatureIndex(3);
+		senceDevice11111.setFeatureValue(5);
+		senceDevice11111.setSwitchStatus(false);
+		sence.addOffSenceDevice(senceDevice11111);
+		sence.setRemark("备注 修改");
+		
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		UpdateSence.Builder updateBuilder = UpdateSence.newBuilder();
+		MSence.Builder mSence = MSence.newBuilder();
+		mSence.setId(sence.getId());
+		mSence.setName(sence.getName());
+		mSence.setSwitch(sence.getSwitchStatu());
+		mSence.setRemark(sence.getRemark());
+		mSence.setUpdated(sence.getUpdated().getTime());
+		List<SenceDevice> offDevices = sence.getOffDevices();
+		for (SenceDevice senceDevice2 : offDevices) {
+			MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+			mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+			mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+			mSence.addOffDevices(mSBuilder.build());
+		}
+		List<SenceDevice> openDevice = sence.getOpenDevices();
+		for (SenceDevice senceDevice2 : openDevice) {
+			MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+			mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+			mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+			mSence.addOpenDevices(mSBuilder.build());
+		}
+		
+		updateBuilder.setItem(mSence);
+		msg.setUpdateSence(updateBuilder).build();
+		
+		System.err.println(msg.toString());
+		
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+	
+	
+	/**
+	 * 测试创建场景
+	 */
+	@SuppressWarnings("unused")
+	private void TestSenceCreate(){
+		/**
+		 * Test Sence MessageCreated
+		 */
+		Sence sence = new Sence();
+		sence.newId();
+		sence.setName("测试场景1");
+		sence.setSwitchStatu(false);
+		sence.setCreated(new Date());
+		SenceDevice senceDevice = new SenceDevice();
+		senceDevice.setDeviceId("494036c2-889e-49b2-8c7c-3d6f3877650b");
+		senceDevice.setFeatureIndex(2);
+		senceDevice.setFeatureValue(0);
+		senceDevice.setSwitchStatus(true);
+		sence.addOpenSenceDevice(senceDevice);
+		SenceDevice senceDevice1 = new SenceDevice();
+		senceDevice1.setDeviceId("494036c2-889e-49b2-8c7c-3d6f3877650b");
+		senceDevice1.setFeatureIndex(2);
+		senceDevice1.setFeatureValue(1);
+		senceDevice1.setSwitchStatus(false);
+		sence.addOffSenceDevice(senceDevice1);
+		SenceDevice senceDevice11 = new SenceDevice();
+		senceDevice11.setDeviceId("78715205-006c-4f5f-b3a3-ca218d900fd7");
+		senceDevice11.setFeatureIndex(2);
+		senceDevice11.setFeatureValue(0);
+		senceDevice11.setSwitchStatus(true);
+		sence.addOpenSenceDevice(senceDevice11);
+		SenceDevice senceDevice111 = new SenceDevice();
+		senceDevice111.setDeviceId("78715205-006c-4f5f-b3a3-ca218d900fd7");
+		senceDevice111.setFeatureIndex(2);
+		senceDevice111.setFeatureValue(1);
+		senceDevice111.setSwitchStatus(false);
+		sence.addOffSenceDevice(senceDevice111);
+		SenceDevice senceDevice1111 = new SenceDevice();
+		senceDevice1111.setDeviceId("e99c1e8e-9a34-4ad2-b168-f89e40e90e47");
+		senceDevice1111.setFeatureIndex(2);
+		senceDevice1111.setFeatureValue(0);
+		senceDevice1111.setSwitchStatus(true);
+		sence.addOpenSenceDevice(senceDevice1111);
+		SenceDevice senceDevice11111 = new SenceDevice();
+		senceDevice11111.setDeviceId("e99c1e8e-9a34-4ad2-b168-f89e40e90e47");
+		senceDevice11111.setFeatureIndex(2);
+		senceDevice11111.setFeatureValue(1);
+		senceDevice11111.setSwitchStatus(false);
+		sence.addOffSenceDevice(senceDevice11111);
+		sence.setRemark("备注");
+		
+		
+		
+		Message.Builder msg = Message.newBuilder();
+		msg.setUserId("20a1f504-4373-11e8-8e78-480fcf64d954");
+		msg.setKey(1);
+		CreateSence.Builder createSence = CreateSence.newBuilder();
+		MSence.Builder mSence = createSence.getItemBuilder();
+		mSence.setId(sence.getId());
+		mSence.setName(sence.getName());
+		mSence.setRemark(sence.getRemark());
+		mSence.setSwitch(sence.getSwitchStatu());
+		mSence.setCreated(sence.getCreated().getTime());
+		List<SenceDevice> offDevices = sence.getOffDevices();
+		for (SenceDevice senceDevice2 : offDevices) {
+			MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+			mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+			mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+			mSence.addOffDevices(mSBuilder.build());
+		}
+		List<SenceDevice> openDevice = sence.getOpenDevices();
+		for (SenceDevice senceDevice2 : openDevice) {
+			MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+			mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+			mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+			mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+			mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+			mSence.addOpenDevices(mSBuilder.build());
+		}
+		createSence.setItem(mSence);
+		msg.setCreateSence(createSence).build();
+		
+		System.err.println(msg.toString());
+		
+		CtrClient client = servo.getClient();
+		client.send(msg.build());
+	}
+	
+	
+	@SuppressWarnings("unused")
+	private void TestFile(){
+		FileDialog fd = new FileDialog(shell, SWT.OPEN);
+		fd.setFilterNames(new String[] { "All Files(*.*)" });
+		String file = fd.open();
+		
+		File  fsdFile = new File(file);
+		long length = fsdFile.length();
+		System.out.println(length);
+		String name = fsdFile.getName();
+		System.out.println(name);
+		
+		FileInputStream fileInputStream;
+		ByteString byteString = null;
+		try {
+			fileInputStream = new FileInputStream(file);
+			ByteString.Output out = ByteString.newOutput();
+			int value = 0;
+			while ((value = fileInputStream.read()) >= 0) {
+				out.write(value);
+			}
+			byteString = out.toByteString();
+		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		CtrClient client = servo.getClient();
+
+		/**
+		 * 测试意见反馈
+		 */
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setUserId(servo.getUser().getId());
+		Builder newBuilder = CreateFeedback.newBuilder();
+		MFeedback.Builder itemBuilder = newBuilder.getItemBuilder();
+		itemBuilder.setContent("杀菌达授课计划");
+		itemBuilder.setUserId("13514564864646");
+		itemBuilder.setCreated(System.currentTimeMillis());
+		itemBuilder.setFileName(name);
+		itemBuilder.setData(byteString);
+		b_m.setCreateFeedback(newBuilder);
+		client.send(b_m.build());
+		
+		/**
+		 * 测试头像上传
+		 */
+//		Message.Builder b_m = Message.newBuilder();
+//		Builder newBuilder = UploadUserIcon.newBuilder();
+//		newBuilder.setUserId(servo.getUser().getId());
+//		newBuilder.setFileName(name);
+//		newBuilder.setData(byteString);
+//		b_m.setUploadUserIcon(newBuilder);
+//		client.send(b_m.build());
+		
+		/**
+		 * 测试头像下载
+		 */
+//		Message.Builder b_m = Message.newBuilder();
+//		com.kiy.protocol.Messages.DownloadUserIcon.Builder newBuilder = DownloadUserIcon.newBuilder();
+//		newBuilder.setUserId(servo.getUser().getId());
+//		b_m.setDownloadUserIcon(newBuilder);
+//		client.send(b_m.build());
+	}
+	
+}
+
+
+

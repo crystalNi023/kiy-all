@@ -1,0 +1,94 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.cloud.data;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+
+/**
+ * 数据主类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Data {
+
+	private Data() {
+		// 对象只能有一个实例
+	}
+
+	public static void initialize() {
+		Log.info("Data initialize ...");
+
+		if (Config.DB) {
+			try {
+				Class.forName("com.mysql.jdbc.Driver");
+			} catch (ClassNotFoundException ex) {
+				Log.error(ex);
+				throw new RuntimeException("MySql Deiver not found", ex);
+			}
+		}
+
+		Log.info("Data initialized");
+	}
+
+	public static void destroy() {
+		Log.info("Data destroy ...");
+
+		Log.info("Data destroyed");
+	}
+
+	// 以下为数据处理方法///////////////////////////
+
+	private static Connection getConnection() {
+		try {
+			return DriverManager.getConnection(Config.DB_URL, Config.DB_USER,
+					Config.DB_PASSWORD);
+		} catch (SQLException e) {
+			Log.error(e);
+		}
+		return null;
+	}
+
+	/**
+	 * 检查伺服器KEY是否存在,并返回所属公司的KEY
+	 * 
+	 * @param key
+	 *            伺服器KEY
+	 * @return Company Key / null
+	 */
+	public static String checkServoKey(String key) {
+		if (key == null || key.length() == 0)
+			return null;
+
+		Connection connection = getConnection();
+		if (connection == null)
+			return null;
+
+		try (PreparedStatement statement = connection
+				.prepareStatement("SELECT `customer_id` FROM `servos` WHERE `id`=?")) {
+			statement.setString(1, key);
+			ResultSet rs = statement.executeQuery();
+			if (rs.next())
+				return rs.getString(1);
+		} catch (SQLException ex) {
+			Log.error(ex);
+		} finally {
+			try {
+				connection.close();
+			} catch (SQLException ex) {
+				Log.error(ex);
+			}
+		}
+		return null;
+	}
+
+	
+}

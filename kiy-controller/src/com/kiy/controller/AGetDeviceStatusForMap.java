@@ -1,0 +1,141 @@
+package com.kiy.controller;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Set;
+
+import org.geotools.geometry.DirectPosition2D;
+import org.geotools.map.MapContent;
+import org.geotools.swt.SwtMapPane;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Kind;
+import com.kiy.controller.view.MapView;
+import com.kiy.controller.view.NormalMouseTool;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ReadDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus.Builder;
+
+/**
+ * 在地图上获取设备状态
+ * 
+ * @author HLX
+ *
+ */
+public class AGetDeviceStatusForMap extends A<FMain> {
+
+	private MapView mv; // 用来获取设备坐标信息
+
+	/**
+	 * 用于获取地图上单个设备
+	 * 
+	 * @param m
+	 * @param mv
+	 */
+	public AGetDeviceStatusForMap(FMain m, MapView mv) {
+		super(m);
+		this.mv = mv;
+	}
+
+	@Override
+	protected void run() {
+		SwtMapPane pane = mv.getPane();
+		if (pane == null) {
+			return;
+		}
+
+		if (pane.isDisposed()) {
+			return;
+		}
+
+		Servo servo = main.getCurrentServo();
+		if (servo == null) {
+			return;
+		}
+
+		DirectPosition2D mapPosition = mv.getMapPosition();
+		if (mapPosition == null) {
+			return;
+		}
+
+		MapContent content = pane.getMapContent();
+
+		CtrClient client = servo.getClient();
+
+		Set<Device> devices = NormalMouseTool.devices;
+
+		boolean judgeClientActive = F.judgeClientActive(main.getShell(), client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		if (devices == null) {
+			String deviceId = F.getDeviceIdFormapPosition(pane, content, mapPosition);
+
+			if (deviceId == null) {
+				return;
+			}
+
+			// 获取设备状态
+			Device d = servo.getDevice(deviceId);
+
+			if (d.getKind().equals(Kind.NONE) || d.getKind().equals(Kind.OTHER)) {
+				return;
+			} else {
+				Message.Builder bm = Message.newBuilder();
+				bm.setKey(CtrClient.getKey());
+				bm.setUserId(servo.getUser().getId());
+				ReadDeviceStatus.Builder readDeviceStatus = ReadDeviceStatus.newBuilder();
+				Builder mDeviceStatus = readDeviceStatus.getItemBuilder();
+				mDeviceStatus.setDeviceId(d.getId());
+				bm.setReadDeviceStatus(readDeviceStatus.build());
+				client.send(bm.build());
+			}
+
+		} else {
+			for (Device d : devices) {
+				if (d.getKind().equals(Kind.NONE) || d.getKind().equals(Kind.OTHER)) {
+					continue;
+				} else {
+					Message.Builder bm = Message.newBuilder();
+					bm.setKey(CtrClient.getKey());
+					bm.setUserId(servo.getUser().getId());
+					ReadDeviceStatus.Builder readDeviceStatus = ReadDeviceStatus.newBuilder();
+					Builder mDeviceStatus = readDeviceStatus.getItemBuilder();
+					mDeviceStatus.setDeviceId(d.getId());
+					bm.setReadDeviceStatus(readDeviceStatus.build());
+					client.send(bm.build());
+				}
+			}
+
+			NormalMouseTool.devices.clear();
+		}
+	}
+	
+
+	@SuppressWarnings("unused")
+	private void openCamera(String ip,String port,String username,String password){
+		
+		if(!FMain.isOpenCammera){
+			ProcessBuilder pb = new ProcessBuilder("java", "-jar",
+					"kiy-camera.jar", ip, port, username,password);
+			// 设置进程运行目录
+			String path = System.getProperty("user.dir");
+			pb.directory(new File(path));
+			// 运行进程
+			Process p = null;
+			try {
+				p = pb.start();
+			} catch (IOException e) {
+				
+			}
+			FMain.isOpenCammera =true;
+			// isAlive 判断新开的进程是否活跃，是否被销毁
+			while (p.isAlive()) {
+				FMain.isOpenCammera = false;
+			}
+		}
+	}
+}

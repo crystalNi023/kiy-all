@@ -1,0 +1,185 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.cloud.data;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * SQL语句抽象，提供基于命名参数的SQL语句功能
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class NSQL {
+
+	public final static int SELECT = 1;
+	public final static int INSERT = 2;
+	public final static int UPDATE = 3;
+	public final static int DELETE = 4;
+	public final static int OTHER = 5;
+
+	// 静态集合缓存使用过的NSQL
+	private static Map<String, NSQL> caches = new ConcurrentHashMap<String, NSQL>();
+
+	// SQL类型
+	private int cmd;
+	// 命名SQL ?name
+	private String sql_naming;
+	// 执行SQL ?
+	private String sql_execute;
+	// 参数对象集
+	private NSQLParameter[] parameters;
+
+	private NSQL() {
+		// 用户不能实例化对象
+		// 通过get方法获取可用实例
+	}
+
+	public int getCount() {
+		return parameters.length;
+	}
+
+	public NSQLParameter getParameter(int index) {
+		return parameters[index];
+	}
+
+	public boolean hasParameter() {
+		return parameters != null && parameters.length > 0;
+	}
+
+	public int getType() {
+		return cmd;
+	}
+
+	/**
+	 * 获取用于数据库执行的SQL语句
+	 * 
+	 * @return
+	 */
+	public String getSql() {
+		return sql_execute;
+	}
+
+	/**
+	 * 获取用户定义的命名SQL语句
+	 * 
+	 * @return
+	 */
+	public String getNamingSql() {
+		return sql_naming;
+	}
+
+	/**
+	 * 获取对象实例，此方法将缓存分析过的SQL语句以提高性能
+	 * 
+	 * @param sql
+	 * @return
+	 */
+	public static NSQL get(String sql) {
+		NSQL nsql = caches.get(sql);
+		if (nsql == null) {
+			nsql = NSQL.parse(sql);
+			caches.put(sql, nsql);
+		}
+		return nsql;
+	}
+
+	/**
+	 * 分析命名SQL语句获取抽象NSQl实例；java(JDBC)提供SQL语句命名参数而是通过?标识参数位置，
+	 * 通过此对象可以以命名参数方式使用SQL语句，命名参数以?开始后跟名称?name。 例如：SELECT * FROM table WHERE
+	 * name = ?key AND email = ?key;
+	 * 
+	 * @param sql
+	 * @return
+	 */
+	public static NSQL parse(String sql) {
+		// SELECT * FROM table WHERE name = ?key AND email = ?key;
+		// A~Z a~z 01~9 _
+		if (sql == null || sql.length() == 0)
+			throw new NullPointerException("SQL String is null");
+
+		// 去除首尾空格
+		sql = sql.trim();
+
+		if (sql.length() == 0)
+			throw new NullPointerException("SQL String is empty");
+
+		char c;
+		int cmd_index = 0;
+		List<String> names = new ArrayList<String>();
+		StringBuilder sql_builder = new StringBuilder();
+		StringBuilder name_builder = new StringBuilder();
+		for (int index = 0; index < sql.length(); index++) {
+			c = sql.charAt(index);
+			sql_builder.append(c);
+			if (cmd_index <= 0) {
+				if (Character.isWhitespace(c))
+					cmd_index = index;
+			}
+			if ('?' == c) {
+				while (++index < sql.length()) {
+					c = sql.charAt(index);
+					if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= '0' && c <= '9')) {
+						name_builder.append(c);
+					} else {
+						sql_builder.append(c);
+						break;
+					}
+				}
+				names.add(name_builder.toString());
+				name_builder.setLength(0);
+			}
+		}
+		NSQL dbsql = new NSQL();
+		dbsql.sql_naming = sql;
+		dbsql.sql_execute = sql_builder.toString();
+
+		// 构造参数集
+		ArrayList<NSQLParameter> parameters = new ArrayList<NSQLParameter>();
+		ArrayList<Integer> indexs = new ArrayList<Integer>();
+		for (int index = 0; index < names.size(); index++) {
+			if (names.get(index).length() == 0)
+				continue;
+
+			NSQLParameter parameter = new NSQLParameter(dbsql);
+			parameter.name = names.get(index);
+			indexs.add(index + 1);
+			names.set(index, "");
+			for (int i = index + 1; i < names.size(); i++) {
+				if (parameter.name.equals(names.get(i))) {
+					indexs.add(i + 1);
+					names.set(i, "");
+				}
+			}
+			parameter.indexs = new int[indexs.size()];
+			for (int i = 0; i < indexs.size(); i++) {
+				parameter.indexs[i] = indexs.get(i);
+			}
+			parameters.add(parameter);
+			indexs.clear();
+		}
+		dbsql.parameters = parameters.toArray(dbsql.parameters = new NSQLParameter[parameters.size()]);
+
+		String name = sql.substring(0, cmd_index);
+		if ("SELECT".equalsIgnoreCase(name))
+			dbsql.cmd = SELECT;
+		else if ("INSERT".equalsIgnoreCase(name))
+			dbsql.cmd = INSERT;
+		else if ("UPDATE".equalsIgnoreCase(name))
+			dbsql.cmd = UPDATE;
+		else if ("DELETE".equalsIgnoreCase(name))
+			dbsql.cmd = DELETE;
+		else
+			dbsql.cmd = OTHER;
+
+		return dbsql;
+	}
+
+	public String toString() {
+		return sql_naming;
+	}
+}

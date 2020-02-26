@@ -1,0 +1,34 @@
+package com.kiy.cloud.master;
+
+import java.util.concurrent.ConcurrentMap;
+
+import io.netty.util.internal.PlatformDependent;
+
+
+public class Session {
+	//1.有多个伺服器连接集合
+	private final ConcurrentMap<String, SessionServo> servo_clients; //通过servoId保存所有伺服器连接
+	
+	public Session() {
+		servo_clients = PlatformDependent.newConcurrentHashMap();
+	}
+	
+	//TODO 添加servo连接
+	public void addServo(String servoId,SessionServo sessionServo) {
+		servo_clients.put(servoId, sessionServo);
+	}
+	
+	//TODO 获取servo
+	public SessionServo getServoSession(String servoId) {
+		return servo_clients.get(servoId);
+	}
+	
+	public ConcurrentMap<String, SessionServo> getServoSessions() {
+		return servo_clients;
+	}
+
+	public void removeServoSession(String servoId) {
+		servo_clients.remove(servoId);
+	}
+	
+}

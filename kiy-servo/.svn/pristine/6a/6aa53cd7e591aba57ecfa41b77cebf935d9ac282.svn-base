@@ -1,0 +1,116 @@
+package com.kiy.servo.driver.rs485;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Status;
+import com.kiy.common.Types.Vendor;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Coder;
+
+import io.netty.buffer.ByteBuf;
+
+public class RFCoder extends Coder {
+	/**
+	 * 获取状态
+	 */
+	public static final byte STATUS = (byte) 0x0080;
+
+	public static Set<Device> RFTemperatureSensors = new HashSet<>();
+
+	@Override
+	public int getMaxFrame() {
+		return 128;
+	}
+
+	@Override
+	public void encode(Device device, ByteBuf out, byte code, int tag) {
+
+	}
+
+	@Override
+	public int frame(Device device, ByteBuf in) {
+		// 已收到字节总数
+		int readable = in.readableBytes();
+
+		if (readable < 16)
+			return Coder.CONTINUE;
+
+		if (readable > 32) {
+			device.setStatus(Status.C_OVERFLOW);
+			return Coder.OVERFLOW;
+		}
+		
+		return Coder.OK;
+	}
+
+	@Override
+	public void decode(Device device, ByteBuf in, byte code, int tag) {
+		if (in.readableBytes() == 0) {
+			return;
+		}
+
+
+		int readByte7 = in.readUnsignedByte();
+
+		if (128 != readByte7) { // x80数据包起始字节
+			return;
+		}
+
+		byte readByte = in.readByte(); // 组地址
+
+		for (Device d : RFTemperatureSensors) {
+			if (Integer.valueOf(d.getNumber()) == readByte) {
+				device = d;
+			}
+		}
+
+		if (device == null) {
+			Servo servo = Data.getServo();
+			if (servo != null) {
+
+				Set<Device> devices = servo.getDevices();
+				for (Device de : devices) {
+					if (de.getVendor() == Vendor.RFIN && de.getKind() == Kind.SENSOR_TEMPERATURE) {
+						if (!RFTemperatureSensors.contains(de)) {
+							RFTemperatureSensors.add(de);
+							if (Integer.valueOf(de.getNumber()) == readByte) {
+								device = de;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (device == null) {
+			return;
+		}
+
+		byte readByte2 = in.readByte(); // 成员Id
+
+		short readShort = in.readShort();// 温度
+		device.getFeature(readByte2 - 1).setValue(readShort); // 设置温度
+
+		int readByte5 = in.readUnsignedByte(); // 信号强度
+		device.getFeature(readByte2 + 2).setValue(readByte5); // 设置信号强度
+
+		byte readByte6 = in.readByte();// 电量指示
+		device.getFeature(readByte2+5).setValue(readByte6); //设置电量指示
+
+		// 还有九个保留字节，无校验位
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+		in.readByte();
+	}
+
+}

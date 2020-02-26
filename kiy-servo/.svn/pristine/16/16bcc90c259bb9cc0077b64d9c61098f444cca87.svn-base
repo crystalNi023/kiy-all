@@ -1,0 +1,916 @@
+package com.kiy.servo.mqtt;
+
+import java.util.Date;
+import java.util.Set;
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.Types.Status;
+import com.kiy.common.devices.ESAirES0014;
+import com.kiy.common.devices.ESCurtainES0013;
+import com.kiy.common.devices.ESDimmingES0011;
+import com.kiy.common.devices.ESDryContactES0008;
+import com.kiy.common.devices.ESDryContactES0008_01;
+import com.kiy.common.devices.ESDryContactES0008_02;
+import com.kiy.common.devices.ESDryContactES0008_03;
+import com.kiy.common.devices.ESDryContactES0008_04;
+import com.kiy.common.devices.ESGateWayES0001;
+import com.kiy.common.devices.ESGateWayES0002;
+import com.kiy.common.devices.ESHumitureSensorES0009;
+import com.kiy.common.devices.ESPLC2RS485HumitureSensorES0007;
+import com.kiy.common.devices.ESPLC2RS485IluminaceSensorES0018;
+import com.kiy.common.devices.ESPLC2RS485PMES0017;
+import com.kiy.common.devices.ESSmartLockES0016;
+import com.kiy.common.devices.ESSwitchES0004;
+import com.kiy.common.devices.ESSwitchES0010;
+import com.kiy.common.devices.ESSwitchFourES0003;
+import com.kiy.common.devices.ESSwitchFourES0003_01;
+import com.kiy.common.devices.ESSwitchFourES0003_02;
+import com.kiy.common.devices.ESSwitchFourES0003_03;
+import com.kiy.common.devices.ESSwitchFourES0003_04;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006_01;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006_02;
+import com.kiy.common.devices.ESSwitchTwoES0005;
+import com.kiy.common.devices.ESToningES0012;
+import com.kiy.common.devices.ESTvES0015;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ReadDeviceStatus.Builder;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+
+public class MqttJsonUtil {
+	public static final void send(String msg, String gatewayKey) throws MqttPersistenceException, MqttException {
+		JsonObject jsonObject = new JsonParser().parse(msg).getAsJsonObject();
+		String deviceKey; // 设备id,没有则判断该消息没用,遗弃
+		String errorCodeString = null; // 错误码，有的消息不会回复错误码
+		JsonObject function; // 必有
+		JsonElement deviceKeyJsonElement = jsonObject.get("deviceKey");
+		JsonElement errorCodeJsonElement = jsonObject.get("errorCode");
+		function = jsonObject.getAsJsonObject("function");
+		if (deviceKeyJsonElement == null)
+			return;
+		deviceKey = deviceKeyJsonElement.getAsString();
+
+		if (errorCodeJsonElement != null) {
+			errorCodeString = errorCodeJsonElement.getAsString();
+		}
+
+		// 通过deviceKey 取得缓存层相应设备
+		Servo servo = Data.getServo();
+		Set<Device> devices = servo.getDeviceByNumber(deviceKey);
+		for (Device device : devices) {
+			Model model = device.getModel();
+			device.setTickStatus(System.currentTimeMillis());
+			// 将设备消息解析后保存到相应设备缓存中
+			switch (model) {
+				case ES_0001: {// EastSoft三相网关
+					Date date = getMqttDate(function);
+					ESGateWayES0001 esGateWayES0001 = (ESGateWayES0001) device;
+					esGateWayES0001.setDatetime(date);
+				}
+					break;
+				case ES_0002: {// EastSoft路由器网关
+					Date date = getMqttDate(function);
+					ESGateWayES0002 esGateWayES0002 = (ESGateWayES0002) device;
+					esGateWayES0002.setDatetime(date);
+				}
+					break;
+				case ES_0003: {
+
+					// 四路开关执行器
+					String controllerAddr = function.get("controller_addr").getAsString();
+					ESSwitchFourES0003 esSwitchFourES0003 = (ESSwitchFourES0003) device;
+					if (gatewayKey.equals(controllerAddr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchFourES0003.setSwitchOne(function.get("switch_ch1").getAsBoolean());
+							esSwitchFourES0003.setSwitchTwo(function.get("switch_ch2").getAsBoolean());
+							esSwitchFourES0003.setSwitchThree(function.get("switch_ch3").getAsBoolean());
+							esSwitchFourES0003.setSwitchFour(function.get("switch_ch4").getAsBoolean());
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchFourES0003.setSwitchOne(function.get("switch_ch1").getAsBoolean());
+						esSwitchFourES0003.setSwitchTwo(function.get("switch_ch2").getAsBoolean());
+						esSwitchFourES0003.setSwitchThree(function.get("switch_ch3").getAsBoolean());
+						esSwitchFourES0003.setSwitchFour(function.get("switch_ch4").getAsBoolean());
+						esSwitchFourES0003.setStatus(Status.NONE);
+						sendSetStatus(esSwitchFourES0003, null);
+					}
+				}
+					break;
+				case ES_0003_01: {
+
+					// 四路开关执行器开关1
+					String controllerAddr = function.get("controller_addr").getAsString();
+					ESSwitchFourES0003_01 esSwitchFourES0003 = (ESSwitchFourES0003_01) device;
+					if (gatewayKey.equals(controllerAddr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchFourES0003.setStatus(function.get("switch_ch1").getAsBoolean());
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchFourES0003.setStatus(function.get("switch_ch1").getAsBoolean());
+						esSwitchFourES0003.setStatus(Status.NONE);
+						sendSetStatus(esSwitchFourES0003, null);
+					}
+				}
+					break;
+				case ES_0003_02: {
+
+					// 四路开关执行器开关2
+					String controllerAddr = function.get("controller_addr").getAsString();
+					ESSwitchFourES0003_02 esSwitchFourES0003 = (ESSwitchFourES0003_02) device;
+					if (gatewayKey.equals(controllerAddr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchFourES0003.setStatus(function.get("switch_ch2").getAsBoolean());
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchFourES0003.setStatus(function.get("switch_ch2").getAsBoolean());
+						esSwitchFourES0003.setStatus(Status.NONE);
+						sendSetStatus(esSwitchFourES0003, null);
+					}
+				}
+					break;
+				case ES_0003_03: {
+
+					// 四路开关执行器开关3
+					String controllerAddr = function.get("controller_addr").getAsString();
+					ESSwitchFourES0003_03 esSwitchFourES0003 = (ESSwitchFourES0003_03) device;
+					if (gatewayKey.equals(controllerAddr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchFourES0003.setStatus(function.get("switch_ch3").getAsBoolean());
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchFourES0003.setStatus(function.get("switch_ch3").getAsBoolean());
+						esSwitchFourES0003.setStatus(Status.NONE);
+						sendSetStatus(esSwitchFourES0003, null);
+					}
+				}
+					break;
+				case ES_0003_04: {
+
+					// 四路开关执行器开关4
+					String controllerAddr = function.get("controller_addr").getAsString();
+					ESSwitchFourES0003_04 esSwitchFourES0003 = (ESSwitchFourES0003_04) device;
+					if (gatewayKey.equals(controllerAddr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchFourES0003.setStatus(function.get("switch_ch4").getAsBoolean());
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchFourES0003.setStatus(function.get("switch_ch4").getAsBoolean());
+						esSwitchFourES0003.setStatus(Status.NONE);
+						sendSetStatus(esSwitchFourES0003, null);
+					}
+				}
+					break;
+				case ES_0004: { // EastSoft开关控制模块
+					ESSwitchES0004 esSwitchES0004 = (ESSwitchES0004) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchES0004.setFeed(switch_ch1.getAsBoolean());
+							esSwitchES0004.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchES0004.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchES0004.setFeed(switch_ch1.getAsBoolean());
+						esSwitchES0004.setStatus(Status.NONE);
+						sendSetStatus(esSwitchES0004, null);
+					}
+				}
+					break;
+				case ES_0005: { // EastSoft开关控制模块(两路)
+					ESSwitchTwoES0005 esSwitchTwoES0005 = (ESSwitchTwoES0005) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					JsonElement switch_ch2 = function.get("switch_ch2");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							esSwitchTwoES0005.setSwitchOne(switch_ch1.getAsBoolean());
+							esSwitchTwoES0005.setSwitchTwo(switch_ch2.getAsBoolean());
+							esSwitchTwoES0005.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							esSwitchTwoES0005.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						esSwitchTwoES0005.setSwitchOne(switch_ch1.getAsBoolean());
+						esSwitchTwoES0005.setSwitchTwo(switch_ch2.getAsBoolean());
+						esSwitchTwoES0005.setStatus(Status.NONE);
+						sendSetStatus(esSwitchTwoES0005, null);
+					}
+				}
+					break;
+				case ES_0006: { // ES_0006 2按键开关控制模块
+					ESSwitchTouchTwoES0006 eSwitchTouchTwoES0006 = (ESSwitchTouchTwoES0006) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					JsonElement switch_ch2 = function.get("switch_ch2");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+							eSwitchTouchTwoES0006.setSwitchTwo(switch_ch2.getAsBoolean());
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+						eSwitchTouchTwoES0006.setSwitchTwo(switch_ch2.getAsBoolean());
+						eSwitchTouchTwoES0006.setStatus(Status.NONE);
+						sendSetStatus(eSwitchTouchTwoES0006, null);
+					}
+				}
+					break;
+				case ES_0006_01: { // ES_0006_01 2按键开关控制模块
+					ESSwitchTouchTwoES0006_01 eSwitchTouchTwoES0006 = (ESSwitchTouchTwoES0006_01) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+						eSwitchTouchTwoES0006.setStatus(Status.NONE);
+						sendSetStatus(eSwitchTouchTwoES0006, null);
+					}
+				}
+					break;
+				case ES_0006_02: { // ES_0006_02 2按键开关控制模块
+					ESSwitchTouchTwoES0006_02 eSwitchTouchTwoES0006 = (ESSwitchTouchTwoES0006_02) device;
+					JsonElement switch_ch2 = function.get("switch_ch2");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							eSwitchTouchTwoES0006.setSwitchOne(switch_ch2.getAsBoolean());
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						eSwitchTouchTwoES0006.setSwitchOne(switch_ch2.getAsBoolean());
+						eSwitchTouchTwoES0006.setStatus(Status.NONE);
+						sendSetStatus(eSwitchTouchTwoES0006, null);
+					}
+				}
+					break;
+				case ES_0007: { // PLC转RS485 温湿度传感器
+					ESPLC2RS485HumitureSensorES0007 dEs0007 = (ESPLC2RS485HumitureSensorES0007) device;
+					JsonElement messageString = function.get("messageString");
+					JsonElement controller_addr = function.get("controller_addr");
+					if (controller_addr != null) { // PLC确认报文回复 只保存设备状态数据
+						int errorCode = Integer.parseInt(errorCodeString);
+						dEs0007.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 设备消息回复
+						String message = messageString.getAsString();
+						if (message.length() != 18)
+							return;
+						String str = message.substring(6, 10);
+						String str1 = message.substring(10, 14);
+						dEs0007.setTemperature(Integer.valueOf(str, 16) / 10);
+						dEs0007.setMoisture(Integer.valueOf(str1, 16) / 10);
+						sendGetStatus(dEs0007);
+					}
+				}
+					break;
+				case ES_0008: { // 干接点
+					ESDryContactES0008 dEs0008 = (ESDryContactES0008) device;
+
+					JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+					int buttonId = alarm.get("button_id").getAsInt();
+					int state = alarm.get("state").getAsInt();
+
+					switch (buttonId) {
+						case 1:
+							dEs0008.setLineOne(state);
+							break;
+						case 2:
+							dEs0008.setLineTwo(state);
+							break;
+						case 3:
+							dEs0008.setLineThree(state);
+							break;
+						case 4:
+							dEs0008.setLineFour(state);
+							break;
+						default:
+							break;
+					}
+					sendGetStatus(dEs0008);
+
+//					// 场景模式（暂定）
+//					Device adapterDevice = servo.getDeviceByNumber("0000LKHG");
+//					ESGateWayES0002 gateWay = (ESGateWayES0002) adapterDevice;
+	//
+//					Device fourSwitchOne = servo.getDeviceByNumber("0000ANH5");
+//					ESSwitchFourES0003 switchOne = (ESSwitchFourES0003) fourSwitchOne;
+	//
+//					Device fourSwitchTwo = servo.getDeviceByNumber("000045CA");
+//					ESSwitchFourES0003 switchTwo = (ESSwitchFourES0003) fourSwitchTwo;
+	//
+//					Device fourSwitchThree = servo.getDeviceByNumber("0000I4GD");
+//					ESSwitchFourES0003 switchThree = (ESSwitchFourES0003) fourSwitchThree;
+	//
+//					Device fourSwitchFour = servo.getDeviceByNumber("000059GU");
+//					ESSwitchFourES0003 switchFour = (ESSwitchFourES0003) fourSwitchFour;
+	//
+//					Device fourSwitchFive = servo.getDeviceByNumber("0000EF1Z");
+//					ESSwitchFourES0003 switchFive = (ESSwitchFourES0003) fourSwitchFive;
+	//
+//					Device fourSwitchSix = servo.getDeviceByNumber("0000I4WW");
+//					ESSwitchFourES0003 switchSix = (ESSwitchFourES0003) fourSwitchSix;
+	//
+//					Device fourSwitchSeven = servo.getDeviceByNumber("0000JNYT");
+//					ESSwitchFourES0003 switchSeven = (ESSwitchFourES0003) fourSwitchSeven;
+	//
+//					switchOne.setSwitchOne(false);
+//					switchOne.setSwitchTwo(false);
+//					switchOne.setSwitchThree(false);
+//					switchOne.setSwitchFour(false);
+	//
+//					switchTwo.setSwitchOne(false);
+//					switchTwo.setSwitchTwo(false);
+//					switchTwo.setSwitchThree(false);
+//					switchTwo.setSwitchFour(false);
+	//
+//					switchThree.setSwitchOne(false);
+//					switchThree.setSwitchTwo(false);
+//					switchThree.setSwitchThree(false);
+//					switchThree.setSwitchFour(false);
+	//
+//					switchFour.setSwitchOne(false);
+//					switchFour.setSwitchTwo(false);
+//					switchFour.setSwitchThree(false);
+//					switchFour.setSwitchFour(false);
+	//
+//					switchFive.setSwitchOne(false);
+//					switchFive.setSwitchTwo(false);
+//					switchFive.setSwitchThree(false);
+//					switchFive.setSwitchFour(false);
+	//
+//					switchSix.setSwitchOne(false);
+//					switchSix.setSwitchTwo(false);
+//					switchSix.setSwitchThree(false);
+//					switchSix.setSwitchFour(false);
+	//
+//					switchSeven.setSwitchOne(false);
+//					switchSeven.setSwitchTwo(false);
+//					switchSeven.setSwitchThree(false);
+//					switchSeven.setSwitchFour(false);
+	//
+//					int i1 = Integer.parseInt(dEs0008.getFeature(0).getText());
+//					int i2 = Integer.parseInt(dEs0008.getFeature(1).getText());
+//					int i3 = Integer.parseInt(dEs0008.getFeature(2).getText());
+//					int i4 = Integer.parseInt(dEs0008.getFeature(3).getText());
+//					// 判断是不是只有一路报警
+//					if ((i1 + i2 + i3 + i4) == 13 && state == 1 && dEs0008.getName().equals("场景一")) {
+//						switch (buttonId) {
+//							case 1:// (默认模式)关闭所有灯，衣架伸出，大厅空调关闭，窗帘拉开，所有警报器关闭，排气扇关闭，撤防
+//								switchFour.setSwitchFour(true);// 窗帘
+//								// 打开电视机
+//								break;
+//							case 2:// (影音模式)电视机打开，大厅灯关闭，大厅主灯打开，大厅空调打开，窗帘关闭，其他设备不变
+//								switchTwo.setSwitchOne(true);// 大厅主灯
+//								switchFour.setSwitchTwo(true);// 大厅空调
+//								break;
+//							case 3:// (离家模式)关闭所有灯，关闭空调，关闭排气扇，关闭入户门和车库门，拉上大厅窗帘，所有警报器和传感器进行联动，布防
+//									// 关闭电视机
+//								break;
+//							case 4:// (被入侵模式) 切换到被入侵模式时，推送信息，打开警报器，打开入户警示灯，其他不变
+//								switchTwo.setSwitchOne(true);// 大厅主灯
+//								switchFour.setSwitchTwo(true);// 大厅空调
+//								switchSix.setSwitchOne(true);// 排气扇
+//								switchFour.setSwitchFour(true);// 窗帘
+//								// 打开电视机
+//								break;
+//							default:
+//								break;
+//						}
+//						new MQTTDriver(gateWay).setStatus(switchOne);
+//						new MQTTDriver(gateWay).setStatus(switchTwo);
+//						new MQTTDriver(gateWay).setStatus(switchThree);
+//						new MQTTDriver(gateWay).setStatus(switchFour);
+//						new MQTTDriver(gateWay).setStatus(switchFive);
+//						new MQTTDriver(gateWay).setStatus(switchSix);
+//						new MQTTDriver(gateWay).setStatus(switchSeven);
+//					} else if ((i1 + i2 + i3 + i4) == 13 && state == 1 && dEs0008.getName().equals("场景二")) {
+//						switch (buttonId) {
+//							case 1:// (下雨模式)切换到下雨模式时，回收衣架，其他不变
+//								switchSix.setSwitchTwo(true);// 衣架
+//								break;
+//							case 2:// (晴天模式)切换到晴天模式时，伸出衣架，其他不变
+//									// switchSix.setSwitchTwo(false);// 衣架
+//								break;
+//							case 3:// (火警模式)切换到火警模式时，推送信息，打开消阀灯，打开警报器，其他不变
+//								switchFive.setSwitchTwo(true);// 消阀灯
+//								switchFive.setSwitchThree(true);// 警报器
+//								break;
+//							case 4:// (被入侵模式) 切换到被入侵模式时，推送信息，打开警报器，打开入户警示灯，其他不变
+//								switchFive.setSwitchThree(true);// 警报器
+//								switchSix.setSwitchFour(true);// 入户警示灯
+//								// 打开电视机
+//								break;
+//							default:
+//								break;
+//						}
+//						new MQTTDriver(gateWay).setStatus(switchOne);
+//						new MQTTDriver(gateWay).setStatus(switchTwo);
+//						new MQTTDriver(gateWay).setStatus(switchThree);
+//						new MQTTDriver(gateWay).setStatus(switchFour);
+//						new MQTTDriver(gateWay).setStatus(switchFive);
+//						new MQTTDriver(gateWay).setStatus(switchSix);
+//						new MQTTDriver(gateWay).setStatus(switchSeven);
+//					}
+
+				}
+					break;
+
+				case ES_0008_01: { // 干接点接口1
+					ESDryContactES0008_01 dEs0008 = (ESDryContactES0008_01) device;
+
+					JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+					int buttonId = alarm.get("button_id").getAsInt();
+					int state = alarm.get("state").getAsInt();
+					System.out.println("ES_0008_01:"+state);
+					switch (buttonId) {
+						case 1:
+							dEs0008.setLineOne(state);
+							break;
+						default:
+							break;
+					}
+					sendGetStatus(dEs0008);
+				}
+					break;
+				case ES_0008_02: { // 干接点接口2
+					ESDryContactES0008_02 dEs0008 = (ESDryContactES0008_02) device;
+
+					JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+					int buttonId = alarm.get("button_id").getAsInt();
+					int state = alarm.get("state").getAsInt();
+					System.out.println("ES_0008_02:"+state);
+					switch (buttonId) {
+						case 2:
+							dEs0008.setLineTwo(state);
+							break;
+						default:
+							break;
+					}
+					sendGetStatus(dEs0008);
+				}
+					break;
+				case ES_0008_03: { // 干接点接口2
+					ESDryContactES0008_03 dEs0008 = (ESDryContactES0008_03) device;
+
+					JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+					int buttonId = alarm.get("button_id").getAsInt();
+					int state = alarm.get("state").getAsInt();
+					System.out.println("ES_0008_03:"+state);
+					switch (buttonId) {
+						case 3:
+							dEs0008.setLineThree(state);
+							break;
+						default:
+							break;
+					}
+					sendGetStatus(dEs0008);
+				}
+					break;
+				case ES_0008_04: { // 干接点
+					ESDryContactES0008_04 dEs0008 = (ESDryContactES0008_04) device;
+
+					JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+					int buttonId = alarm.get("button_id").getAsInt();
+					int state = alarm.get("state").getAsInt();
+					System.out.println("ES_0008_04:"+state);
+					switch (buttonId) {
+						case 4:
+							dEs0008.setLineFour(state);
+							break;
+						default:
+							break;
+					}
+					sendGetStatus(dEs0008);
+				}
+					break;
+				case ES_0009: { // 温湿度传感器
+					ESHumitureSensorES0009 dEs0009 = (ESHumitureSensorES0009) device;
+					JsonElement controllerAddr = function.get("controller_addr");
+					JsonElement humidness = function.get("humidness");
+					JsonElement temperature = function.get("temperature");
+
+					if (controllerAddr != null) { // PLC确认报文回复 只保存设备状态数据
+
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							dEs0009.setTemperature(temperature.getAsFloat());
+							dEs0009.setMoisture(humidness.getAsFloat());
+						}
+						dEs0009.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 设备消息回复
+						dEs0009.setTemperature(temperature.getAsFloat());
+						dEs0009.setMoisture(humidness.getAsFloat());
+						sendGetStatus(dEs0009);
+					}
+				}
+					break;
+				case ES_0010: { // EastSoft大功率计量开关
+					ESSwitchES0010 esSwitchES0010 = (ESSwitchES0010) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					JsonElement controller_addr = function.get("controller_addr");
+					JsonElement current = function.get("current");
+					JsonElement electricity = function.get("electricity");
+					JsonElement power = function.get("power");
+					JsonElement voltage = function.get("voltage");
+
+					if (controller_addr != null) { // PLC确认报文回复 只保存设备状态数据
+						if (gatewayKey.equals(controller_addr.getAsString())) { // 网关请求
+							int errorCode = Integer.parseInt(errorCodeString);
+							if (errorCode == 0) { // 请求成功
+								if (switch_ch1 != null) { // 开关状态返回
+									esSwitchES0010.setFeed(switch_ch1.getAsBoolean());
+								} else { // 用电状态返回
+									if (current != null)
+										esSwitchES0010.setCurrent(current.getAsDouble());
+									if (electricity != null)
+										esSwitchES0010.setElectricity(electricity.getAsDouble());
+									if (current != null)
+										esSwitchES0010.setVoltage(voltage.getAsDouble());
+									if (power != null)
+										esSwitchES0010.setPowers(power.getAsDouble());
+								}
+								esSwitchES0010.setStatus(Tool.getStatusForErrorCode(errorCode));
+							} else { // 请求失败
+								esSwitchES0010.setStatus(Tool.getStatusForErrorCode(errorCode));
+								sendGetStatus(esSwitchES0010);
+							}
+						} else { // 其他设备控制主动上传
+							esSwitchES0010.setFeed(switch_ch1.getAsBoolean());
+							esSwitchES0010.setStatus(Status.NONE);
+							sendSetStatus(esSwitchES0010, null);
+						}
+					} else { // 设备主动上传用电信息
+						if (current != null)
+							esSwitchES0010.setCurrent(current.getAsDouble());
+						if (electricity != null)
+							esSwitchES0010.setElectricity(electricity.getAsDouble());
+						if (current != null)
+							esSwitchES0010.setVoltage(voltage.getAsDouble());
+						if (power != null)
+							esSwitchES0010.setPowers(power.getAsDouble());
+						sendGetStatus(esSwitchES0010);
+					}
+
+				}
+					break;
+				case ES_0011: { // EastSoft调光控制模块
+					ESDimmingES0011 esDimmingES0011 = (ESDimmingES0011) device;
+					JsonElement switchCh1 = function.get("switch_ch1");
+					JsonElement controllerAddr = function.get("controller_addr");
+					JsonElement diming = function.get("diming");
+
+					if (controllerAddr != null) { // PLC确认报文回复 只保存设备状态数据
+						if (gatewayKey.equals(controllerAddr.getAsString())) { // 网关请求
+							int errorCode = Integer.parseInt(errorCodeString);
+							if (errorCode == 0) { // 请求成功
+								if (switchCh1 != null) { // 开关状态返回
+									esDimmingES0011.setFeed(switchCh1.getAsBoolean());
+								} else if (diming != null) {
+									esDimmingES0011.setLuminosity(diming.getAsInt());
+								}
+								esDimmingES0011.setStatus(Tool.getStatusForErrorCode(errorCode));
+							} else { // 请求失败
+								esDimmingES0011.setStatus(Tool.getStatusForErrorCode(errorCode));
+							}
+						} else { // 其他设备控制主动上传
+							esDimmingES0011.setFeed(switchCh1.getAsBoolean());
+							esDimmingES0011.setStatus(Status.NONE);
+							sendSetStatus(esDimmingES0011, null);
+						}
+					} else { // 设备主动上传用电信息
+						if (diming != null)
+							esDimmingES0011.setLuminosity(diming.getAsInt());
+						sendGetStatus(esDimmingES0011);
+					}
+
+				}
+					break;
+				case ES_0012: { // EastSoft调色控制模块
+					ESToningES0012 esToningES0012 = (ESToningES0012) device;
+					JsonElement switchCh1 = function.get("switch_ch1");
+					JsonElement controllerAddr = function.get("controller_addr");
+					JsonElement diming = function.get("diming");
+					JsonElement color = function.get("color");
+
+					if (controllerAddr != null) { // PLC确认报文回复 只保存设备状态数据
+						if (gatewayKey.equals(controllerAddr.getAsString())) { // 网关请求
+							int errorCode = Integer.parseInt(errorCodeString);
+							if (errorCode == 0) { // 请求成功
+								if (switchCh1 != null) { // 开关状态返回
+									esToningES0012.setFeed(switchCh1.getAsBoolean());
+								} else if (diming != null) {
+									esToningES0012.setLuminosity(diming.getAsInt());
+								} else if (color != null) {
+									esToningES0012.setColor(color.getAsInt());
+								}
+								esToningES0012.setStatus(Tool.getStatusForErrorCode(errorCode));
+							} else { // 请求失败
+								esToningES0012.setStatus(Tool.getStatusForErrorCode(errorCode));
+							}
+						} else { // 其他设备控制主动上传
+							esToningES0012.setFeed(switchCh1.getAsBoolean());
+							esToningES0012.setStatus(Status.NONE);
+							sendSetStatus(esToningES0012, null);
+						}
+					} else {
+						if (diming != null) {
+							esToningES0012.setLuminosity(diming.getAsInt());
+							sendGetStatus(esToningES0012);
+						} else if (color != null) {
+							esToningES0012.setColor(color.getAsInt());
+							sendGetStatus(esToningES0012);
+						}
+
+					}
+				}
+					break;
+				case ES_0013: {// EastSoft窗帘控制模块
+					ESCurtainES0013 esCurtainES0013 = (ESCurtainES0013) device;
+					JsonElement controllerAddr = function.get("controller_addr");
+					JsonElement curtain_percent = function.get("curtain_percent");
+					JsonElement current_percent = function.get("current_percent");
+					if (controllerAddr != null) {
+						if (gatewayKey.equals(controllerAddr.getAsString())) { // 网关请求
+							if (errorCodeString != null) {
+								int errorCode = Integer.parseInt(errorCodeString);
+								if (errorCode == 0) { // 请求成功
+									if (current_percent != null) {
+										int currentPercent = current_percent.getAsInt();
+										esCurtainES0013.setPercent(currentPercent);
+									} else {
+										if (curtain_percent != null) {
+											int curtainPercent = curtain_percent.getAsInt();
+											esCurtainES0013.setPercent(curtainPercent);
+										}
+									}
+									esCurtainES0013.setStatus(Tool.getStatusForErrorCode(errorCode));
+								} else { // 请求失败
+									esCurtainES0013.setStatus(Tool.getStatusForErrorCode(errorCode));
+								}
+							} else {
+								if (current_percent != null) {
+									int currentPercent = current_percent.getAsInt();
+									esCurtainES0013.setPercent(currentPercent);
+								} else {
+									if (curtain_percent != null) {
+										int curtainPercent = curtain_percent.getAsInt();
+										esCurtainES0013.setPercent(curtainPercent);
+									}
+								}
+							}
+						} else {
+							// 其他设备或人为控制主动上传
+							if (current_percent != null) {
+								int currentPercent = current_percent.getAsInt();
+								esCurtainES0013.setPercent(currentPercent);
+							} else {
+								if (curtain_percent != null) {
+									int curtainPercent = curtain_percent.getAsInt();
+									esCurtainES0013.setPercent(curtainPercent);
+								}
+							}
+							esCurtainES0013.setStatus(Status.NONE);
+						}
+
+					} else {
+						// 暂无处理
+					}
+
+				}
+					break;
+				case ES_0014: {// EastSoft红外转发模块(空调)
+					ESAirES0014 esAirES0014 = (ESAirES0014) device;
+					JsonElement temperature = function.get("temperature");
+					JsonElement humidness = function.get("humidness");
+					if (temperature != null) {
+						esAirES0014.setEquipmentTemperature(temperature.getAsFloat());
+						sendGetStatus(esAirES0014);
+					}
+					if (humidness != null) {
+						esAirES0014.setEquipmentHumidness(humidness.getAsFloat());
+						sendGetStatus(esAirES0014);
+					}
+					if (errorCodeString != null) {
+						int errorCode = Integer.parseInt(errorCodeString);
+						esAirES0014.setStatus(Tool.getStatusForErrorCode(errorCode));
+						sendSetStatus(esAirES0014, null);
+					}
+					JsonElement learnResult = function.get("infrared_learn_result");
+					if (learnResult != null) {
+						if (learnResult.getAsString().equals("success")) {
+							sendSetStatus(esAirES0014, "学习成功");
+						} else {
+							sendSetStatus(esAirES0014, "学习失败,请重试！");
+						}
+					}
+					sendGetStatus(esAirES0014);
+				}
+					break;
+				case ES_0015: {// EastSoft红外转发模块(电视)
+					ESTvES0015 es = (ESTvES0015) device;
+					JsonElement temperature = function.get("temperature");
+					System.err.println("EastSoft红外转发模块(电视)" + temperature);
+					JsonElement humidness = function.get("humidness");
+					if (temperature != null) {
+						es.setEquipmentTemperature(temperature.getAsFloat());
+						sendGetStatus(es);
+					}
+					if (humidness != null) {
+						es.setEquipmentHumidness(humidness.getAsFloat());
+						sendGetStatus(es);
+					}
+					if (errorCodeString != null) {
+						int errorCode = Integer.parseInt(errorCodeString);
+						es.setStatus(Tool.getStatusForErrorCode(errorCode));
+						sendSetStatus(es, null);
+					}
+					JsonElement learnResult = function.get("infrared_learn_result");
+					if (learnResult != null) {
+						if (learnResult.getAsString().equals("success")) {
+							sendSetStatus(es, "学习成功");
+						} else {
+							sendSetStatus(es, "学习失败,请重试！");
+						}
+					}
+					sendGetStatus(es);
+				}
+					break;
+				case ES_0016: { // EastSoft智能锁
+					ESSmartLockES0016 es = (ESSmartLockES0016) device;
+					JsonElement switch_ch1 = function.get("switch_ch1");
+					String controller_addr = function.get("controller_addr").getAsString();
+					if (gatewayKey.equals(controller_addr)) { // 网关请求
+						int errorCode = Integer.parseInt(errorCodeString);
+						if (errorCode == 0) { // 请求成功
+							es.setFeed(switch_ch1.getAsBoolean());
+							es.setStatus(Tool.getStatusForErrorCode(errorCode));
+						} else { // 请求失败
+							es.setStatus(Tool.getStatusForErrorCode(errorCode));
+						}
+					} else { // 主动上传
+						es.setFeed(switch_ch1.getAsBoolean());
+						es.setStatus(Status.NONE);
+						sendSetStatus(es, null);
+					}
+				}
+					break;
+				case ES_0017: { // PLC转RS485 PM2.5传感器
+					ESPLC2RS485PMES0017 dEs0017 = (ESPLC2RS485PMES0017) device;
+					JsonElement messageString = function.get("messageString");
+					JsonElement controller_addr = function.get("controller_addr");
+					if (controller_addr != null) { // PLC确认报文回复 只保存设备状态数据
+						int errorCode = Integer.parseInt(errorCodeString);
+						dEs0017.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 设备消息回复
+						String message = messageString.getAsString();
+						if (message.length() != 14)
+							return;
+						String str = message.substring(6, 10);
+						dEs0017.setDegree(Integer.valueOf(str, 16));
+						sendGetStatus(dEs0017);
+					}
+				}
+					break;
+				case ES_0018: { // PLC转RS485 光照传感器
+					ESPLC2RS485IluminaceSensorES0018 dEs0018 = (ESPLC2RS485IluminaceSensorES0018) device;
+					JsonElement messageString = function.get("messageString");
+					JsonElement controller_addr = function.get("controller_addr");
+					if (controller_addr != null) { // PLC确认报文回复 只保存设备状态数据
+						int errorCode = Integer.parseInt(errorCodeString);
+						dEs0018.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 设备消息回复
+						String message = messageString.getAsString();
+						if (message.length() != 18)
+							return;
+						String str = message.substring(6, 14);
+						dEs0018.setDegree(Integer.valueOf(str, 16) / 10);
+						sendGetStatus(dEs0018);
+					}
+				}
+					break;
+				default:
+					break;
+			}
+		}
+
+	}
+
+	/**
+	 * 获取时间
+	 * 
+	 * @param msg mqtt返回消息
+	 * @return 获取的时间
+	 */
+	public static final Date getMqttDate(JsonObject fuction) {
+		String date = fuction.get("date").getAsString();
+		String time = fuction.get("time").getAsString();
+		StringBuilder sb = new StringBuilder();
+		sb.append("20").append(date).append(" ").append(time);
+		return Tool.stringToDate(sb.toString());
+	}
+
+	/**
+	 * 发送控制设备状态消息
+	 */
+	private static void sendSetStatus(Device d, String error) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.UNKNOWN);
+
+		Message.Builder msg = Message.newBuilder();
+		WriteDeviceStatus.Builder wrsb = msg.getWriteDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = wrsb.getItemBuilder();
+
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		wrsb.setItem(itemBuilder);
+
+		if (error != null) {
+			msg.setError(error);
+		}
+
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+
+	/**
+	 * 发送读取设备状态消息
+	 */
+	private static void sendGetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.UNKNOWN);
+
+		Message.Builder msg = Message.newBuilder();
+		Builder rdsb = msg.getReadDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = rdsb.getItemBuilder();
+
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+
+}

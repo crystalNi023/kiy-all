@@ -1,0 +1,49 @@
+package com.kiy.controller;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.kiy.common.Servo;
+import com.kiy.resources.Lang;
+
+/**
+ * 查看计划任务列表
+ * @author HLX
+ *
+ */
+public class ATaskRecord extends A<FMain> {
+	private List<Servo> openWindow = new ArrayList<>();
+
+	/**
+	 * 
+	 * @param m FMain
+	 */
+	public ATaskRecord(FMain m) {
+		super(m);
+	}
+
+	@Override
+	protected void run() {
+		Servo servo = main.getCurrentServo();
+		
+		if (servo != null) {
+
+			for (Servo opneServo : openWindow) {
+				if (opneServo == servo) {
+					return;
+				}
+			}
+			openWindow.add(servo);
+
+			FTaskRecord f = new FTaskRecord(main.getShell());
+			ServoManager serverManager = main.getServerManager();
+			serverManager.add(f, servo);
+			f.open(servo);
+			serverManager.off(f);
+			openWindow.remove(servo);
+		} else {
+			F.mbInformation(main.getShell(), Lang.getString("ATaskRecord.MessageBoxTitle.text"), Lang.getString("ATaskRecord.MessageBoxContent.text"));
+		}
+	}
+
+}

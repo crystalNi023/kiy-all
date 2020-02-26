@@ -1,0 +1,166 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.driver.rs485;
+
+import com.kiy.common.Device;
+import com.kiy.common.Types.Status;
+import com.kiy.common.devices.JXCOSensor;
+import com.kiy.common.devices.JXIluminaceSensor;
+import com.kiy.common.devices.JXMethaneSensor;
+import com.kiy.common.devices.JXMoistureTemperature;
+import com.kiy.common.devices.JXPMSensor;
+import com.kiy.servo.driver.Coder;
+
+import io.netty.buffer.ByteBuf;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class JXCoder extends Coder {
+	/**
+	 * 获取状态
+	 */
+	public static final byte STATUS = 0x03;
+
+	@Override
+	public int getMaxFrame() {
+		return 128;
+	}
+
+	@Override
+	public void encode(Device device, ByteBuf out, byte code, int tag) {
+		out.writeByte(Byte.parseByte(device.getNumber()));
+		out.writeByte(code);
+
+		switch (device.getKind()) {
+			case SENSOR_ILLUMINANCE: {
+				out.writeShort(7);
+				out.writeShort(2);
+				break;
+			}
+			case SENSOR_MOISTURE_TEMPERATURE: {
+				out.writeShort(2);
+				out.writeShort(2);
+				break;
+			}
+			case SENSOR_METHANE:{
+				out.writeShort(6);
+				out.writeShort(1);
+				break;
+			}
+			case SENSOR_PM:{
+				out.writeShort(4);
+				out.writeShort(6);
+				break;
+			}
+			case SENSOR_CO:{
+				out.writeShort(6);
+				out.writeShort(1);
+				break;
+			}
+			default:
+				break;
+		}
+		CRC.write(out);
+	}
+
+	@Override
+	public int frame(Device device, ByteBuf in) {
+		
+		// 已收到字节总数
+		int readable = in.readableBytes();
+
+		if (readable < 5)
+			return Coder.CONTINUE;
+
+		if (readable > 128) {
+			device.setStatus(Status.C_OVERFLOW);
+			return Coder.OVERFLOW;
+		}
+
+		// 协议字节数
+		short length = in.getUnsignedByte(2);
+
+		if (length + 5 > readable)
+			return Coder.CONTINUE;
+		else
+			length += 5;
+
+		return Coder.OK;
+	}
+
+	@Override
+	public void decode(Device device, ByteBuf in, byte code, int tag) {
+		if (in.readableBytes() == 0) {
+			System.out.println("readableBytes == 0,连接超时");
+			device.setStatus(Status.C_TIMEOUT);
+			return;
+		}
+
+		// 地址 B1
+		if (!device.getNumber().equals(Byte.toString(in.readByte()))) {
+			System.out.println("地址错误");
+			device.setStatus(Status.C_ADDRESS);
+			return;
+		}
+
+		// 代码 B1
+		if (code != in.readByte()) {
+			System.out.println("未知指令");
+			device.setStatus(Status.C_COMMAND);
+			return;
+		}
+
+		// 复位正常
+		device.setStatus(Status.NONE);
+
+		// 长度 B1
+		in.readByte();
+
+		switch (device.getKind()) {
+			case SENSOR_ILLUMINANCE: {
+				JXIluminaceSensor dev = (JXIluminaceSensor)device;
+				int readInt = in.readInt();
+				dev.setDegree(readInt);
+				break;
+			}
+			case SENSOR_MOISTURE_TEMPERATURE: {
+				JXMoistureTemperature dev = (JXMoistureTemperature) device;
+				short readShort = in.readShort();
+				dev.getFeature(0).setValue(readShort);
+				readShort = in.readShort();
+				dev.getFeature(1).setValue(readShort);
+				break;
+			}
+			case SENSOR_METHANE: {
+				JXMethaneSensor dev = (JXMethaneSensor) device;
+				short readShort = in.readShort();/*例如可燃气体 0x0002(十六进制)=2=>可燃气体=0.2%   该值为爆炸下限 百分比 具体参考JXMethaneSensor*/
+				dev.setDegree(readShort);
+				break;
+			}
+			case SENSOR_PM:{
+				JXPMSensor dev = (JXPMSensor) device;
+				short pm25 = in.readShort();/*读取PM2.5值*/
+				dev.setPM25(pm25);
+				// 读取无用值8个
+				in.readInt();
+				in.readInt();
+				short pm10 = in.readShort();/*读取PM10值*/
+				dev.setPM10(pm10);
+				break;
+			}
+			case SENSOR_CO:{
+				JXCOSensor dev = (JXCOSensor) device;
+				short co = in.readShort();/*读取CO值  189-> 18.9ppm*/
+				dev.getFeature(0).setValue(co);
+				break;
+			}
+			default:
+				break;
+		}
+		// CRC16
+		in.skipBytes(2);
+	}
+}

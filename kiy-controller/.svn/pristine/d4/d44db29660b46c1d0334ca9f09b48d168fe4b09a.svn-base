@@ -1,0 +1,75 @@
+/**
+ * 2017年1月20日
+ */
+package com.kiy.controller;
+
+import java.util.Date;
+
+import org.eclipse.swt.widgets.Shell;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Sence;
+import com.kiy.common.Servo;
+import com.kiy.protocol.Messages.CreateSence;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Units.MSence.Builder;
+
+/**
+ * 创建场景任务
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class ASenceCreate extends A<FMain> {
+
+	/**
+	 * @param m FMain
+	 */
+	public ASenceCreate(FMain m) {
+		super(m);
+	}
+
+	public ASenceCreate() {
+	}
+
+	@Override
+	protected void run() {
+		// 判断伺服器节点是否存在
+		Servo servo = main.getCurrentServo();
+		if (servo == null) {
+			throw new NullPointerException();
+		}
+
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(main.getShell(), client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		sendMessage(servo,client , main.getShell());
+	}
+
+	public void sendMessage(Servo servo, CtrClient client,Shell parent) {
+		FSence f = new FSence(parent);
+		Sence sence = f.open(servo,null);
+//		if (sence != null) {
+//			Message.Builder mb = Message.newBuilder();
+//			mb.setUserId(servo.getUser().getId());
+//			mb.setKey(CtrClient.getKey());
+//			CreateSence.Builder createSence = CreateSence.newBuilder();
+//			Builder builder = createSence.getItemBuilder();
+//
+//			builder.setId(sence.getId());
+//			builder.setName(sence.getName());
+//			builder.setSwitch(sence.getSwitchStatu());
+//			builder.setRemark(sence.getRemark());
+//			builder.setCreated(new Date().getTime());
+//			builder.setUpdated(new Date().getTime());
+//			mb.setCreateSence(createSence);
+//
+//			client.send(mb.build());
+//
+//		}
+	}
+}

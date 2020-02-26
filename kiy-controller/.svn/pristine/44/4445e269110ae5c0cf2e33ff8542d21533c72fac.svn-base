@@ -1,0 +1,139 @@
+package com.kiy.controller.view;
+
+import java.awt.geom.Point2D;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.geotools.feature.FeatureCollection;
+import org.geotools.feature.FeatureIterator;
+import org.geotools.geometry.DirectPosition2D;
+import org.geotools.geometry.Envelope2D;
+import org.geotools.map.Layer;
+import org.geotools.map.MapContent;
+import org.geotools.swt.SwtMapPane;
+import org.geotools.swt.event.MapMouseEvent;
+import org.geotools.swt.tool.CursorTool;
+import org.opengis.feature.simple.SimpleFeature;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.vividsolutions.jts.geom.Point;
+
+public class NormalMouseTool extends CursorTool {
+
+	private Servo servo;
+	private Point2D startDragPos;// 记录拖动的起点
+	private boolean dragged;// 判断鼠标是否在拖动
+	private SwtMapPane pane;
+	public static Set<Device> devices;
+	
+	public NormalMouseTool(int triggerButtonMask) {
+		super(triggerButtonMask);
+		
+		startDragPos = new DirectPosition2D();
+		dragged = false;
+	}
+
+	public NormalMouseTool(SwtMapPane p,Servo s) {
+		this(CursorTool.ANY_BUTTON);
+		pane = p;
+		servo = s;
+		devices = new HashSet<>();
+	}
+
+	
+	
+	@Override
+	public void onMouseClicked(MapMouseEvent ev) {
+		if ( ! isTriggerMouseButton(ev)) {
+            return;
+        }
+		
+		startDragPos = new DirectPosition2D();
+        startDragPos.setLocation(ev.getMapPosition());
+        dragged = false;
+	}
+
+	@Override
+	public void onMouseDragged(MapMouseEvent ev) {
+		if (!isTriggerMouseButton(ev)) {
+			return;
+		}
+		dragged = true;
+	}
+
+	@Override
+	public void onMousePressed(MapMouseEvent ev) {
+		dragged = false;
+	}
+
+	Envelope2D env = new Envelope2D();
+	
+	@Override
+	public void onMouseReleased(MapMouseEvent ev) {
+		if (!isTriggerMouseButton(ev)) {
+			return;
+		}
+		
+		
+		if (dragged) {
+			env.setFrameFromDiagonal(startDragPos, ev.getMapPosition());
+			dragged = false;
+			
+			MapContent mapContent = pane.getMapContent();
+			for (Layer layer : mapContent.layers()) {
+				if (layer != null && layer.getTitle() != null && layer.getTitle().equals(MapView.DEVICE_LAYER)) {
+					
+					if (layer != null) {
+						FeatureCollection<?, ?> features = null;
+						try {
+							features = layer.getFeatureSource().getFeatures();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						
+						if(features==null){
+							return;
+						}
+						
+						FeatureIterator<?> iterator = features.features();
+						while(iterator.hasNext()){
+							SimpleFeature feature = (SimpleFeature)iterator.next();
+							Point featureLocation = (Point)feature.getAttribute("location");
+							double featureLocationX = featureLocation.getX();
+							double featureLocationY = featureLocation.getY();
+							if(featureLocationX>=env.x&&featureLocationX<=(env.x+env.width)&&
+									featureLocationY>=env.y&&featureLocationY<=(env.y+env.height)){
+								String id = (String)feature.getAttribute("id");
+								Device device = servo.getDevice(id);
+								devices.add(device);
+							}
+						}
+					}
+
+				}
+			}
+			
+			
+		} else {
+			//没有拖动
+		}
+	}
+
+	@Override
+	public boolean canDraw() {
+		return true;
+	}
+
+	@Override
+	public boolean canMove() {
+		return false;
+	}
+
+	@Override
+	public boolean isDrawing() {
+		return dragged;
+	}
+
+}

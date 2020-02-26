@@ -1,0 +1,70 @@
+/**
+ * 2017年6月19日
+ */
+package com.kiy.servo.test;
+
+import com.kiy.common.Feature;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.devices.Adpater;
+import com.kiy.common.devices.MudbusSmokeSensor;
+import com.kiy.servo.Executor;
+import com.kiy.servo.driver.rs485.YYSerialPort;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class TestYYSerialPort {
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Servo servo = new Servo();
+		Adpater adpater = new Adpater(Vendor.YIYOU);
+		adpater.newId();
+		adpater.setSerialPort("COM18");
+		adpater.setSerialBaudRate(9600);
+		servo.add(adpater);
+
+		/**
+		 * 温湿度传感器
+		 */
+//		YYTemperatureMoistureTransmitter device = new YYTemperatureMoistureTransmitter();
+//		device.newId();
+//		device.setSerialBaudRate(4800);
+//		device.setNumber("18");
+//		device.setRelayId(adpater.getId());
+//		servo.add(device);
+
+		MudbusSmokeSensor device = new MudbusSmokeSensor();
+		device.newId();
+		device.setNumber("1");
+		device.setRelayId(adpater.getId());
+		servo.add(device);
+		
+		Executor.initialize();
+		YYSerialPort sp = new YYSerialPort(adpater);
+		sp.initialize();
+		sp.start();
+		int count = 1;
+		Long time = System.currentTimeMillis();
+		while (count > 0) {
+			sp.getStatus(device);
+			count--;
+			System.out.println("COUNT:" + count);
+			Feature[] fs = device.getFeatures();
+			if (fs != null)
+				for (int index = 0; index < fs.length; index++) {
+					System.out.println(device.getFeature(index).getText());
+				}
+		}
+		time = System.currentTimeMillis() - time;
+
+		System.out.println(time);
+		sp.stop();
+
+	}
+
+}

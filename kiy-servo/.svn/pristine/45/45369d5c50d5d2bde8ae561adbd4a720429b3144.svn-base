@@ -1,0 +1,98 @@
+package com.kiy.servo.mqtt;
+
+
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+/**
+ *
+ * Title:Server
+ * Description: 服务器向多个客户端推送主题，即不同客户端可向服务器订阅相同主题
+ * @author admin
+ * 2017年2月10日下午17:41:10
+ */
+
+/**
+ * MQTT server 服务器向多个客户端推送主题
+ * @author HLX Tel:18996470535 
+ * @date 2018年6月25日 
+ * Copyright:Copyright(c) 2018
+ */
+public class MQTTServer {
+
+    //定义一个主题
+    public static final String TOPIC = "kiy/00005KYV/00005KYV/command";
+    //定义MQTT的ID，可以在MQTT服务配置中指定
+    private static final String clientid = "kiy-servo";
+
+    private MqttClient client;
+
+    public MqttMessage message;
+
+    /**
+     * 构造函数
+     * @throws MqttException
+     */
+    public MQTTServer() {
+        // MemoryPersistence设置clientid的保存形式，默认为以内存保存
+        try {
+			client = new MqttClient(Config.MQTT_HOST, clientid, new MemoryPersistence());
+			 connect();
+		} catch (MqttException e) {
+			Log.error(e);
+		}
+       
+    }
+
+    /**
+     *  用来连接服务器
+     */
+    private void connect() {
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setCleanSession(false);
+        options.setUserName(Config.MQTT_USERNAME);
+        options.setPassword(Config.MQTT_PASSWORD.toCharArray());
+        // 设置超时时间
+        options.setConnectionTimeout(10);
+        // 设置会话心跳时间
+        options.setKeepAliveInterval(20);
+        try {
+            client.setCallback(new PushCallback());
+            client.connect(options);
+        } catch (Exception e) {
+        	Log.error(e);
+        }
+    }
+
+    /**
+     * 获取Topic，不能包含通配符#+
+     * @return
+     */
+    public MqttTopic getTopic(String topic){
+    	return client.getTopic(topic);
+    }
+    
+    
+    /**
+     *
+     * @param topic
+     * @param message
+     * @throws MqttPersistenceException
+     * @throws MqttException
+     */
+    public void publish(MqttTopic topic , MqttMessage message) throws MqttPersistenceException,
+            MqttException {
+        MqttDeliveryToken token = topic.publish(message);
+        token.waitForCompletion();
+    }
+
+  
+}

@@ -1,0 +1,206 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo;
+
+import org.apache.commons.daemon.Daemon;
+import org.apache.commons.daemon.DaemonContext;
+import org.apache.commons.daemon.DaemonInitException;
+
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.job.Strategy;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.messageque.Cruise;
+import com.kiy.servo.messageque.MessageQue;
+
+/**
+ * 服务主类（启动入口）
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Service implements Daemon {
+
+	private static Service instance = null;
+
+	/**
+	 * 主函数入口， 直接启动程序运行在命令行控制台时调用此方法； 通过Apache
+	 * Aaemon启动服务为JAVA程序模式时调用此方法，要求必须传递参数；
+	 * 
+	 * @param args
+	 * @throws Exception
+	 * @throws DaemonInitException
+	 */
+	public static void main(String[] args) throws Exception {
+		instance();
+
+		if (args == null || args.length == 0) {
+			Log.info("VERSION V2.0.0");
+			Log.info("优化内容：");
+			Log.info("1：新增智能锁设备；");
+			Log.info("2：新增账号挂失功能。");
+			Log.info("2：新增红外转发设备修改。");
+			Log.info("修复bug：");
+//			Log.info("1：计划策略数据库时间异常问题。");
+//			Log.info("2：日志优化，获取不到ip重启。");
+			Log.info("SERVO BOOT WITH \"main and no arguments\"");
+
+			// 钩子(线程)
+			// 在jvm中增加一个关闭的钩子，当jvm关闭的时候，会执行系统中已经设置的所有通过方法addShutdownHook添加的钩子，
+			// 当系统执行完这些钩子后，jvm才会关闭。所以这些钩子可以在jvm关闭的时候进行内存清理、对象销毁等操作。
+			Runtime.getRuntime().addShutdownHook(new Thread() {
+				@Override
+				public void run() {
+					Log.info("SERVO SHUTDOWN WITH \"main and no arguments\"");
+
+					if (instance != null) {
+						instance.stop();
+						instance.destroy();
+						synchronized (instance) {
+							instance.notifyAll();
+						}
+					}
+				}
+			});
+
+			instance.init(null);
+			instance.start();
+			synchronized (instance) {
+				instance.wait();
+			}
+		} else {
+			String param = args[0];
+			if ("START".equalsIgnoreCase(param)) {
+				Log.info("SERVO BOOT WITH \"main and has arguments\"");
+
+				instance.init(null);
+				instance.start();
+				synchronized (instance) {
+					instance.wait();
+				}
+			}
+			if ("STOP".equalsIgnoreCase(param)) {
+				Log.info("SERVO SHUTDOWN WITH \"main and has arguments\"");
+
+				if (instance != null) {
+					instance.stop();
+					instance.destroy();
+					synchronized (instance) {
+						instance.notifyAll();
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * 服务启动入口 通过Apache Aaemon启动服务为JVM模式时调用
+	 * 
+	 * @param args
+	 * @throws Exception
+	 */
+	public static void start(String[] args) throws Exception {
+		Log.info("SERVO BOOT WITH \"start\"");
+
+		instance();
+		instance.init(null);
+		instance.start();
+		synchronized (instance) {
+			instance.wait();
+		}
+		instance = null;
+	}
+
+	/**
+	 * 服务停止入口 通过Apache Aaemon停止服务为JVM模式时调用
+	 * 
+	 * @param args
+	 */
+	public static void stop(String[] args) {
+		Log.info("SERVO SHUTDOWN WITH \"stop\"");
+
+		if (instance != null) {
+			instance.stop();
+			instance.destroy();
+			synchronized (instance) {
+				instance.notifyAll();
+			}
+		}
+	}
+
+	private static synchronized Service instance() {
+		if (instance == null)
+			instance = new Service();
+		return instance;
+	}
+
+	////////////////////////////////////////////////////////
+
+	@Override
+	public void init(DaemonContext arg0) {
+		Log.info("SERVO INITIALIZE ...");
+
+		Config.load();
+		Config.check();
+
+		Executor.initialize();
+		Data.initialize();
+		Driver.initialize();
+		Master.initialize();
+		Cloud.initialize();
+		MessageQue.initialize();
+		Cruise.initialize();
+		Strategy.initialize();
+		FileUtil.TimedTask();
+		Log.info("SERVO INITIALIZED");
+	}
+
+	@Override
+	public void start() {
+		Log.info("SERVO START ...");
+
+		Driver.start();
+		Master.start();
+		Cloud.start();
+		MessageQue.start();
+		Cruise.start();
+		Strategy.start();
+		
+		Log.info("SERVO STARTED");
+	}
+
+	@Override
+	public void stop() {
+		Log.info("SERVO STOP ...");
+
+		Master.stop();
+		Cloud.stop();
+		Driver.stop();
+		MessageQue.stop();
+		Cruise.stop();
+		Strategy.stop();
+
+		Log.info("SERVO STOPPED");
+	}
+
+	@Override
+	public void destroy() {
+		Log.info("SERVO DESTROY ...");
+
+		try {
+			Master.destroy();
+			Cloud.destroy();
+			Driver.destroy();
+			Data.destroy();
+			Strategy.destroy();
+			Executor.destroy();
+
+		} catch (Exception ex) {
+			Log.error(ex);
+		}
+
+		Log.info("SERVO DESTROYED");
+	}
+}

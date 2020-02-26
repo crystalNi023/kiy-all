@@ -1,0 +1,34 @@
+package com.kiy.servo.test;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
+public class Test1 {
+	public static void main(String[] args) {
+		JsonObject jsonObject = new JsonObject();
+		jsonObject.addProperty("deviceKey", "00005T3U");
+		jsonObject.addProperty("cmd", "read");
+		JsonObject jsonObject2 = new JsonObject();
+		JsonArray jsonArray = new JsonArray();
+		JsonObject channel1 = new JsonObject();
+		channel1.addProperty("channel", 1);
+		channel1.addProperty("switch", true);
+		JsonObject channel2 = new JsonObject();
+		channel2.addProperty("channel", 2);
+		channel2.addProperty("switch", true);
+		JsonObject channel3 = new JsonObject();
+		channel3.addProperty("channel", 3);
+		channel3.addProperty("switch", true);
+		JsonObject channel4 = new JsonObject();
+		channel4.addProperty("channel", 4);
+		channel4.addProperty("switch", true);
+		jsonArray.add(channel1);
+		jsonArray.add(channel2);
+		jsonArray.add(channel3);
+		jsonArray.add(channel4);
+		jsonObject2.add("channel_collection", jsonArray);
+		jsonObject.add("function", jsonObject2);
+		
+		System.err.println(jsonObject.toString());
+	}
+}

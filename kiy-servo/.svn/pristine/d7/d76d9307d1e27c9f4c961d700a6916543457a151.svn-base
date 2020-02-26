@@ -1,0 +1,30 @@
+package com.kiy.servo;
+
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class Util {
+
+	static SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+	/**
+	 * 去掉毫秒（MySQL数据库对于毫秒大于500的数据会进位！！！）
+	 * @param date
+	 * @return
+	 */
+	public static Date covertTime(Date date) {
+		Timestamp now = new Timestamp(date.getTime());
+		String str = df.format(now);
+		Date newDate = null;
+
+		try {
+			newDate = df.parse(str);
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+
+		return newDate;
+	}
+}

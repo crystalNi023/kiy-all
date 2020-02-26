@@ -1,0 +1,55 @@
+package com.kiy.servo.test;
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
+
+import sun.tools.jar.resources.jar;
+
+import com.google.gson.JsonObject;
+import com.kiy.common.Servo;
+import com.kiy.common.devices.ESGateWayES0001;
+import com.kiy.servo.Config;
+import com.kiy.servo.mqtt.MQTTDriver;
+import com.kiy.servo.mqtt.MQTTServer;
+
+public class TestMQTT {
+	public static void main(String[] args) throws MqttPersistenceException, MqttException {
+		Config.load();
+		Config.check();
+		
+//		Servo servo = new Servo();
+//		ESGateWayES0001 esGateWayES0001 = new ESGateWayES0001();
+//		esGateWayES0001.newId();
+//		esGateWayES0001.setNumber("00005KYV");
+//		servo.add(esGateWayES0001);
+//		
+//		MQTTDriver mqttDriver = new MQTTDriver(esGateWayES0001);
+//		mqttDriver.start();
+//		
+//		mqttDriver.getStatus(esGateWayES0001);
+		
+		MQTTServer mqttServer = new MQTTServer("00005KYV");
+		mqttServer.start();
+		MqttTopic topic = mqttServer.getTopic("kiy/00005KYV/00005KYV/command");
+		
+		JsonObject jsonObject = new JsonObject();
+		jsonObject.addProperty("deviceKey", "00005KYV");
+		jsonObject.addProperty("cmd", "addDevice");
+		jsonObject.addProperty("channel", "plc");
+		JsonObject jsonObject2 = new JsonObject();
+		jsonObject2.addProperty("aid", "246101");
+		jsonObject2.addProperty("password", "60357");
+		jsonObject2.addProperty("alias", "开关控制模块 两路");
+		jsonObject.add("data", jsonObject2);
+		
+		MqttMessage message = new MqttMessage();
+		message.setQos(1);
+	    message.setRetained(true);
+	    message.setPayload(jsonObject.toString().getBytes());
+		
+		mqttServer.publish(topic, message);
+        
+	}
+}	

@@ -1,0 +1,32 @@
+package test;
+
+import java.io.IOException;
+
+import com.kiy.cloud.data.bean.FeedbackBean;
+import com.kiy.cloud.data.dao.impl.FeedBackDaoImpl;
+
+public class test {
+	public static void main(String[] args) throws IOException {
+//		ServoDao servoDao = new ServoDaoImpl();
+//		try {
+//			String findUserById = servoDao.findCustomerIdById("1575f7ba-7753-11e7-bb87-4061866d97d0");
+//			System.out.println(findUserById);
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		}
+		FeedbackBean feedbackBean = new FeedbackBean();
+		feedbackBean.setUsername("test");
+		feedbackBean.setContent("AAAAAAAA");
+		feedbackBean.setImg_url("dcccccccccc");
+		feedbackBean.setChoice(1);
+		feedbackBean.setServoId("1575f7ba-7753-11e7-bb87-4061866d97d0");
+		boolean createFeedBack = false;
+		try {
+			createFeedBack = new FeedBackDaoImpl().createFeedBack(feedbackBean);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		System.out.println(createFeedBack);
+	}
+}

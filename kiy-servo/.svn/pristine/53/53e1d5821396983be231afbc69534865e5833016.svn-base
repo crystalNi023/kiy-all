@@ -1,0 +1,84 @@
+package com.kiy.servo.mqtt;
+
+import java.util.Date;
+
+import com.google.gson.JsonParser;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Model;
+import com.kiy.common.devices.ESGateWayES0001;
+import com.kiy.common.devices.ESGateWayES0002;
+import com.kiy.common.devices.ESSwitchES0004;
+import com.kiy.common.devices.ESSwitchTwoES0005;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+
+public class MqttJsonUtil {
+
+	public static final void send(String msg) {
+		String deviceKey;
+		try {
+			deviceKey = new JsonParser().parse(msg).getAsJsonObject().get("deviceKey").getAsString();
+		} catch (Exception e) {
+			Log.error(e);
+			return;
+		}
+		Servo servo = Data.getServo();
+		Device device = servo.getDeviceByNumber(deviceKey);
+		Model model = device.getModel();
+
+		switch (model) {
+			case ES_0001:
+				Date date = getMqttDate(msg);
+				ESGateWayES0001 instance = (ESGateWayES0001) device;
+				instance.setDatetime(date);
+				break;
+			case ES_0002:
+				Date date1 = getMqttDate(msg);
+				ESGateWayES0002 instance1 = (ESGateWayES0002) device;
+				instance1.setDatetime(date1);
+				break;
+			case ES_0004:
+				int errorCode = Integer.parseInt(new JsonParser().parse(msg).getAsJsonObject().get("errorCode").getAsString());
+				if (errorCode == 0) {
+					String on = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function").get("switch_ch1").getAsString();
+					ESSwitchES0004 instance2 = (ESSwitchES0004) device;
+					instance2.setFeed(Boolean.valueOf(on));
+				} else {
+					device.setStatus(Tool.getStatusForErrorCode(errorCode));
+				}
+				break;
+			case ES_0005:
+				int errorCode1 = Integer.parseInt(new JsonParser().parse(msg).getAsJsonObject().get("errorCode").getAsString());
+				if (errorCode1 == 0) {
+					String switchOne = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function").get("switch_ch1").getAsString();
+					String switchTwo = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function").get("switch_ch2").getAsString();
+					ESSwitchTwoES0005 instance2 = (ESSwitchTwoES0005) device;
+					instance2.setSwitchOne(Boolean.valueOf(switchOne));
+					instance2.setSwitchTwo(Boolean.valueOf(switchTwo));
+				} else {
+					device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+				}
+				break;
+			default:
+				break;
+		}
+
+	}
+
+	/**
+	 * 获取时间
+	 * 
+	 * @param msg mqtt返回消息
+	 * @return 获取的时间
+	 */
+	public static final Date getMqttDate(String msg) {
+		String date = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function").get("date").getAsString();
+		String time = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function").get("time").getAsString();
+		String dateTimeString = "20" + date + " " + time;
+		return Tool.stringToDate(dateTimeString);
+	}
+
+	// public static final
+}

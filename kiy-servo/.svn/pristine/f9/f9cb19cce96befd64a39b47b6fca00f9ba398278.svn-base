@@ -1,0 +1,96 @@
+package com.kiy.servo.cruise;
+
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Status;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.driver.DriverAdpater;
+
+/**
+ * 设备巡游服务
+ * @author HLX Tel:18996470535 
+ * @date 2018年4月17日 
+ * Copyright:Copyright(c) 2018
+ */
+public final class Cruise {
+
+	private static boolean start = true;
+	
+	private Cruise() {
+	}
+
+	public static void initialize() {
+
+		Log.info("Cruise initialize ...");
+		
+		Servo servo = Data.getServo();
+
+		Log.info("Cruise initialized device count " + servo.getDeviceCount());
+	}
+
+	public static void start(){
+		Log.info("Cruise Start ...");
+		
+		Thread threadMessageQue = new Thread(MessageDeviceDeque.getInstance(),"MessageDevice thread");
+		threadMessageQue.start();
+		
+		if (!Config.CRUISE) {
+			Log.info("Cruise disabled");
+			return;
+		}
+		
+		Thread thread = new Thread(runnable,"crusie");
+		thread.start();
+		
+		Log.info("Cruise Started ...");
+	}
+	
+	public static void stop(){
+		Log.info("Cruise Stop ...");
+		
+		start = false;
+		
+		Log.info("Cruise Stoped ...");
+	}
+	
+	private static Runnable runnable = new Runnable() {
+		
+		@Override
+		public void run() {
+			while (start) {
+				try {
+					Set<Device> devices = Data.getServo().getDevices();
+					for (Device device : devices) {
+						DriverAdpater adpater = Driver.getAdpater(device);
+						if (adpater == null) {
+							device.setStatus(Status.C_RELAY);
+						}else if (!adpater.isActive()) {
+							device.setStatus(Status.OFFLINE);
+						}else if (!device.getDetect()) {
+							device.setStatus(Status.OFFLINE);
+						}else {
+							if(device.getKind()!=Kind.AIR_CONDITIONER){
+								MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, false, false));
+							}else {
+								device.setStatus(Status.NONE);
+							}
+						}
+					}
+					Thread.sleep(30000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					Log.debug("设备巡视停止");
+					run();
+				}
+			}
+			
+		}
+	};
+
+}

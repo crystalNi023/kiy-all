@@ -1,0 +1,90 @@
+package com.kiy.servo.test;
+
+import com.kiy.common.Feature;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.devices.Adpater;
+import com.kiy.common.devices.MudbusSwitch;
+import com.kiy.servo.Config;
+import com.kiy.servo.Executor;
+import com.kiy.servo.driver.rs485.MudbusSerialPort;
+
+
+/**
+ * 
+ * @author HLX Tel:18996470535
+ * @date 2018年4月12日 Copyright:Copyright(c) 2018
+ */
+public class TestMudbusSerialPort {
+
+	public static void main(String[] args) throws Exception {
+		System.out.println("START TEST");
+
+		Servo servo = new Servo();
+		Adpater adpater = new Adpater(Vendor.MUDBUS);
+		adpater.newId();
+		adpater.setSerialPort("COM19");
+		adpater.setSerialBaudRate(9600);
+		servo.add(adpater);
+
+		/**
+		 * 甲烷采集器
+		 */
+//		JXMethaneSensor device = new JXMethaneSensor();
+//		device.newId();
+//		device.setNumber("1");
+//		device.setRelayId(adpater.getId());
+//		servo.add(device);
+		
+		/**
+		 * PM2.5/PM10
+		 */
+//		JXPMSensor device = new JXPMSensor();
+//		device.newId();
+//		device.setNumber("1");
+//		device.setRelayId(adpater.getId());
+//		servo.add(device);
+		
+		/**
+		 * CO采集器
+		 */
+//		MudbusCOSensor device = new MudbusCOSensor();
+//		device.newId();
+//		device.setNumber("1");
+//		device.setRelayId(adpater.getId());
+//		servo.add(device);
+		
+		MudbusSwitch device  = new MudbusSwitch();
+		device.newId();
+		device.setNumber("1");
+		device.setRelayId(adpater.getId());
+		device.setFeed(false);
+		servo.add(device);
+
+		Config.DRIVER_INTERVAL = 1;
+		Executor.initialize();
+		MudbusSerialPort sp = new MudbusSerialPort(adpater);
+		sp.initialize();
+		sp.start();
+
+		// int count = 100;
+		Long time = System.currentTimeMillis();
+		// while (count > 0) {
+//		sp.getStatus(device);
+		sp.setStatus(device);
+		// count--;
+		// System.out.println("COUNT:" + count + " STATUS:" +
+		// device.getStatus());
+		Feature[] fs = device.getFeatures();
+		if (fs != null)
+			for (int index = 0; index < fs.length; index++) {
+				System.out.print(device.getFeature(index).getName()+" ");
+				System.out.println(device.getFeature(index).getText());
+			}
+		// }
+		time = System.currentTimeMillis() - time;
+
+		System.out.println("TIME:" + time);
+		sp.stop();
+	}
+}

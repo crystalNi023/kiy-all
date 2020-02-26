@@ -1,0 +1,629 @@
+package com.kiy.controller;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MenuAdapter;
+import org.eclipse.swt.events.MenuEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TableColumn;
+
+import com.google.protobuf.ByteString;
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Unit;
+import com.kiy.common.User;
+import com.kiy.protocol.Messages.FileDownload;
+import com.kiy.protocol.Messages.FileList;
+import com.kiy.protocol.Messages.FileList_File;
+import com.kiy.protocol.Messages.FileUpload;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.resources.Lang;
+
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.ProgressBar;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.ToolBar;
+import org.eclipse.swt.widgets.ToolItem;
+
+public class FMapFileManager extends Dialog implements FormMessage {
+	private Shell shell;
+	private Servo servo;
+	private Table table;
+	private ToolItem toolDownloadFile;
+	private ToolItem toolUploadFile;
+	private File upLoadFile;// 上传的文件
+	private ServoManager servoManager;
+	private ProgressBar progressBar;
+	
+	private Long downLoadFileLength;
+
+	public final static String MAP_FILE = "map";
+
+	public FMapFileManager(Shell arg0) {
+		super(arg0);
+	}
+
+	public void open(Servo s, ServoManager servoManger) {
+		
+		servo = s;
+		servoManager = servoManger;
+
+		if (servo == null) {
+			throw new NullPointerException("class = " + getClass());
+		}
+		
+		File files = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE);
+		if(!files.exists()){
+			files.mkdir();
+		}
+		createContents();
+
+		shell.open();
+		shell.layout();
+
+		Display display = getParent().getDisplay();
+		if (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER |SWT.MIN| SWT.CLOSE | SWT.DIALOG_TRIM  );
+		shell.setText(Lang.getString("FMapFileManager.mapFileManager"));
+		shell.setSize(600, 463);
+		shell.addShellListener(shellAdapter);
+		F.center(getParent(), shell);
+
+		table = new Table(shell, SWT.BORDER | SWT.FULL_SELECTION);
+		table.setBounds(16, 31, 562, 355);
+		table.setHeaderVisible(true);
+		table.setLinesVisible(true);
+
+		{
+			TableColumn tableColumnFileName = new TableColumn(table, SWT.LEFT);
+			tableColumnFileName.setWidth(200);
+			tableColumnFileName.setText(Lang.getString("FMapFileManager.Name"));
+
+			TableColumn tableColumnFileSize = new TableColumn(table, SWT.LEFT);
+			tableColumnFileSize.setWidth(100);
+			tableColumnFileSize.setText(Lang.getString("FMapFileManager.Size"));
+
+			TableColumn tableColumnFileUpdate = new TableColumn(table, SWT.LEFT);
+			tableColumnFileUpdate.setWidth(96);
+			tableColumnFileUpdate.setText(Lang.getString("FMapFileManager.Time"));
+
+			TableColumn tableColumnFileStatus = new TableColumn(table, SWT.LEFT);
+			tableColumnFileStatus.setWidth(96);
+			tableColumnFileStatus.setText(Lang.getString("FMapFileManager.Status"));
+
+		}
+
+		Button btnNewButton = new Button(shell, SWT.NONE);
+		btnNewButton.setBounds(480, 394, 98, 30);
+		btnNewButton.setText(Lang.getString("FMapFileManager.Cancel"));
+		btnNewButton.addSelectionListener(btCancelSelectionAdapter);
+
+		Label FileStatus = new Label(shell, SWT.NONE);
+		FileStatus.setBounds(282, 8, 76, 17);
+
+		progressBar = new ProgressBar(shell, SWT.HORIZONTAL|SWT.SMOOTH);
+		progressBar.setBounds(368, 8, 210, 17);
+		progressBar.setMinimum(0);
+		progressBar.setMaximum(100);
+		progressBar.setVisible(false);
+
+		ToolBar toolBar = new ToolBar(shell, SWT.FLAT | SWT.RIGHT);
+		toolBar.setBounds(16, 0, 260, 25);
+		
+		ToolItem toolAddFile = new ToolItem(toolBar, SWT.NONE);
+		toolAddFile.setText(Lang.getString("FMapFileManager.AddFile"));
+		toolAddFile.addSelectionListener(btnAddFileSelectionAdapter);
+
+		ToolItem toolDeleteFile = new ToolItem(toolBar,SWT.NONE);
+		toolDeleteFile.setText(Lang.getString("FMapFileManager.deleteFile"));
+		toolDeleteFile.addSelectionListener(btnDeleteFileSelectionAdapter);
+		
+		toolDownloadFile = new ToolItem(toolBar, SWT.NONE);
+		toolDownloadFile.setText(Lang.getString("FMapFileManager.DownLoad"));
+		toolDownloadFile.addSelectionListener(btnDownLoadSelectionAdapter);
+
+		toolUploadFile = new ToolItem(toolBar, SWT.NONE);
+		toolUploadFile.setText(Lang.getString("FMapFileManager.Upload"));
+		toolUploadFile.addSelectionListener(upLoadSelectionAdapter);
+		
+		Menu menu = new Menu(shell,SWT.POP_UP);
+		MenuItem addFileItem = new MenuItem(menu, SWT.PUSH);
+		addFileItem.setText(Lang.getString("FMapFileManager.AddFile"));
+		addFileItem.addSelectionListener(btnAddFileSelectionAdapter);
+		
+		MenuItem deleteFile = new MenuItem(menu ,SWT.PUSH);
+		deleteFile.setText(Lang.getString("FMapFileManager.deleteFile"));
+		deleteFile.addSelectionListener(btnDeleteFileSelectionAdapter);
+		
+		MenuItem downloadFile = new MenuItem(menu ,SWT.PUSH);
+		downloadFile.setText(Lang.getString("FMapFileManager.DownLoad"));
+		downloadFile.addSelectionListener(btnDownLoadSelectionAdapter);
+		downloadFile.setData(new ActionCase[] { ActionCase.FILE_DOWNLOAD });
+		
+		MenuItem uploadFile = new MenuItem(menu ,SWT.PUSH);
+		uploadFile.setText(Lang.getString("FMapFileManager.Upload"));
+		uploadFile.addSelectionListener(btnDownLoadSelectionAdapter);
+		uploadFile.setData(new ActionCase[] { ActionCase.FILE_UPLOAD });
+		
+		table.setMenu(menu);
+		
+		menu.addMenuListener(new MenuAdapter() {
+
+			@Override
+			public void menuShown(MenuEvent arg0) {
+				MenuItem[] items = menu.getItems();
+				MenuCommandUtil mcu = new MenuCommandUtil(servo);
+				mcu.LoadMenuForCommand(items);
+				
+			}
+			
+		});
+		
+		getFileList();
+	}
+
+	/**
+	 * 获取服务器文件列表
+	 */
+	private void getFileList() {
+		table.removeAll();
+
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setKey(CtrClient.getKey());
+		b_m.setUserId(servo.getUser().getId());
+		FileList.Builder fBuilder = FileList.newBuilder();
+		b_m.setFileList(fBuilder);
+		client.send(b_m.build());
+	}
+
+	/**
+	 * 上传文件
+	 * 
+	 * @param file
+	 * @param skipLength
+	 *            跳过的字节数
+	 */
+	private void uploadFile(File file, Long skipLength) {
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		FileInputStream in = null;
+		try {
+			Long length = file.length();
+
+			in = new FileInputStream(file);
+			in.skip(skipLength);
+
+			int length1 = 4096;
+			ByteString.Output out = ByteString.newOutput(length1);
+			int value = 0;
+			while (length1 > 0 && (value = in.read()) >= 0) {
+				out.write(value);
+				length1--;
+			}
+			ByteString byteString = out.toByteString();
+
+			in.close();
+			Long unUpdateLength = length - skipLength - out.size();
+
+			if (unUpdateLength <= 0) {
+				unUpdateLength = 0L;
+			}
+
+			Message.Builder b_m = Message.newBuilder();
+			b_m.setKey(CtrClient.getKey());
+			b_m.setUserId(servo.getUser().getId());
+			FileUpload.Builder fBuilder = FileUpload.newBuilder();
+			fBuilder.setName(file.getName());
+			fBuilder.setData(byteString);
+			fBuilder.setLength(unUpdateLength);
+			b_m.setFileUpload(fBuilder);
+			client.send(b_m.build());
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+	}
+
+	/**
+	 * 下载文件
+	 * 
+	 * @param fileName
+	 */
+	private void downloadFile(String fileName, long accpetLength) {
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setKey(CtrClient.getKey());
+		FileDownload.Builder builder = FileDownload.newBuilder();
+		builder.setName(fileName);
+		builder.setLength(accpetLength);
+//		System.out.println("下载的文件名名：" + fileName + "已经下载的文件包大小：" + accpetLength);
+		b_m.setFileDownload(builder);
+		client.send(b_m);
+
+	}
+
+	@Override
+	public void received(Servo s, Message m,Map<Message, Unit> units) {
+		ActionCase actionCase = m.getActionCase();
+		switch (actionCase) {
+		case FILE_UPLOAD:
+			FileUpload fileUpload = m.getFileUpload();
+			long length = fileUpload.getLength();
+			
+			double p1 = (length*0.1)/(upLoadFile.length()*0.1);
+			toolDownloadFile.setEnabled(false);
+			toolUploadFile.setEnabled(false);
+			progressBar.setVisible(true);
+			progressBar.setSelection((int)(p1*100));
+
+//			System.out.println("上传指令成功,服务器上已有字节数" + length);
+//			System.out.println("upLoadFile 文件总大小 = " + upLoadFile.length());
+			
+			if (length == upLoadFile.length()) {
+//				System.out.println("文件上传完毕");
+				progressBar.setSelection(100);
+				progressBar.setVisible(false);
+				toolDownloadFile.setEnabled(true);
+				toolUploadFile.setEnabled(true);
+				getFileList();
+				break;
+			} else {
+				uploadFile(upLoadFile, length);
+			}
+			break;
+
+		case FILE_LIST:
+			FileList fileList = m.getFileList();
+			List<FileList_File> fileList2 = fileList.getFileList();
+			setTableContent(fileList2);
+
+			break;
+		case FILE_DOWNLOAD:
+			FileDownload fileDownload = m.getFileDownload();
+			ByteString bytes = fileDownload.getData();
+			String name = fileDownload.getName();
+			long length2 = fileDownload.getLength();
+
+//			System.out.println("下载到的数据包大小：" + bytes.size() + "下载的文件名名：" + name + "剩下的文件包大小：" + length2);
+			double p = (downLoadFileLength-length2)*1.0/downLoadFileLength*1.0;
+//			System.out.println(downLoadFileLength-length2);
+//			System.out.println(downLoadFileLength);
+//			System.out.println("进度条百分比："+(int)(p*100));
+			toolDownloadFile.setEnabled(false);
+			toolUploadFile.setEnabled(false);
+			progressBar.setVisible(true);
+			progressBar.setSelection((int)(p*100));
+			File files = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE);
+			if(!files.exists()){
+				files.mkdir();
+			}
+			
+			File file = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + name + ".temp");
+			if (bytes != null && !bytes.isEmpty()) {
+				if (!file.exists()) {
+					try {
+						file.createNewFile();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				FileOutputStream out;
+				try {
+					out = new FileOutputStream(file, true);
+					bytes.writeTo(out);
+					out.flush();
+					out.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				if (length2 == 0) {
+					File dest = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + name);
+					if (dest.exists())
+						dest.delete();
+					file.renameTo(dest);
+					file = dest;
+					progressBar.setSelection(100);
+					progressBar.setVisible(false);
+					toolDownloadFile.setEnabled(true);
+					toolUploadFile.setEnabled(true);
+					
+					getFileList();
+					break;
+				} else {
+					downloadFile(name, file.length());
+				}
+			}
+			break;
+
+		default:
+			break;
+		}
+	}
+
+
+	@Override
+	public void close() {
+		servoManager.off(this);
+	}
+
+	private SelectionAdapter upLoadSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			int selectionIndex = table.getSelectionIndex();
+			if (selectionIndex != -1) {
+				TableItem item = table.getItem(selectionIndex);
+				String fileName = item.getText(0);
+				
+				
+				if (item.getText(3).equals(Lang.getString("FMapFileManager.UpDownLoad"))) {
+//					System.out.println("文件不用上传");
+				} else {
+					int open = F.mbQuestionCancel(shell, Lang.getString("uploadFile"), String.format(Lang.getString("uploadFile.tip"), fileName));
+					
+					if(open==SWT.OK){
+						File file = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + fileName);
+						if (!file.exists()) {
+//							System.out.println("上传文件不存在");
+							return;
+						}
+						upLoadFile = file;
+						uploadFile(file, 0L);
+					}
+				}
+
+			}else{
+				F.mbInformation(shell, Lang.getString("FMapFileManager.uploadFile.text"), Lang.getString("FMapFileManager.uploadFile.noFile"));
+			}
+		}
+
+	};
+
+	/**
+	 * 设置表格内容
+	 * 
+	 * @param files
+	 */
+	private void setTableContent(List<FileList_File> files) {
+		File dir = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE);
+		List<File> localFiles = new ArrayList<>();
+		if (dir.exists() && dir.isDirectory()) {
+
+			File[] listFiles = dir.listFiles();
+			for (int index = 0; index < listFiles.length; index++) {
+				if (listFiles[index].getName().endsWith(".temp"))
+					continue;
+				localFiles.add(listFiles[index]);
+			}
+		}
+
+//		System.out.println(localFiles);
+
+		for (int j = 0; j < files.size(); j++) { // 服务器遍历
+			File file = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + files.get(j).getName());
+			if (file.exists()) {
+				// 如果服务器的文件时间比本地时间新，状态为有更新
+				if (files.get(j).getDate() > file.lastModified()) {
+					TableItem ti = new TableItem(table, SWT.NONE);
+					ti.setText(0, files.get(j).getName());
+					ti.setText(1, F.convertFileSize(files.get(j).getLength()));
+					ti.setText(2, F.format(new Date(files.get(j).getDate())));
+					ti.setData(files.get(j).getLength());
+					ti.setText(3, Lang.getString("FMapFileManager.HavaUpdate"));
+				} else {
+					TableItem ti = new TableItem(table, SWT.NONE);
+					ti.setText(0, files.get(j).getName());
+					ti.setText(1, F.convertFileSize(files.get(j).getLength()));
+					ti.setData(files.get(j).getLength());
+					ti.setText(2, F.format(new Date(files.get(j).getDate())));
+					ti.setText(3, Lang.getString("FMapFileManager.New"));
+				}
+			} else {
+				TableItem ti = new TableItem(table, SWT.NONE);
+				ti.setText(0, files.get(j).getName());
+				ti.setText(1, F.convertFileSize(files.get(j).getLength()));
+				ti.setData(files.get(j).getLength());
+				ti.setText(2, F.format(new Date(files.get(j).getDate())));
+				ti.setText(3, Lang.getString("FMapFileManager.UpDownLoad"));
+			}
+		}
+
+		for (int i = 0; i < localFiles.size(); i++) {
+			File file = localFiles.get(i);// 本地文件名称
+			for (int j = 0; j < files.size(); j++) {
+				if (file.getName().equals(files.get(j).getName())) {
+					break;
+				}
+				if (j == files.size() - 1) {
+					TableItem ti = new TableItem(table, SWT.NONE);
+					ti.setText(0, file.getName());
+					ti.setText(1, F.convertFileSize(file.length()));
+					ti.setData(file.length());
+					ti.setText(2, F.format(new Date(file.lastModified())));
+					ti.setText(3, Lang.getString("FMapFileManager.UnUpload"));
+				}
+			}
+		}
+
+		if (files == null || files.size() == 0) {
+			for (int i = 0; i < localFiles.size(); i++) {
+				File file = localFiles.get(i);
+				TableItem ti = new TableItem(table, SWT.NONE);
+				ti.setText(0, file.getName());
+				ti.setText(1, F.convertFileSize(file.length()));
+				ti.setData(file.length());
+				ti.setText(2, F.format(new Date(file.lastModified())));
+				ti.setText(3,  Lang.getString("FMapFileManager.UnUpload"));
+			}
+		}
+	}
+
+	private ShellAdapter shellAdapter = new ShellAdapter() {
+
+		@Override
+		public void shellClosed(ShellEvent arg0) {
+			close();
+		}
+
+		@Override
+		public void shellActivated(ShellEvent arg0) {
+			User user = servo.getUser();
+			if(user!=null){
+				if(!user.allow(ActionCase.FILE_DOWNLOAD.getNumber())){
+					toolDownloadFile.setEnabled(false);
+				}else{
+					toolDownloadFile.setEnabled(true);
+				}
+				
+				if(!user.allow(ActionCase.FILE_UPLOAD.getNumber())){
+					toolUploadFile.setEnabled(false);
+				}else{
+					toolUploadFile.setEnabled(true);
+				}
+			}
+		}
+	};
+
+	private SelectionAdapter btCancelSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			close();
+			shell.close();
+		}
+
+	};
+
+	private SelectionAdapter btnDownLoadSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			int selectionIndex = table.getSelectionIndex();
+			if (selectionIndex != -1) {
+				TableItem item = table.getItem(selectionIndex);
+				String fileName = item.getText(0);
+				int open = F.mbQuestionCancel(shell, Lang.getString("downLoadFile"), String.format(Lang.getString("downLoadFile.tip"), fileName));
+				
+				if(open==SWT.OK){
+					long l =(long)item.getData();
+					downLoadFileLength = l;
+					downloadFile(fileName, 0);
+				}
+			}else{
+				F.mbInformation(shell, Lang.getString("FMapFileManager.downloadFile.text"), Lang.getString("FMapFileManager.downloadFile.noFile"));
+			}
+		}
+	};
+
+	private SelectionAdapter btnAddFileSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FileDialog fd = new FileDialog(shell, SWT.OPEN);
+			fd.setFilterNames(new String[] { "All Files(*.*)" });
+			String file = fd.open();
+			if (file != null) {
+				File addFile = new File(file);
+
+				int byteread = 0;
+				try {
+					InputStream inStream = new FileInputStream(addFile);// 读入原文件
+					File f = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + addFile.getName());
+					FileOutputStream fs = new FileOutputStream(f);
+//					System.out.println(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + addFile.getName());
+					byte[] buffer = new byte[1024];
+					while ((byteread = inStream.read(buffer)) != -1) {
+						fs.write(buffer, 0, byteread);
+					}
+
+					inStream.close();
+					fs.flush();
+					fs.close();
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				getFileList();
+			}
+		}
+
+	};
+	
+	
+	private SelectionAdapter btnDeleteFileSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			int selectionIndex = table.getSelectionIndex();
+			if(selectionIndex!=-1){
+				TableItem item = table.getItem(selectionIndex);
+				String text = item.getText(0);
+				int open = F.mbQuestionCancel(shell, Lang.getString("FMapFileManager.deleteFile.text"), String.format(Lang.getString("FMapFileManager.deleteFile.tip"), text));
+				
+				if(open == SWT.OK){
+					File f = new File(Tool.getWorkPath() + File.separatorChar + MAP_FILE + File.separatorChar + text);
+					if(f.exists()){
+						f.delete();
+						getFileList();
+					}
+				}
+			}else{
+				F.mbInformation(shell, Lang.getString("FMapFileManager.deleteFile.text"), Lang.getString("FMapFileManager.deleteFile.noFile"));
+			}
+		}
+		
+	};
+}

@@ -1,0 +1,346 @@
+package com.kiy.cloud.http;
+
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http.multipart.HttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.cloud.data.bean.FeedbackBean;
+import com.kiy.cloud.data.bean.UserBean;
+import com.kiy.cloud.data.dao.impl.FeedBackDaoImpl;
+import com.kiy.cloud.data.dao.impl.UserDaoImpl;
+import com.kiy.cloud.master.MasterGroup;
+import com.kiy.cloud.master.MasterHandler;
+import com.kiy.common.Tool;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.SyncUserIcon;
+import com.kiy.protocol.Messages.SyncUserIcon.Builder;
+
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+
+	public static final int FEEDBACK_IMG = 3;
+	public static final int USER_ICON_IMG = 4;
+
+	private static final String SUCCESS = "SUCCESS";
+	private static final String SERVER_INTERNAL_ERROR = "Server internal error";
+
+	private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE); // Disk
+
+	private HttpPostRequestDecoder decoder;
+
+	/**
+	 * 上传的文件的URL
+	 */
+	private String fileUrl;
+	/**
+	 * 上传的文件的真实路径
+	 */
+	private String fileTurePath;
+	
+	public void process(int type, String path, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) {
+		switch (path) {
+			case "create_feedback": {
+				decoder = new HttpPostRequestDecoder(factory, request);
+				try {
+					String username = parameters.getValue("username"); // 意见反馈用户名
+					String servo_id = parameters.getValue("servo_id"); // 服务器key
+					String content = parameters.getValue("content"); // 意见反馈内容
+					if (Tool.isEmpty(username) || Tool.isEmpty(servo_id) || Tool.isEmpty(content)) {
+						parameterError(writer, type, "username,servo_id,content can not be null!");
+						reset();
+						return;
+					}
+					String choice = parameters.getValue("choice");
+					getUploadFile(type, writer, request, FEEDBACK_IMG);
+
+					FeedbackBean feedbackBean = new FeedbackBean();
+					feedbackBean.setUsername(username);
+					feedbackBean.setServoId(servo_id);
+					feedbackBean.setImg_url(fileUrl);
+					feedbackBean.setContent(content);
+					if (!Tool.isEmpty(choice)) {
+						feedbackBean.setChoice(Integer.valueOf(choice));
+					}
+					boolean createFeedBack = false;
+					try {
+						createFeedBack = new FeedBackDaoImpl().createFeedBack(feedbackBean);
+					} catch (Exception e) {
+						Log.error(e);
+						reset();
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						return;
+					}
+					if (createFeedBack) {
+						success(writer, type, SUCCESS);
+						reset();
+						return;
+					} else {
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						reset();
+						return;
+					}
+				} catch (IOException e) {
+					Log.error(e);
+					serverError(writer, type, SERVER_INTERNAL_ERROR);
+					reset();
+					return;
+				}
+			}
+			case "upload_userIcon": {
+				decoder = new HttpPostRequestDecoder(factory, request);
+				try {
+					String user_id = parameters.getValue("user_id"); // 意见反馈用户key
+					String servo_id = parameters.getValue("servo_id"); // 服务器key
+					if (Tool.isEmpty(user_id) || Tool.isEmpty(servo_id)) {
+						parameterError(writer, type, "user_id,servo_id can not be null");
+						reset();
+						return;
+					}
+					getUploadFile(type, writer, request, USER_ICON_IMG);
+					if (Tool.isEmpty(fileUrl)) {
+						parameterError(writer, type, "user_icon can not be null");
+						reset();
+						return;
+					}
+					UserBean userBean = new UserBean();
+					userBean.setUserId(user_id);
+					userBean.setServoId(servo_id);
+					userBean.setUserIcon(fileUrl);
+					boolean createUser = false;
+					try {
+						createUser = new UserDaoImpl().createUser(userBean);
+					} catch (Exception e) {
+						Log.error(e);
+						reset();
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						// 删除以保存的图片
+						File file = new File(fileTurePath);
+						if (file.exists()) {
+							file.delete();
+						}
+						return;
+					}
+					if (createUser) { /*云端本地数据同步*/
+						Message.Builder msg = Message.newBuilder();
+						Builder newBuilder = SyncUserIcon.newBuilder();
+						newBuilder.setIconUrl(fileUrl);
+						newBuilder.setUserId(user_id);
+						newBuilder.build();
+						msg.setSyncUserIcon(newBuilder);
+						MasterGroup groups = MasterHandler.getGroups();
+						boolean isSend = false;
+						if (groups!=null) {
+							isSend = groups.Send2LocalServo(msg.build(), servo_id);
+						}
+						if (isSend) {
+							if (CODE_JSON == type) {
+								JSON.begin(writer);
+								JSON.field(writer, "result", "0000", true);
+								JSON.field(writer, "msg", SUCCESS, false);
+								JSON.field(writer, "user_id", user_id);
+								JSON.field(writer, "user_icon_url", fileUrl);
+								JSON.end(writer);
+							} else if (CODE_XML == type) {
+								XML.document(writer);
+								XML.element(writer, "result", "0000");
+								XML.element(writer, "msg", SUCCESS);
+								XML.element(writer, "uset_id", user_id);
+								XML.element(writer, "user_icon_url", fileUrl);
+							} else {
+								throw new IllegalArgumentException();
+							}
+							reset();
+							return;
+						}else {
+							//上传失败，伺服器不在线
+							serverError(writer, type, "本地服务器不在线");
+						}
+					}else {
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						reset();
+						return;
+					}
+				} catch (IOException e) {
+					Log.error(e);
+					serverError(writer, type, SERVER_INTERNAL_ERROR);
+					reset();
+					return;
+				}
+
+			}
+			default:
+				break;
+		}
+	}
+
+	/**
+	 * 读取上传文件
+	 */
+	private void getUploadFile(int type, PrintWriter writer, FullHttpRequest request, int FileType) {
+		HttpContent chunk = request;
+		try {
+			decoder.offer(chunk);
+		} catch (ErrorDataDecoderException e1) {
+			Log.error(e1);
+			serverError(writer, type, SERVER_INTERNAL_ERROR);
+			reset();
+			return;
+		}
+		readHttpDataChunkByChunk(type, writer, FileType); // 从解码器decoder中读出数据
+	}
+
+	/**
+	 * 写入文件
+	 */
+	private void writeHttpData(InterfaceHttpData data, int fileType) throws IOException {
+		System.out.println(data);
+		if (data.getHttpDataType() == HttpDataType.Attribute) {
+			// Attribute就是form表单里带的各种 name= 的属性
+		} else if (data.getHttpDataType() == HttpDataType.InternalAttribute) {
+
+		} else {
+			String uploadFileName = getUploadFileName(data);
+			if (Tool.isEmpty(uploadFileName)) {
+				return;
+			}
+			FileUpload fileUpload = (FileUpload) data;
+			if (fileUpload.isCompleted()) {
+				String f = "";
+				if (fileType == FEEDBACK_IMG) {
+					f = Config.FEEDBACK_URL;
+				} else {
+					f = Config.USER_ICON_URL;
+				}
+				File dir = new File(Config.getWorkPath() + f);
+				if (!dir.exists()) {
+					dir.mkdir();
+				}
+				File dest = new File(dir, uploadFileName);
+				fileUpload.renameTo(dest);
+				fileTurePath = dest.getAbsolutePath();
+				
+				if (fileType == FEEDBACK_IMG) {
+					fileUrl = Config.IMG_URL + "feedback/" + dest.getName();
+				} else {
+					fileUrl = Config.IMG_URL + "userIcon/" + dest.getName();
+				}
+			}
+		}
+	}
+
+	/**
+	 * chunk 从decoder中读出数据，写入临时对象，然后写入文件， 这个封装主要是为了释放临时对象
+	 */
+	private void readHttpDataChunkByChunk(int type, PrintWriter writer, int FileType) {
+		try {
+			while (decoder.hasNext()) {
+				InterfaceHttpData data = decoder.next();
+				if (data != null) {
+					try {
+						writeHttpData(data, FileType);
+					} catch (IOException e) {
+						Log.error(e);
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						reset();
+						return;
+					} finally {
+						data.release();
+					}
+				}
+			}
+		} catch (EndOfDataDecoderException e) {
+		}	
+	}
+
+	/**
+	 * 重置
+	 */
+	private void reset() {
+		fileUrl = null;
+		fileTurePath = null;
+		if (decoder != null) {
+			decoder.destroy();
+			decoder = null;
+		}
+
+	}
+
+	/**
+	 * 在InterfaceHttpData中读取上传的文件名称
+	 */
+	private String getUploadFileName(InterfaceHttpData data) {
+		String content = data.toString();
+		String temp = content.substring(0, content.indexOf("\n"));
+		content = temp.substring(temp.lastIndexOf("=") + 2, temp.lastIndexOf("\""));
+		return content;
+	}
+
+	/**
+	 * 返回成功消息
+	 */
+	public void success(PrintWriter writer, int type, String success) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0000", true);
+			JSON.field(writer, "msg", success, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0000");
+			XML.element(writer, "msg", success);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/**
+	 * 传递参数错误消息
+	 */
+	public void parameterError(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0001", true);
+			JSON.field(writer, "msg", error, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0001");
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+	
+	/**
+	 * 服务器错误消息
+	 */
+	public void serverError(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0002", true);
+			JSON.field(writer, "msg", error, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0002");
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+}

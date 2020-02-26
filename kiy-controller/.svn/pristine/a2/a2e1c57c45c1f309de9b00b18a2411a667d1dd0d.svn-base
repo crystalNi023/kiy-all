@@ -1,0 +1,97 @@
+package test;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Shell;
+
+import com.google.protobuf.ByteString;
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.controller.FMain;
+import com.kiy.protocol.Messages.CreateFeedback;
+import com.kiy.protocol.Messages.CreateFeedback.Builder;
+import com.kiy.protocol.Messages.DownloadUserIcon;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Units.MFeedback;
+
+public class Test {
+	private Servo servo;
+	public final static String MAP_FILE = "test";
+	
+	private Shell shell;
+
+	public Test(Servo servo1,FMain f) {
+		servo = servo1;
+		shell = f.getShell();
+	}
+	
+	public void run(){
+		
+		FileDialog fd = new FileDialog(shell, SWT.OPEN);
+		fd.setFilterNames(new String[] { "All Files(*.*)" });
+		String file = fd.open();
+		
+		File  fsdFile = new File(file);
+		long length = fsdFile.length();
+		System.out.println(length);
+		String name = fsdFile.getName();
+		System.out.println(name);
+		
+		FileInputStream fileInputStream;
+		ByteString byteString = null;
+		try {
+			fileInputStream = new FileInputStream(file);
+			ByteString.Output out = ByteString.newOutput();
+			int value = 0;
+			while ((value = fileInputStream.read()) >= 0) {
+				out.write(value);
+			}
+			byteString = out.toByteString();
+		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		CtrClient client = servo.getClient();
+
+		/**
+		 * 测试意见反馈
+		 */
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setUserId(servo.getUser().getId());
+		Builder newBuilder = CreateFeedback.newBuilder();
+		MFeedback.Builder itemBuilder = newBuilder.getItemBuilder();
+		itemBuilder.setContent("杀菌达授课计划");
+		itemBuilder.setUserId("13514564864646");
+		itemBuilder.setCreated(System.currentTimeMillis());
+		itemBuilder.setFileName(name);
+		itemBuilder.setData(byteString);
+		b_m.setCreateFeedback(newBuilder);
+		client.send(b_m.build());
+		
+		/**
+		 * 测试头像上传
+		 */
+//		Message.Builder b_m = Message.newBuilder();
+//		Builder newBuilder = UploadUserIcon.newBuilder();
+//		newBuilder.setUserId(servo.getUser().getId());
+//		newBuilder.setFileName(name);
+//		newBuilder.setData(byteString);
+//		b_m.setUploadUserIcon(newBuilder);
+//		client.send(b_m.build());
+		
+		/**
+		 * 测试头像下载
+		 */
+//		Message.Builder b_m = Message.newBuilder();
+//		com.kiy.protocol.Messages.DownloadUserIcon.Builder newBuilder = DownloadUserIcon.newBuilder();
+//		newBuilder.setUserId(servo.getUser().getId());
+//		b_m.setDownloadUserIcon(newBuilder);
+//		client.send(b_m.build());
+	}
+}

@@ -1,0 +1,32 @@
+package com.kiy.servo.test;
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
+
+import com.kiy.servo.Config;
+import com.kiy.servo.mqtt.MQTTServer;
+
+public class TestMQTT {
+	public static void main(String[] args) {
+		Config.load();
+		Config.check();
+		MQTTServer server = new MQTTServer();
+		MqttTopic topic = server.getTopic("kiy/00005KYV/00005KYV/command");
+		
+        String string = "{\"cmd\":\"read\"}"; 
+        server.message = new MqttMessage();
+        server.message.setQos(1);
+        server.message.setRetained(true);
+        server.message.setPayload(string.getBytes());
+        try {
+			server.publish(topic , server.message);
+		} catch (MqttPersistenceException e) {
+			e.printStackTrace();
+		} catch (MqttException e) {
+			e.printStackTrace();
+		}
+        System.out.println(server.message.isRetained() + "------ratained状态");
+	}
+}	

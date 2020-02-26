@@ -1,0 +1,100 @@
+package com.kiy.cloud.http;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.multipart.Attribute;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+
+/**
+ *  HTTP参数对象
+ * @author HLX Tel:18996470535 
+ * @date 2018年5月16日 
+ * Copyright:Copyright(c) 2018
+ */
+public final class HttpParameters {
+
+	private QueryStringDecoder get;
+	private HttpPostRequestDecoder post;
+
+	public HttpParameters() {
+
+	}
+
+	public void setDecoder(QueryStringDecoder g) {
+		get = g;
+	}
+
+	public void setDecoder(HttpPostRequestDecoder p) {
+		post = p;
+	}
+
+	public String getQueryValue(String name) {
+		if (name == null || get == null)
+			return null;
+
+		List<String> values = get.parameters().get(name);
+		if (values == null || values.isEmpty())
+			return null;
+		else
+			return values.get(0);
+	}
+
+	public List<String> getQueryValues(String name) {
+		if (name == null || get == null)
+			return null;
+
+		return get.parameters().get(name);
+	}
+
+	public String getPostValue(String name) throws IOException {
+		if (name == null || post == null)
+			return null;
+
+		InterfaceHttpData data = post.getBodyHttpData(name);
+		if (data == null)
+			return null;
+		if (data.getHttpDataType() == HttpDataType.Attribute) {
+			Attribute attribute = (Attribute) data;
+			return attribute.getValue();
+		}
+		return null;
+	}
+
+	public List<String> getPostValues(String name) throws IOException {
+		if (name == null || post == null)
+			return null;
+
+		List<InterfaceHttpData> datas = post.getBodyHttpDatas(name);
+		if (datas == null)
+			return null;
+		List<String> values = new ArrayList<String>();
+		for (InterfaceHttpData data : datas) {
+			if (data.getHttpDataType() == HttpDataType.Attribute) {
+				Attribute attribute = (Attribute) data;
+				values.add(attribute.getValue());
+			}
+		}
+		return values;
+	}
+
+	public String getValue(String name) throws IOException {
+		String value = null;
+		value = getQueryValue(name);
+		if (value == null)
+			value = getPostValue(name);
+		return value;
+	}
+
+	public List<String> getValues(String name) throws IOException {
+		List<String> values = null;
+		values = getQueryValues(name);
+		if (values == null)
+			values = getPostValues(name);
+		return values;
+	}
+}

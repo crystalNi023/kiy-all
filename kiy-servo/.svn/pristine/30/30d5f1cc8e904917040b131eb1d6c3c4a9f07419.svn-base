@@ -1,0 +1,197 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.driver.rs485;
+
+import com.kiy.common.Device;
+import com.kiy.common.Types.Status;
+import com.kiy.common.devices.LRTransformerTemperature;
+import com.kiy.servo.driver.Coder;
+
+import io.netty.buffer.ByteBuf;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class LRCoder extends Coder {
+	/**
+	 * 获取状态
+	 */
+	public static final byte STATUS = 0x01;
+	/**
+	 * 获取读数
+	 */
+	public static final byte DEGREE = 0x03;
+	/**
+	 * 控制设备
+	 */
+	public static final byte CONTROL = 0x0F;
+	/**
+	 * 设置参数
+	 */
+	public static final byte SETTING = 0x10;
+
+	@Override
+	public int getMaxFrame() {
+		return 128;
+	}
+
+	@Override
+	public void encode(Device device, ByteBuf out, byte code, int tag) {
+		LRTransformerTemperature dev = (LRTransformerTemperature) device;
+
+		out.writeByte(Byte.parseByte(dev.getNumber()));
+		out.writeByte(code);
+
+		switch (code) {
+			case STATUS:
+				out.writeZero(3);
+				if (dev.getPhaseCheck() == 2)
+					out.writeByte(7);
+				else if (dev.getPhaseCheck() == 3)
+					out.writeByte(8);
+				else if (dev.getPhaseCheck() == 4)
+					out.writeByte(9);
+				else
+					out.writeByte(0);
+				break;
+			case DEGREE:
+				out.writeZero(3);
+				if (dev.getPhaseCheck() == 2)
+					out.writeByte(6);
+				else if (dev.getPhaseCheck() == 3)
+					out.writeByte(7);
+				else if (dev.getPhaseCheck() == 4)
+					out.writeByte(8);
+				else
+					out.writeByte(0);
+				break;
+			case CONTROL:
+				out.writeZero(3);
+				out.writeByte(8);
+				out.writeByte(1);
+				byte ctr = 0;
+				ctr = setBit(ctr, dev.isDisplay(), 1);
+				ctr = setBit(ctr, dev.isFan(), 2);
+				out.writeByte(ctr);
+				break;
+			case SETTING:
+				out.writeZero(3);
+				out.writeByte(4);
+				out.writeByte(8);
+				out.writeShort(dev.getThresholdOffFan());
+				out.writeShort(dev.getThresholdOnFan());
+				out.writeShort(dev.getThresholdOverheat());
+				out.writeShort(dev.getThresholdTrip());
+				break;
+		}
+		CRC.write(out);
+	}
+
+	@Override
+	public int frame(Device device, ByteBuf in) {
+		// 已收到字节总数
+		int readable = in.readableBytes();
+
+		if (readable < 5)
+			return Coder.CONTINUE;
+
+		if (readable > 128) {
+			device.setStatus(Status.C_OVERFLOW);
+			return Coder.OVERFLOW;
+		}
+
+		// 协议指令
+		short code = in.getUnsignedByte(1);
+		// 协议字节数
+		short length = 0;
+		// 根据指令判断长度
+		if (code == STATUS || code == DEGREE) {
+			length = in.getUnsignedByte(2);
+		} else {
+			length = 3;
+		}
+
+		if (length + 5 > readable) {
+			return Coder.CONTINUE;
+		} else {
+			length += 5;
+		}
+		return Coder.OK;
+	}
+
+	@Override
+	public void decode(Device device, ByteBuf in, byte code, int tag) {
+		if (in.readableBytes() == 0) {
+			device.setStatus(Status.C_TIMEOUT);
+			return;
+		}
+
+		LRTransformerTemperature dev = (LRTransformerTemperature) device;
+
+		if (dev == null) {
+			return;
+		}
+
+		// 地址 B1
+		if (!dev.getNumber().equals(Byte.toString(in.readByte()))) {
+			device.setStatus(Status.C_ADDRESS);
+			return;
+		}
+
+		// 代码 B1
+		if (code != in.readByte()) {
+			device.setStatus(Status.C_COMMAND);
+			return;
+		}
+
+		// 复位正常
+		device.setStatus(Status.NONE);
+
+		switch (code) {
+			case STATUS: {
+				// 长度 B1
+				in.skipBytes(1);
+
+				byte value = in.readByte();
+				dev.setDisplay(getBit(value, 1));
+				dev.setAutoFan(getBit(value, 2));
+				dev.setFan(getBit(value, 3));
+				dev.setOver(getBit(value, 4));
+				dev.setTrip(getBit(value, 5));
+				dev.setSensorA(getBit(value, 6));
+				dev.setSensorB(getBit(value, 7));
+				dev.setSensorC(getBit(value, 8));
+				if (dev.getPhaseCheck() > 3)
+					value = in.readByte();
+				dev.setSensorD(getBit(value, 1));
+				break;
+			}
+			case DEGREE: {
+				// 长度 B1
+				in.skipBytes(1);
+
+				dev.setThresholdOffFan(in.readShort());
+				dev.setThresholdOnFan(in.readShort());
+				dev.setThresholdOverheat(in.readShort());
+				dev.setThresholdTrip(in.readShort());
+				dev.setA((float) (in.readShort() / 10.0));
+				dev.setB((float) (in.readShort() / 10.0));
+				if (dev.getPhaseCheck() > 2)
+					dev.setC((float) (in.readShort() / 10.0));
+				if (dev.getPhaseCheck() > 3)
+					dev.setD((float) (in.readShort() / 10.0));
+				break;
+			}
+			case CONTROL: {
+				in.skipBytes(4);
+				break;
+			}
+			case SETTING:
+				in.skipBytes(4);
+		}
+		// CRC16
+		in.skipBytes(2);
+	}
+}

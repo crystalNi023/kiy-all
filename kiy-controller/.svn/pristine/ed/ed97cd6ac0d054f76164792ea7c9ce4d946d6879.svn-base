@@ -1,0 +1,835 @@
+/**
+ * 2017年1月20日
+ */
+package com.kiy.controller;
+
+import java.lang.reflect.Constructor;
+import java.text.DateFormat;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.WeakHashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.VerifyEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.TreeItem;
+import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.feature.FeatureIterator;
+import org.geotools.geometry.DirectPosition2D;
+import org.geotools.geometry.jts.ReferencedEnvelope;
+import org.geotools.map.Layer;
+import org.geotools.map.MapContent;
+import org.geotools.swt.SwtMapPane;
+import org.geotools.swt.tool.InfoToolHelper;
+import org.geotools.swt.tool.VectorLayerHelper;
+import org.geotools.swt.utils.Utils;
+import org.opengis.feature.Feature;
+import org.opengis.feature.Property;
+import org.opengis.feature.type.Name;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.Unit;
+import com.kiy.controller.view.MapView;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class F {
+
+	public static final int LABEL_HEIGHT = 23;
+
+	public static final int MARGIN = 8;
+
+	public static final int SMALL_LABEL_HEIGHT = 20;
+
+	private F() {
+	}
+	
+	/**
+	 * 检测聚合值中是否包含指定值
+	 * 
+	 * @param source
+	 * @param value
+	 * @return
+	 */
+	public static boolean contains(int source, int value) {
+		return (source & value) != 0;
+	}
+
+	/**
+	 * 将子窗口置于父窗口居中
+	 * 
+	 * @param parent
+	 * @param shell
+	 */
+	public static void center(Shell parent, Shell shell) {
+		Rectangle parentBounds = shell.getParent().getBounds();
+		Rectangle shellBounds = shell.getBounds();
+		shell.setLocation(parentBounds.x + (parentBounds.width - shellBounds.width) / 2, parentBounds.y + (parentBounds.height - shellBounds.height) / 2);
+	}
+
+	/**
+	 * 根据选中的树节点，查找对应的Servo对象
+	 * 
+	 * @param items
+	 * @return
+	 */
+	public static Servo[] FindServo(TreeItem[] items) {
+		HashSet<Servo> tags = new HashSet<Servo>();
+		if (items != null) {
+			for (TreeItem item : items) {
+				Object o = item.getData();
+				if (o == null) {
+					continue;
+				} else {
+					if (o instanceof Servo) {
+						tags.add((Servo) o);
+						break;
+					}
+					if (o instanceof Unit) {
+						Unit u = (Unit) o;
+						if (u.getServo() != null)
+							tags.add(u.getServo());
+						break;
+					}
+				}
+			}
+		}
+		Servo[] servos = new Servo[tags.size()];
+		return tags.toArray(servos);
+	}
+
+	/**
+	 * 获取日期时间本地化格式
+	 * 
+	 * @param d
+	 * @return
+	 */
+	public static String format(Date d) {
+		if (d == null)
+			return Tool.EMPTY;
+
+		if (d.getTime() == 0)
+			return Tool.EMPTY;
+
+		DateFormat f = DateFormat.getDateTimeInstance();
+		return f.format(d);
+	}
+
+	/**
+	 * 判断客户端状态
+	 * 
+	 * @param shell
+	 * @param client
+	 * @return true异常/false正常
+	 */
+	public static boolean judgeClientActive(Shell shell, CtrClient client) {
+
+		if (client == null || !client.isRunning()) {
+			MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL);
+			mb.setText(Lang.getString("Servo.text"));
+			mb.setMessage(Lang.getString("AGetStatus.TipNotConnectServo.text"));
+			mb.open();
+			return true;
+		}
+
+		if (!client.isConnected()) {
+			MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL);
+			mb.setText(Lang.getString("Servo.text"));
+			mb.setMessage(Lang.getString("AGetStatus.TipConnectionBreak.text"));
+			mb.open();
+			return true;
+		}
+
+		return false;
+	}
+
+	public static String getDeviceIdFormapPosition(SwtMapPane pane, MapContent content, DirectPosition2D mapPosition) {
+		String deviceId = null;
+		WeakHashMap<Layer, InfoToolHelper<?>> helperTable = new WeakHashMap<Layer, InfoToolHelper<?>>();
+		// 遍历所有图层
+		for (Layer layer : content.layers()) {
+			if (layer == null) {
+				continue;
+			}
+			if (layer.isSelected()) {
+				InfoToolHelper<?> helper = null;
+				// 找到设备图层
+				if (layer != null && layer.getTitle() != null && layer.getTitle().equals(MapView.DEVICE_LAYER)) {
+					// 查找图层信息
+					helper = helperTable.get(layer);
+					if (helper == null) {
+						if (Utils.isGridLayer(layer)) {
+							try {
+								Class<?> clazz = Class.forName("org.geotools.swt.tool.GridLayerHelper");
+								Constructor<?> ctor = clazz.getConstructor(MapContent.class, Layer.class);
+								helper = (InfoToolHelper<?>) ctor.newInstance(content, layer);
+								helperTable.put(layer, helper);
+
+							} catch (Exception ex) {
+								throw new IllegalStateException("Failed to create InfoToolHelper for grid layer", ex);
+							}
+						} else {
+							try {
+								Class<?> clazz = Class.forName("org.geotools.swt.tool.VectorLayerHelper");
+								Constructor<?> ctor = clazz.getConstructor(MapContent.class, Layer.class);
+								helper = (InfoToolHelper<?>) ctor.newInstance(content, layer);
+								helperTable.put(layer, helper);
+							} catch (Exception ex) {
+								throw new IllegalStateException("Failed to create InfoToolHelper for vector layer", ex);
+							}
+						}
+					}
+
+					Object info = null;
+
+					if (helper instanceof VectorLayerHelper) {
+						ReferencedEnvelope mapEnv = pane.getDisplayArea();
+						double searchWidth = MapView.DEFAULT_DISTANCE_FRACTION * (mapEnv.getWidth() + mapEnv.getHeight()) / 2;
+						try {
+							info = helper.getInfo(mapPosition, Double.valueOf(searchWidth));
+						} catch (Exception ex) {
+							throw new IllegalStateException(ex);
+						}
+
+						if (info != null) {
+							FeatureIterator<? extends Feature> iter = null;
+							SimpleFeatureCollection selectedFeatures = (SimpleFeatureCollection) info;
+							try {
+								iter = selectedFeatures.features();
+								// 遍历点击区域内所有的feature
+								while (iter.hasNext()) {
+									Feature next = iter.next();
+									// 提取feature内的所有信息
+									Collection<Property> properties = next.getProperties();
+
+									for (Property property : properties) {
+
+										Name name = property.getName();
+										// id为添加设备时给设备id设置的key
+										if (name.toString().equals("id")) {
+											Object value = property.getValue();
+											// 点击的设备id
+											deviceId = value.toString();
+											return deviceId;
+										}
+									}
+
+								}
+
+							} catch (Exception ex) {
+								throw new IllegalStateException(ex);
+							} finally {
+								if (iter != null) {
+									iter.close();
+								}
+							}
+						}
+
+					} else {
+						try {
+							info = helper.getInfo(mapPosition);
+						} catch (Exception ex) {
+							throw new IllegalStateException(ex);
+						}
+
+						if (info != null) {
+							@SuppressWarnings("unchecked")
+							List<String> bandValues = (List<String>) info;
+							if (!bandValues.isEmpty()) {
+							}
+						}
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * 文件大小格式化
+	 * 
+	 * @param size
+	 * @return
+	 */
+	public static String convertFileSize(long size) {
+		long kb = 1024;
+		long mb = kb * 1024;
+		long gb = mb * 1024;
+
+		if (size >= gb) {
+			return String.format("%.1f GB", (float) size / gb);
+		} else if (size >= mb) {
+			float f = (float) size / mb;
+			return String.format(f > 100 ? "%.0f MB" : "%.1f MB", f);
+		} else if (size >= kb) {
+			float f = (float) size / kb;
+			return String.format(f > 100 ? "%.0f KB" : "%.1f KB", f);
+		} else
+			return String.format("%d B", size);
+	}
+
+	/**
+	 * 只允许输入数字，可以是负数和小数点后两位
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void numberCheck(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				// 可以输入负号
+				if (text.getText().length() == 0) {
+					if (Character.isDigit(value) || value == '-' ) {
+						event.doit = true;
+					}
+				}
+				
+				if(index>0){
+					if(value == '-')
+						event.doit = false;
+				}else{
+					if(value == '-'){
+						event.doit = true;
+					}
+				}
+				
+				if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+					if (Character.isDigit(value) || value == '.') {
+						event.doit = true;
+					}
+				} else {// 只要有小数点，就不能输入小数点。
+					if (Character.isDigit(value)) {
+						event.doit = true;
+					} // 小数点后够两位，输入无效
+					if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 1) {
+						event.doit = false;
+					}
+				} 
+				
+				if(event.doit){
+					continue;
+				}else{
+					return;
+				}
+			}
+		}
+		
+		
+		// 可以输入负号
+		if (text.getText().length() == 0) {
+			if (Character.isDigit(myChar) || myChar == SWT.DEL || myChar == '-' || myChar == SWT.BS) {
+				event.doit = true;
+			}
+		}
+
+		if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+			if (Character.isDigit(myChar) || myChar == SWT.DEL || myChar == '.'|| myChar == SWT.BS) {
+				event.doit = true;
+			}
+		} else {// 只要有小数点，就不能输入小数点。
+			if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS) {
+				event.doit = true;
+			} // 小数点后够两位，输入无效
+			if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 1) {
+				event.doit = false;
+			}
+		} // 退格有效
+		if (myChar == SWT.DEL|| myChar == SWT.BS)
+			event.doit = true;
+
+	}
+
+	public static void numberThreeCheck(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				// 可以输入负号
+				if (text.getText().length() == 0) {
+					if (Character.isDigit(value) || value == '-' ) {
+						event.doit = true;
+					}
+				}
+				
+				if(index>0){
+					if(value == '-')
+						event.doit = false;
+				}else{
+					if(value == '-'){
+						event.doit = true;
+					}
+				}
+				
+				if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+					if (Character.isDigit(value) || value == '.') {
+						event.doit = true;
+					}
+				} else {// 只要有小数点，就不能输入小数点。
+					if (Character.isDigit(value)) {
+						event.doit = true;
+					} // 小数点后够两位，输入无效
+					if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 2) {
+						event.doit = false;
+					}
+				} 
+				
+				if(event.doit){
+					continue;
+				}else{
+					return;
+				}
+			}
+			if (mText.substring(mText.indexOf(".") + 1).length() > 1) {
+				event.doit = false;
+			}
+			event.doit = true;
+		}
+		// 可以输入负号
+		if (text.getText().length() == 0) {
+			if (Character.isDigit(myChar) || myChar == SWT.DEL || myChar == '-' || myChar == SWT.BS) {
+				event.doit = true;
+			}
+		}
+
+		if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+			if (Character.isDigit(myChar) || myChar == SWT.DEL || myChar == '.'|| myChar == SWT.BS) {
+				event.doit = true;
+			}
+		} else {// 只要有小数点，就不能输入小数点。
+			if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS) {
+				event.doit = true;
+			} // 小数点后够两位，输入无效
+			if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 2) {
+				event.doit = false;
+			}
+		} // 退格有效
+		if (myChar == SWT.DEL|| myChar == SWT.BS)
+			event.doit = true;
+
+	}
+
+	/**
+	 * 只能输入正的小数或者整数
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void unNumberCheck(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+					if (Character.isDigit(value) || value == '.') {
+						continue;
+					}
+				} else {// 只要有小数点，就不能输入小数点。
+					if (Character.isDigit(value)) {
+						continue;
+					} // 小数点后够两位，输入无效
+					if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 2) {
+						event.doit = false;
+					}
+				} 
+				
+			}
+			
+			if (mText.substring(mText.indexOf(".") + 1).length() > 1) {
+				event.doit = false;
+			}
+			event.doit = true;
+		}
+		
+		// 可以输入负号
+		if (text.getText().length() == 0) {
+			if (Character.isDigit(myChar) ||  myChar == SWT.DEL|| myChar == SWT.BS) {
+				event.doit = true;
+			}
+		}
+
+		if (text.getText().indexOf(".") == -1) {// 没有小数点时，可以输入小数点。(因为此验证是确保一次只能输入一个字符。)
+			if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS || myChar == '.') {
+				event.doit = true;
+			}
+		} else {// 只要有小数点，就不能输入小数点。
+			if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS) {
+				event.doit = true;
+			} // 小数点后够两位，输入无效
+			if (text.getText().substring(text.getText().indexOf(".") + 1).length() > 1) {
+				event.doit = false;
+			}
+		} 
+	}
+
+	/**
+	 * 只能输入正整数
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void intNumberCheck(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				if (value == SWT.DEL|| value == SWT.BS||Character.isDigit(value)){
+					continue;
+				}else{
+					event.doit = false;
+					return;
+				}
+			}
+			event.doit = true;
+		}
+		
+		if (myChar == SWT.DEL|| myChar == SWT.BS||Character.isDigit(myChar)){
+			event.doit = true;
+		}
+	
+	}
+
+	/**
+	 * 1-9
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void numberCheck1(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				
+				if (value == '0') {
+					event.doit = false;
+					return;
+				}
+
+				if (Character.isDigit(value) || value == SWT.DEL|| value == SWT.BS) {
+					continue;
+				}else{
+					event.doit = false;
+					return;
+				}
+			}
+			event.doit = true;
+		}	
+		
+		if (myChar == '0') {
+			event.doit = false;
+			return;
+		}
+
+		if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS) {
+			event.doit = true;
+		}
+	}
+
+	/**
+	 * 只能输入整数
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void unIntNumberCheck(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				// 可以输入负号
+				if(index>0){
+					if(Character.isDigit(value) || value == SWT.DEL|| value == SWT.BS){
+						continue;
+					}else{
+						event.doit = false;
+						return;
+					}
+				}else{
+					if(Character.isDigit(value) || value == SWT.DEL|| value == SWT.BS||value == '-'){
+						continue;
+					}else{
+						event.doit = false;
+						return;
+					}
+				}
+			}
+			event.doit = true;
+		}
+		
+		// 可以输入负号
+		if (text.getText().length() == 0) {
+			if (Character.isDigit(myChar) ||myChar == SWT.DEL|| myChar == SWT.BS|| myChar == '-') {
+				event.doit = true;
+			}
+		}
+
+		if (Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS) {
+			event.doit = true;
+		}
+	}
+
+	/**
+	 * 只能输入 字母 小数点 数字
+	 * 
+	 * @param event
+	 * @param text
+	 */
+	public static void checkNet(VerifyEvent event, Text text) {
+		event.doit = false;
+		char myChar = event.character;
+		String mText = event.text;
+		if(mText.length()>0){
+			char value;
+			for (int index = 0; index < mText.length(); index++) {
+				value = mText.charAt(index);
+				if ((value >= 65 && value <= 90) || (value >= 97 && value <= 122)||Character.isDigit(value) || myChar == SWT.DEL|| myChar == SWT.BS|| value == '.') {
+					continue;
+				}else {
+					event.doit = false;
+					return;
+				}
+			}
+			event.doit = true;
+		}	
+		
+		if ((myChar >= 65 && myChar <= 90) || (myChar >= 97 && myChar <= 122)||Character.isDigit(myChar) || myChar == SWT.DEL|| myChar == SWT.BS|| myChar == '.') {
+			event.doit = true;
+		}
+	}
+
+	/**
+	 * question OK
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 */
+	public static void mbQuestion(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_QUESTION | SWT.OK);
+		mb.setText(text);
+		mb.setMessage(message);
+		mb.open();
+	}
+
+	/**
+	 * question OK Cancel
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 * @return
+	 */
+	public static int mbQuestionCancel(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_QUESTION | SWT.OK | SWT.CANCEL);
+		mb.setText(text);
+		mb.setMessage(message);
+		int open = mb.open();
+		return open;
+	}
+
+	/**
+	 * information OK
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 */
+	public static void mbInformation(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_INFORMATION | SWT.OK);
+		mb.setText(text);
+		mb.setMessage(message);
+		mb.open();
+	}
+
+	/**
+	 * information OK Cancel
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 * @return
+	 */
+	public static int mbInformationCancle(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_INFORMATION | SWT.OK | SWT.CANCEL);
+		mb.setText(text);
+		mb.setMessage(message);
+		int open = mb.open();
+		return open;
+	}
+
+	/**
+	 * waring OK
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 */
+	public static void mbWaring(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
+		mb.setText(text);
+		mb.setMessage(message);
+		mb.open();
+	}
+
+	/**
+	 * waring OK Cancel
+	 * 
+	 * @param shell
+	 * @param text
+	 * @param message
+	 * @return
+	 */
+	public static int mbWaringCancel(Shell shell, String text, String message) {
+		MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK | SWT.CANCEL);
+		mb.setText(text);
+		mb.setMessage(message);
+		int open = mb.open();
+		return open;
+	}
+
+	/**
+	 * 省略小数点
+	 * 
+	 * @param value
+	 * @return
+	 */
+	public static double convertTwo(double value, int convert) {
+		long l1 = Math.round(value * convert);
+		double ret = l1 / (convert * 1.0);
+		return ret;
+	}
+
+	public static Image getDeviceImage(Device d) {
+		return Resource.getImage(FMain.class, getDeviceImageURL(d));
+	}
+	
+	public static Image getDeviceImageIngnoreStatus(Device d) {
+		return Resource.getImage(FMain.class, String.format("/com/kiy/resources/device_%s_none.png", Tool.toLowerCase(d.getKind())));
+	}
+
+	public static String getDeviceImageURL(Device d) {
+		switch (d.getStatus()) {
+			case NONE:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_none.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_none.png", Tool.toLowerCase(d.getKind()));
+			case OFFLINE:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_offline.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_offline.png", Tool.toLowerCase(d.getKind()));
+			case THRESHOLD:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_threshold.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_threshold.png", Tool.toLowerCase(d.getKind()));
+			case WORK:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_work.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_work.png", Tool.toLowerCase(d.getKind()));
+			case FAULT:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_fault.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_fault.png", Tool.toLowerCase(d.getKind()));
+			case BEEP:
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_beep.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_beep.png", Tool.toLowerCase(d.getKind()));
+			default:
+				// 通讯异常
+				if(d.getKind()==Kind.CURTAIN_CONTROLLER||d.getKind()==Kind.SENSOR_PM||d.getKind()==Kind.SENSOR_SWITCHING_OPEN||d.getKind()==Kind.SENSOR_SWITCHING_OFF||d.getKind()==Kind.AIR_CONDITIONER||d.getKind()==Kind.SENSOR_CO||d.getKind()==Kind.WINDOWS_CONTROLLER||d.getKind()==Kind.COMBUSTIBLE_GAS_SENSOR){
+					return "/com/kiy/resources/device_none_communication.png"; 
+				}
+				return String.format("/com/kiy/resources/device_%s_communication.png", Tool.toLowerCase(d.getKind()));
+		}
+	}
+	
+	/**
+	 * 加载设备菜单
+	 */
+	public static void createDeviceMenu(Menu menuCreatesDevice, FMain fmain) {
+		// 凯星
+		creatDevice(Vendor.KAISTAR, menuCreatesDevice, fmain);
+		// 华邦
+		creatDevice(Vendor.HUABANG, menuCreatesDevice, fmain);
+		// 灵瑞
+		creatDevice(Vendor.LINGRUI, menuCreatesDevice, fmain);
+		// 伊莱科
+		creatDevice(Vendor.ELECALL, menuCreatesDevice, fmain);
+		// MudBus
+		creatDevice(Vendor.MUDBUS, menuCreatesDevice, fmain);
+		// 其他
+		creatDevice(Vendor.OTHER, menuCreatesDevice, fmain);
+	}
+	
+	/**
+	 * 根据厂商加载具体的设备
+	 */
+	public static void creatDevice(Vendor vendor, Menu menuCreatesDevice, FMain fmain) {
+		MenuItem menuCreateKaistar = new MenuItem(menuCreatesDevice, SWT.CASCADE);
+		menuCreateKaistar.setText(Lang.getString("Vendor." + vendor.name()));
+		Menu menuCreateKaiustars = new Menu(menuCreateKaistar);
+		menuCreateKaistar.setMenu(menuCreateKaiustars);
+		List<Kind> kindsByVendor = Tool.getKindsByVendor(vendor);
+		for (Kind kind : kindsByVendor) {
+			MenuItem mi = new MenuItem(menuCreateKaiustars, SWT.CASCADE);
+			mi.setText(Lang.getString("Kind." + kind));
+			List<Model> modelsByVendor = Tool.getModelsByVendor(vendor, kind);
+			Menu menuModel = new Menu(mi);
+			mi.setMenu(menuModel);
+			for (Model model : modelsByVendor) {
+				MenuItem mi2 = new MenuItem(menuModel, SWT.CASCADE);
+				mi2.setText(model.name());
+				mi2.addSelectionListener(new ACreateDevice(fmain, vendor, kind ,model));
+			}
+		}
+	}
+}

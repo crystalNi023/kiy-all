@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jdk1.7.0_80"/>
+	<classpathentry kind="lib" path="lib/commons-daemon-1.0.15-javadoc.jar"/>
+	<classpathentry kind="lib" path="lib/commons-daemon-1.0.15-sources.jar"/>
+	<classpathentry kind="lib" path="lib/dnsjava-2.1.8.jar"/>
+	<classpathentry kind="lib" path="lib/fastjson-1.2.26.jar"/>
+	<classpathentry kind="lib" path="lib/javax.mail-1.6.0-final.jar"/>
+	<classpathentry kind="lib" path="lib/mybatis-3.4.6.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-5.1.42-sources.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-5.1.42.jar"/>
+	<classpathentry kind="lib" path="lib/netty-4.1.13.Final-javadoc.jar"/>
+	<classpathentry kind="lib" path="lib/netty-4.1.13.Final-sources.jar"/>
+	<classpathentry kind="lib" path="lib/netty-4.1.13.Final.jar"/>
+	<classpathentry kind="lib" path="lib/protobuf-java-3.3.1-javadoc.jar"/>
+	<classpathentry kind="lib" path="lib/protobuf-java-3.3.1-sources.jar"/>
+	<classpathentry kind="lib" path="lib/protobuf-java-3.3.1.jar"/>
+	<classpathentry kind="lib" path="/kiy-common/lib/protobuf-java-3.1.0.jar"/>
+	<classpathentry kind="lib" path="/kiy-common/lib/protobuf.jar"/>
+	<classpathentry kind="lib" path="lib/json-20090211.jar"/>
+	<classpathentry kind="lib" path="lib/commons-codec-1.6.jar"/>
+	<classpathentry kind="lib" path="lib/httpclient-4.3.6.jar"/>
+	<classpathentry kind="lib" path="lib/httpcore-4.3.3.jar"/>
+	<classpathentry kind="lib" path="lib/commons-logging-1.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-daemon-1.0.15.jar" sourcepath="lib/commons-daemon-1.0.15-sources.jar"/>
+	<classpathentry kind="lib" path="lib/gson-2.7.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/kiy-common"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

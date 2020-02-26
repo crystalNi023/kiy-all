@@ -1,0 +1,184 @@
+package com.kiy.servo.driver.rs485;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Notice;
+import com.kiy.common.Servo;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Coder;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+
+/**
+ * 豪力士智能锁Coder
+ * 
+ */
+public final class VolexCoder extends Coder{
+	
+	//固定开头
+	public static final byte STATUS_0x02 = 0x02;
+	
+	//固定结尾
+	public static final byte STATUS_0xFF = (byte) 0xFF;
+	
+	// 读设备
+	public static final int READ = 0;
+	
+	// 控制设备
+	public static final int WRITE = 1;
+
+	@Override
+	public int getMaxFrame() {
+		return 128;
+	}
+
+	@Override
+	public void encode(Device device, ByteBuf out, byte code, int tag) {
+		out.writeByte(STATUS_0x02);
+		String number = device.getNumber();
+		if (number.length() != 6) 
+			return;
+		out.writeByte(Integer.parseInt(number.substring(0, 2), 16));
+		out.writeByte(Integer.parseInt(number.substring(2, 4), 16));
+		out.writeByte(Integer.parseInt(number.substring(4, 6), 16));
+		switch (tag) {
+			case READ:
+				// 查询
+				out.writeByte(0x03);
+				break;
+			case WRITE:
+				if (device.getFeature(0).getValue() == 1) {
+					// 开锁
+					out.writeByte(0x01);
+				}else if (device.getFeature(0).getValue() == 0){
+					// 关锁
+					out.writeByte(0x02);
+				}
+				break;
+			default:
+				break;
+		}
+		makeChecksum(out);
+		out.writeByte(STATUS_0xFF);
+	}
+
+	@Override
+	public int frame(Device device, ByteBuf in) {
+		return 0;
+	}
+
+	@Override
+	public void decode(Device device, ByteBuf in, byte code, int tag) {
+		String hexDump = ByteBufUtil.hexDump(in);
+		if (hexDump.length() < 8) {
+			return;
+		}
+		//如果z
+		Servo servo = Data.getServo();
+		Set<Device> devices = servo.getDeviceByNumber(hexDump.substring(2, 8));
+		
+		for (Device device2 : devices) {
+			switch (hexDump.substring(8, 10).toUpperCase()) {
+				case "08":
+					switch (hexDump.substring(10, 12).toUpperCase()) {
+						case "11"://文档定义非法用户类型指纹:11，实际接受是6B;
+						case "6B":
+							sendNotice("非法用户  ：指纹", device2);
+							break;
+						case "0E"://文档定义非法用户类型密码:0E，实际接受是67、68;
+						case "67":
+						case "68":
+							sendNotice("非法用户  ：密码", device2);
+							break;
+						case "0A"://文档定义非法用户类型卡:0A，实际接受是64;
+						case "64":
+							sendNotice("非法用户  ：卡", device2);
+							break;
+						default:
+							break;
+					}
+					break;
+				case "12"://未测试
+					sendNotice("小心！门被撬啦！！", device2);
+					break;
+				case "14":
+					sendNotice("小心！锁被撬啦！！", device2);
+					break;
+				case "47":
+//					sendNotice("电量足门已锁好", device2);
+					break;
+				case "87":
+					sendNotice("智能锁的电量不足且门没锁好噢", device2);
+					break;
+				case "C7":
+					sendNotice("智能锁的电量不足", device2);
+					break;
+				case "1D":
+					sendNotice("有人在按门铃噢", device2);
+					break;
+				default:
+					break;
+			}
+		}
+		
+	}
+	
+	/**
+	 * 发送推送通知
+	 */
+	private static void sendNotice(String notice,Device device) {
+	Message.Builder msg = Message.newBuilder();
+	com.kiy.protocol.Units.MNotice.Builder noticeBuilder = msg.getNoticeBuilder();
+	noticeBuilder.setDeviceId(device.getId());
+	noticeBuilder.setAlarm(true);
+	noticeBuilder.setContent(notice);
+	Message m = msg.build();
+	Cloud.send(m);
+	Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+
+	//通知日志记录
+	Notice n = new Notice();
+	n.setDeviceId(device.getId());
+	n.setContent(notice);
+	Data.CreateNotice(n);
+	}
+	
+	/**
+	 * 十六进制求和
+	 * @param byteBuf
+	 */
+	public static void makeChecksum(ByteBuf byteBuf) {
+		String data = ByteBufUtil.hexDump(byteBuf);
+		data = data.substring(2, data.length());
+		if (data == null || data.equals("") || data.length() != 8) {
+			return ;
+		}
+		int total = 0;
+		int len = data.length();
+		int num = 0;
+		while (num < len) {
+			String s = data.substring(num, num + 2);
+			total += Integer.parseInt(s, 16);
+			num = num + 2;
+		}
+		/**
+		 * 用256求余最大是255，即16进制的FF
+		 */
+		int mod = total % 256;
+		String hex = Integer.toHexString(mod);
+		len = hex.length();
+		// 如果不够校验位的长度，补0,这里用的是两位校验
+		if (len < 2) {
+			hex = "0" + hex;
+		}
+		byteBuf.writeByte(Integer.parseInt(hex, 16));
+	}
+
+
+}

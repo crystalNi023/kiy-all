@@ -1,0 +1,420 @@
+package com.kiy.controller;
+
+import java.util.Comparator;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Linkage;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.controller.view.VTable;
+import com.kiy.protocol.Messages.DeleteLinkage;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Messages.UpdateLinkageStatus;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * 
+ * 查询联动列表
+ *
+ */
+public class FLinkageRecord extends Dialog implements FormMessage {
+
+	private Shell shell;
+	private FVTable vt;
+
+	private Servo servo;
+	private CtrClient client;
+
+	private Table tableLinkage;
+
+	public FLinkageRecord(Shell parent) {
+		super(parent, 0);
+	}
+
+	public void open(Servo s) {
+		servo = s;
+		createContents();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FLinkageRecord.ShellName.text") + servo.toString());
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		client = servo.getClient();
+
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		tableLinkage = new Table(shell, SWT.VIRTUAL | SWT.BORDER | SWT.FULL_SELECTION);
+		tableLinkage.setHeaderVisible(true);
+		tableLinkage.setLinesVisible(true);
+		{
+			// 联动名称
+			TableColumn tblTaskrNameColumn = new TableColumn(tableLinkage, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FLinkageRecord.tblPlanName.text"));
+			tblTaskrNameColumn.setWidth(120);
+			// 状态
+			tblTaskrNameColumn = new TableColumn(tableLinkage, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblTaskrNameColumn.setWidth(100);
+			// 备注
+			tblTaskrNameColumn = new TableColumn(tableLinkage, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserRemarkNameColumn.text"));
+			tblTaskrNameColumn.setWidth(200);
+			// 创建时间
+			tblTaskrNameColumn = new TableColumn(tableLinkage, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text1"));
+			tblTaskrNameColumn.setWidth(200);
+			// 更新时间
+			tblTaskrNameColumn = new TableColumn(tableLinkage, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text2"));
+			tblTaskrNameColumn.setWidth(200);
+		}
+		vt = new FVTable(tableLinkage);
+
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+		// 新建顶部菜单
+		MenuItem createItem = new MenuItem(menu, SWT.CASCADE);
+		createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createItem.addSelectionListener(createLinkageSelectionAdapter);
+		createItem.setData(new ActionCase[] { ActionCase.CREATE_LINKAGE });
+
+		// 编辑顶部菜单
+		MenuItem editItem = new MenuItem(menu, SWT.CASCADE);
+		editItem.setText(Lang.getString("FSceneRecord.MenuEdit.text"));
+		editItem.addSelectionListener(updateLinkageSelectionAdapter);
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_LINKAGE });
+
+		// 删除顶部菜单
+		MenuItem deleteItem = new MenuItem(menu, SWT.CASCADE);
+		deleteItem.setText(Lang.getString("FScene.delete"));
+		deleteItem.addSelectionListener(deleteLinkageSelectionAdapter);
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_LINKAGE });
+
+		// 右键菜单
+		Menu taskMenu = new Menu(shell, SWT.POP_UP);
+		// 右键新建菜单
+		MenuItem createSceneItem = new MenuItem(taskMenu, SWT.PUSH);
+		createSceneItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createSceneItem.setData(new ActionCase[] { ActionCase.CREATE_LINKAGE });
+		createSceneItem.addSelectionListener(createLinkageSelectionAdapter);
+
+		// 右键编辑菜单
+		MenuItem editScene = new MenuItem(taskMenu, SWT.PUSH);
+		editScene.setText(Lang.getString("FSceneRecord.MenuEdit.text"));
+		editScene.setData(new ActionCase[] { ActionCase.UPDATE_LINKAGE });
+		editScene.addSelectionListener(updateLinkageSelectionAdapter);
+		
+		// 打开/关闭菜单
+		MenuItem updateStatusScene = new MenuItem(taskMenu, SWT.CASCADE);
+		updateStatusScene.setText(Lang.getString("FSceneRecord.MenuUpdate.text"));
+		updateStatusScene.addSelectionListener(updateLinkageStatusSelectionAdapter);
+		updateStatusScene.setData(new ActionCase[] { ActionCase.UPDATE_LINKAGE_STATUS });
+
+		// 右键删除菜单
+		MenuItem deleScene = new MenuItem(taskMenu, SWT.PUSH);
+		deleScene.setText(Lang.getString("FScene.delete"));
+		deleScene.setData(new ActionCase[] { ActionCase.DELETE_LINKAGE });
+		deleScene.addSelectionListener(deleteLinkageSelectionAdapter);
+
+		tableLinkage.setMenu(taskMenu);
+		vt.beginUpdate();
+		vt.add(servo.getLinkages());
+		vt.endUpdate();
+
+	}
+
+	/**
+	 * 创建联动
+	 */
+	private void createLinkage() {
+		new ALinkageCreate().sendMessage(servo, client, getParent());
+	}
+
+	/**
+	 * 创建联动点击监听
+	 */
+	private SelectionAdapter createLinkageSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			createLinkage();
+		}
+	};
+
+	/**
+	 * 更新联动
+	 */
+	private void updateLinkage() {
+		Linkage linkage = vt.getSelection();
+		if (linkage != null) {
+			new AUpdateLinkage(FLinkageRecord.this, servo, linkage).sendMessage();
+		} else {
+			F.mbInformation(shell, Lang.getString("FLinkageRecord.edit"), Lang.getString("FLinkageRecord.edit.tip"));
+		}
+	}
+
+	/**
+	 * 更新联动监听
+	 */
+	private SelectionAdapter updateLinkageSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			updateLinkage();
+		}
+	};
+
+	/**
+	 * 删除联动
+	 */
+	private void deleteLinkage() {
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive)
+			return;
+		Linkage selection = vt.getSelection();
+		if (selection != null) {
+			int open = F.mbQuestionCancel(shell, Lang.getString("FLinkageRecord.MessageBoxDeleteTaskTitle.text"), String.format(Lang.getString("ADeleteUnit.deleteQuesion.text"), selection.getName()));
+			if (open == SWT.OK) {
+				Message.Builder b_m = Message.newBuilder();
+				b_m.setKey(CtrClient.getKey());
+				b_m.setUserId(servo.getUser().getId());
+				DeleteLinkage.Builder deleteLinkage = DeleteLinkage.newBuilder();
+				deleteLinkage.setId(selection.getId());
+				b_m.setDeleteLinkage(deleteLinkage);
+				client.send(b_m.build());
+			} else {
+				// 删除提示框选择取消，不删除
+			}
+		} else {
+			F.mbInformation(shell, Lang.getString("FLinkageRecord.delete"), Lang.getString("FLinkageRecord.delete.tip"));
+		}
+	}
+
+	/**
+	 * 删除联动监听
+	 */
+	private SelectionAdapter deleteLinkageSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			deleteLinkage();
+		}
+	};
+
+	/**
+	 * 修改联动状态
+	 */
+	private void updateLinkageStatus() {
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive)
+			return;
+		Linkage selection = vt.getSelection();
+		if (selection != null) {
+			Message.Builder msg = Message.newBuilder();
+			msg.setUserId(servo.getUser().getId());
+			msg.setKey(CtrClient.getKey());
+			
+			UpdateLinkageStatus.Builder updateBuilder = UpdateLinkageStatus.newBuilder();
+			updateBuilder.setId(selection.getId());
+			updateBuilder.setSwitchStatus(!selection.isEnable());
+			msg.setUpdateLinkageStatus(updateBuilder.build());
+			client.send(msg.build());
+		} else {
+			F.mbInformation(shell, Lang.getString("FLinkageRecord.update"), Lang.getString("FLinkageRecord.update.tip"));
+		}
+
+	}
+
+	/**
+	 * 修改联动状态监听
+	 */
+	private SelectionAdapter updateLinkageStatusSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			updateLinkageStatus();
+		}
+	};
+
+	private class FVTable extends VTable<Linkage> {
+
+		public FVTable(Table t) {
+			super(t);
+		}
+
+		@Override
+		public void row(TableItem tableItem, Linkage linkage) {
+			tableItem.setText(0, linkage.getName());
+			if (linkage.isEnable()) {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_able.png")));
+				tableItem.setText(1, Lang.getString("FLinkageRecord.open.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+			} else {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_unable.png")));
+				tableItem.setText(1, Lang.getString("FLinkageRecord.off.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+			}
+			tableItem.setText(2, linkage.getRemark());
+			tableItem.setText(3, F.format(linkage.getCreated()));
+			tableItem.setText(4, F.format(linkage.getUpdated()));
+		}
+
+		@Override
+		public void column(TableColumn column, int direction) {
+			switch (vt.getColumnIndex(column)) {
+				case 0:
+					vt.sort(new Comparator<Linkage>() {
+						@Override
+						public int compare(Linkage a, Linkage b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getName() == null ? "" : a.getName(), b.getName() == null ? "" : b.getName());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getName() == null ? "" : b.getName(), a.getName() == null ? "" : a.getName());
+						}
+					});
+					break;
+				case 1:
+					vt.sort(new Comparator<Linkage>() {
+						@Override
+						public int compare(Linkage a, Linkage b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark() == null ? "" : a.getRemark(), b.getRemark() == null ? "" : b.getRemark());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark() == null ? "" : b.getRemark(), a.getRemark() == null ? "" : a.getRemark());
+						}
+					});
+					break;
+				case 2:
+					vt.sort(new Comparator<Linkage>() {
+						@Override
+						public int compare(Linkage a, Linkage b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getCreated().getTime(), b.getCreated().getTime());
+							else
+								return Long.compare(b.getCreated().getTime(), a.getCreated().getTime());
+						}
+					});
+					break;
+				case 3:
+					vt.sort(new Comparator<Linkage>() {
+						@Override
+						public int compare(Linkage a, Linkage b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getUpdated().getTime(), b.getUpdated().getTime());
+							else
+								return Long.compare(b.getUpdated().getTime(), a.getUpdated().getTime());
+						}
+					});
+					break;
+			}
+
+		}
+
+	}
+
+	@Override
+	public void received(Servo s, Message m, Map<Message, Unit> units) {
+		System.out.println("linkage record:"+m.getActionCase());
+		// 返回状态
+		Result status = m.getResult();
+		// 返回指令
+		ActionCase command = m.getActionCase();
+		// 刷新表格处理
+		if (command == ActionCase.CREATE_LINKAGE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.add((Linkage) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FLinkageRecord.MessageBoxCreateTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FLinkageRecord.MessageBoxCreateTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 删除联动
+		if (command == ActionCase.DELETE_LINKAGE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.remove((Linkage) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FLinkageRecord.MessageBoxDeleteTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FLinkageRecord.MessageBoxDeleteTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 更新联动状态
+		if (command == ActionCase.UPDATE_LINKAGE_STATUS) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.refresh((Linkage) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FLinkageRecord.MessageBoxModifyTaskTitle.text2"));
+				mb.setMessage(String.format(Lang.getString("FLinkageRecord.MessageBoxModifyTaskContent.text2"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 修改计划
+		if (command == ActionCase.UPDATE_LINKAGE) {
+			if (status == Result.SUCCESS) {
+				Unit unit = units.get(m);
+				vt.refresh((Linkage) unit);
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FLinkageRecord.MessageBoxModifyTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FLinkageRecord.MessageBoxModifyTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		// 无处理
+	}
+
+	public Shell getShell() {
+		return shell;
+	}
+
+}

@@ -1,0 +1,36 @@
+
+package com.kiy.cloud.recognize;
+
+public class SpeechMessage {
+	private boolean recognize;
+	
+	private String msg;
+	
+	private String filename;
+
+	public boolean isRecognize() {
+		return recognize;
+	}
+
+	public void setRecognize(boolean recognize) {
+		this.recognize = recognize;
+	}
+
+	public String getMsg() {
+		return msg;
+	}
+
+	public void setMsg(String msg) {
+		this.msg = msg;
+	}
+
+	public String getFilename() {
+		return filename;
+	}
+
+	public void setFilename(String filename) {
+		this.filename = filename;
+	}
+	
+	
+}

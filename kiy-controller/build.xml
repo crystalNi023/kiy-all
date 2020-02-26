@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="create_run_jar" name="Create Runnable Jar for Project kiy-controller">
+	<property name="dir" value="." />
+	<property name="dir.src" value="${dir}/src" />
+	<property name="dir.bin" value="${dir}/bin" />
+	<property name="dir.jar" value="${dir}/kiy-controller.jar" />
+	<target name="init">
+		<mkdir dir="${dir.bin}" />
+	</target>
+	<target name="common" depends="init">
+		<echo message="building kiy-common" />
+		<ant antfile="build.xml" dir="${dir}/../kiy-common" />
+		<copy todir="${dir.bin}">
+			<fileset dir="${dir}/../kiy-common/bin" />
+		</copy>
+	</target>
+	<target name="compile" depends="common">
+		<echo message="building kiy-controller" />
+		<javac srcdir="${dir.src}" destdir="${dir.bin}" includeAntRuntime="false" target="1.8" />
+	</target>
+	<target name="create_run_jar" depends="compile">
+		<jar destfile="${dir.jar}" filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Main-Class" value="com.kiy.controller.FMain" />
+				<attribute name="Class-Path" value="." />
+			</manifest>
+			<fileset dir="${dir.bin}" />
+			<zipfileset src="${dir}/lib/swt/swt-4.7-win32-win32-x86_64.jar" excludes="META-INF/*.SF" />
+			<zipgroupfileset dir="${dir}/lib" includes="*.jar" excludes="META-INF/*.SF,*javadoc.jar,*sources.jar,*.zip" />
+			<!-- <zipgroupfileset dir="${dir}/lib/gis" includes="*.jar" excludes="META-INF/*.SF" /> -->
+		</jar>
+	</target>
+</project>

@@ -1,0 +1,257 @@
+package com.kiy.cloud.data.bean;
+
+import java.sql.Timestamp;
+
+public class ServoBean {
+	/**
+	 * 服务器ID
+	 */
+	private String id;
+	
+	/**
+	 * 服务器类型
+	 */
+	private int type;
+	
+	/**
+	 * 客户id
+	 */
+	private String customer_id;
+	
+	/**
+	 * 服务器名称
+	 */
+	private String name;
+	
+	/**
+	 * 服务器地址
+	 */
+	private String address;
+	
+	/**
+	 * 服务器天气id
+	 */
+	private String weather_id;
+	
+	/**
+	 * 服务器PMid
+	 */
+	private String pm_id;
+	
+	/**
+	 * 服务器id地址
+	 */
+	private String ip_address;
+	
+	/**
+	 * 客户手机号(用于大华摄像头绑定)
+	 */
+	private String phone;
+	
+	/**
+	 * 备注
+	 */
+	private String remark;
+	
+	/**
+	 * 创建时间
+	 */
+	private Timestamp created;
+	
+	/**
+	 * 更新时间
+	 */
+	private Timestamp updated;
+	/**
+	 * 远程服务控制端口
+	 */
+	private int remote_port;
+
+	/**
+	 * 获取服务器id
+	 * @return
+	 */
+	public String getId() {
+		return id;
+	}
+
+	/**
+	 * 设置服务器id
+	 * @param id
+	 */
+	public void setId(String id) {
+		this.id = id;
+	}
+
+	/**
+	 * 获取服务器类型
+	 * @return
+	 */
+	public int getType() {
+		return type;
+	}
+
+	/**
+	 * 设置服务器类型
+	 * @param type
+	 */
+	public void setType(int type) {
+		this.type = type;
+	}
+
+	/**
+	 * 获取客户ID
+	 * @return
+	 */
+	public String getCustomerId() {
+		return customer_id;
+	}
+
+	/**
+	 * 设置客户ID
+	 * @param customer_id
+	 */
+	public void setCustomerId(String customerId) {
+		this.customer_id = customerId;
+	}
+
+	/**
+	 * 获取服务器名称
+	 * @return
+	 */
+	public String getName() {
+		return name;
+	}
+
+	/**
+	 * 设置服务器名称
+	 * @param name
+	 */
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	/**
+	 * 获取服务器安装地址
+	 * @return
+	 */
+	public String getAddress() {
+		return address;
+	}
+	
+	/**
+	 * 设置服务器安装地址
+	 * @param address
+	 */
+	public void setAddress(String address) {
+		this.address = address;
+	}
+
+	/**
+	 * 获取备注
+	 * @return
+	 */
+	public String getRemark() {
+		return remark;
+	}
+
+	/**
+	 * 设置备注
+	 * @param remark
+	 */
+	public void setRemark(String remark) {
+		this.remark = remark;
+	}
+
+	/**
+	 * 获取创建时间
+	 * @return
+	 */
+	public Timestamp getCreated() {
+		return created;
+	}
+
+	/**
+	 * 设置创建时间
+	 * @param created
+	 */
+	public void setCreated(Timestamp created) {
+		this.created = created;
+	}
+
+	/**
+	 * 获取更新时间
+	 * @return
+	 */
+	public Timestamp getUpdated() {
+		return updated;
+	}
+
+	/**
+	 * 设置更新时间
+	 * @param updated
+	 */
+	public void setUpdated(Timestamp updated) {
+		this.updated = updated;
+	}
+	
+	
+
+	public String getWeather_id() {
+		return weather_id;
+	}
+
+	public void setWeather_id(String weather_id) {
+		this.weather_id = weather_id;
+	}
+
+	public String getPm_id() {
+		return pm_id;
+	}
+
+	public void setPm_id(String pm_id) {
+		this.pm_id = pm_id;
+	}
+
+	public String getCustomer_id() {
+		return customer_id;
+	}
+
+	public void setCustomer_id(String customer_id) {
+		this.customer_id = customer_id;
+	}
+
+	public String getIp_address() {
+		return ip_address;
+	}
+
+	public void setIp_address(String ip_address) {
+		this.ip_address = ip_address;
+	}
+
+	public String getPhone() {
+		return phone;
+	}
+
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+
+	@Override
+	public String toString() {
+		return "ServoBean [id=" + id + ", type=" + type + ", customer_id=" + customer_id + ", name=" + name + ", address=" + address + ", weather_id=" + weather_id + ", pm_id=" + pm_id + ", ip_address=" + ip_address + ", phone=" + phone + ", remark=" + remark + ", created=" + created + ", updated=" + updated + ", remote_port=" + remote_port+ "]";
+	}
+
+	public int getRemote_port() {
+		return remote_port;
+	}
+
+	public void setRemote_port(int remote_port) {
+		this.remote_port = remote_port;
+	}
+
+
+
+	
+	
+}

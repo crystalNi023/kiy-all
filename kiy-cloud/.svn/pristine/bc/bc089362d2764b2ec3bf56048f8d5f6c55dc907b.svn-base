@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+  PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	<environments default="development">
+		<environment id="development">
+			<transactionManager type="JDBC" />
+			<dataSource type="POOLED">
+				<property name="driver" value="com.mysql.jdbc.Driver" />
+				<property name="url"
+					value="jdbc:mysql://127.0.0.1:3306/kiy-cloud?characterEncoding=utf8&amp;useSSL=true&amp;autoReconnect=true" />
+				<property name="username" value="root" />
+				<!-- <property name="password" value="kaiying6688"/>CQKIY.Mysql.2017 -->
+				<property name="password" value="" />
+				<!-- <property name="password" value="CQKIY.db.2018" /> -->
+			</dataSource>
+		</environment>
+	</environments>
+	<mappers>
+		<!-- 数据库表映射 -->
+		<mapper resource="com/kiy/cloud/data/config/servos.xml" />
+		<mapper resource="com/kiy/cloud/data/config/feedbacks.xml" />
+		<mapper resource="com/kiy/cloud/data/config/user_icons.xml" />
+		<mapper resource="com/kiy/cloud/data/config/singleProductUser.xml" />
+		<mapper resource="com/kiy/cloud/data/config/xmDevice.xml" />
+	</mappers>
+</configuration>

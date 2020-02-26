@@ -1,0 +1,62 @@
+package com.kiy.controller;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Sence;
+import com.kiy.common.Servo;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.UpdateSence;
+import com.kiy.protocol.Units.MSence.Builder;
+
+/**
+ * 更新场景
+ * 
+ * @author HLX
+ *
+ */
+public class AUpdateSence extends A<FSenceRecord> {
+
+	private Servo servo;
+	private Sence sence;
+
+
+	public AUpdateSence(FSenceRecord m, Servo servo1, Sence s) {
+		super(m);
+		servo = servo1;
+		sence = s;
+	}
+
+	@Override
+	protected void run() {
+		sendMessage();
+	}
+
+	public void sendMessage() {
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(main.getShell(), client);
+		if (judgeClientActive) {
+			return;
+		}
+		FSence f = new FSence(main.getShell());
+		Sence senceUpdate = f.open(servo, sence);
+
+		if (f.isUpdate) {
+			Message.Builder b_m = Message.newBuilder();
+			b_m.setKey(CtrClient.getKey());
+			b_m.setUserId(servo.getUser().getId());
+			UpdateSence.Builder updateSence = UpdateSence.newBuilder();
+			Builder builder = updateSence.getItemBuilder();
+			
+			builder.setId(senceUpdate.getId());
+			builder.setName(senceUpdate.getName());
+			builder.setSwitch(senceUpdate.getSwitchStatu());
+			builder.setRemark(senceUpdate.getRemark());
+			builder.setCreated(senceUpdate.getCreated().getTime());
+			builder.setUpdated(senceUpdate.getUpdated().getTime());
+			
+			b_m.setUpdateSence(updateSence);
+			client.send(b_m.build());
+		}
+
+	}
+}

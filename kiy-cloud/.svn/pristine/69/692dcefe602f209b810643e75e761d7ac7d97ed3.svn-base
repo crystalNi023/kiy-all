@@ -1,0 +1,637 @@
+/**
+ * 2017年2月20日
+ */
+package com.kiy.cloud.master;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.util.AttributeKey;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.cloud.data.Data;
+import com.kiy.protocol.Messages;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Result;
+
+/**
+ * 主控服务业务类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class MasterHandler extends SimpleChannelInboundHandler<Messages.Message> {
+
+	public static final AttributeKey<Client> CLIENT = AttributeKey.valueOf("CLIENT");
+
+	public static final String SMART_HOME_SERVO = "SMART_HOME_SERVO";
+	public static final String SMART_HOME_MOBILE = "SMART_HOME_MOBILE";
+	public static final String SMART_CITY_SERVO = "SMART_CITY_SERVO";
+	public static final String SMART_CITY_CONTROLLER = "SMART_CITY_CONTROLLER";
+	public static final String SMART_CITY_MOBILE = "SMART_CITY_MOBILE";
+	public static final String SMART_CITY_SCREEN = "SMART_CITY_SCREEN";
+
+	private static MasterGroup group;
+
+	private static Session session;
+
+	public MasterHandler(MasterGroup g) {
+		group = g;
+		session = g.getSession();
+	}
+
+	public static MasterGroup getGroups() {
+		return group;
+	}
+
+	public static Session getSession() {
+		return session;
+	}
+
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) {
+		ctx.channel().attr(CLIENT).set(new Client(ctx.channel()));
+		group.add(ctx.channel());
+	}
+
+	@Override
+	public void channelInactive(ChannelHandlerContext ctx) {
+		// 会触发此方法,并且心跳机制停止工作。
+		ctx.channel().close();
+	}
+
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, Message msg) throws Exception {
+
+		long time = System.currentTimeMillis();
+
+		if (Config.DEBUG)
+			Log.debug(msg.toString());
+
+		Client client = ctx.channel().attr(CLIENT).get();
+		switch (msg.getActionCase()) {
+			case CONNECT: {
+				if (client.Retry() > 3) {
+					ctx.disconnect();
+					ctx.close();
+					break;
+				}
+
+				String key = msg.getConnect().getKey();// 仅伺服器需要上传
+				String name = msg.getConnect().getName();
+
+				// 必须上传连接类型
+				if (isEmpty(name)) {
+					illegalArgument(ctx, msg);
+					break;
+				}
+
+				String company = null;
+				if (!isEmpty(key)) {
+					company = Data.checkServoKey(key);
+					if (company == null) {
+						// 禁止未注册伺服器登录
+						denied(ctx, msg);
+						break;
+					}
+				}else {
+					denied(ctx, msg); 
+					break;
+				}
+
+				// 1.伺服器连接
+				if (SMART_CITY_SERVO.equals(name)) {
+					client.setType(Client.SMART_CITY_SERVO);
+					if (group.contains(key)) {
+						// 禁止重复登录
+						conflict(ctx, msg);
+						break;
+					}
+					group.update(client.getUser(), key, client.getChannel());
+					client.setUser(key);
+					client.setServo(key);
+					client.setCompany(company);
+					client.checked();
+					SessionServo sessionServo = new SessionServo(client);
+					session.addServo(key, sessionServo);
+				} else if (SMART_HOME_SERVO.equals(name)) {
+					client.setType(Client.SMART_HOME_SERVO);
+					if (group.contains(key)) {
+						// 禁止重复登录
+						conflict(ctx, msg);
+						break;
+					}
+					group.update(client.getUser(), key, client.getChannel());
+					client.setUser(key);
+					client.setServo(key);
+					client.setCompany(company);
+					client.checked();
+					SessionServo sessionServo = new SessionServo(client);
+					session.addServo(key, sessionServo);
+				} else if (SMART_CITY_CONTROLLER.equals(name)) {
+					client.setType(Client.SMART_CITY_CONTROLLER);
+					client.setServo(key);
+					client.setCompany(company);
+					client.unChecked();
+				} else if (SMART_CITY_MOBILE.equals(name)) {
+					client.setType(Client.SMART_CITY_MOBILE);
+					client.setServo(key);
+					client.setCompany(company);
+					client.unChecked();
+				} else if (SMART_CITY_SCREEN.equals(name)) {
+					client.setType(Client.SMART_CITY_SCREEN);
+					client.setServo(key);
+					client.setCompany(company);
+					client.unChecked();
+				} else if (SMART_HOME_MOBILE.equals(name)) {
+					client.setType(Client.SMART_HOME_MOBILE);
+					client.setServo(key);
+					client.setCompany(company);
+					client.unChecked();
+				} else {
+					illegalArgument(ctx, msg);
+					break;
+				}
+
+				Message.Builder mb = msg.toBuilder();
+				mb.setResult(Result.SUCCESS);
+				ctx.channel().writeAndFlush(mb.build());
+				break;
+			}
+			case GET_MESSAGE: {
+				switch (client.getType()) {
+					case Client.SMART_HOME_SERVO:
+					case Client.SMART_CITY_SERVO:
+						Channel c = group.get(msg.getUserId());
+						if (c == null) {
+							break;// 丢弃
+						} else {
+							if (msg.getResult() == Result.SUCCESS) {
+								String uid = msg.getLogin().getId();
+								Client clt = c.attr(CLIENT).get();
+								group.update(clt.getUser(), uid, c);
+								clt.setUser(uid);
+								clt.checked();
+							}
+							c.writeAndFlush(msg);
+						}
+						break;
+					case Client.SMART_HOME_MOBILE:
+					case Client.SMART_CITY_MOBILE:
+					case Client.SMART_CITY_CONTROLLER:
+					case Client.SMART_CITY_SCREEN:
+						if (msg.getUserId() == null || msg.getUserId().length() == 0) {
+							Message.Builder mb = msg.toBuilder();
+							mb.setUserId(client.getUser());
+							msg = mb.build();
+						}
+						if (!group.SendOne(msg, client.getServo()))
+							nonExistent(ctx, msg);
+						break;
+					default:
+						drop(ctx);
+				}
+				break;
+			}
+			case ENSURE_MESSAGE: {
+				switch (client.getType()) {
+					case Client.SMART_HOME_SERVO:
+					case Client.SMART_CITY_SERVO:
+						Channel c = group.get(msg.getUserId());
+						if (c == null) {
+							break;// 丢弃
+						} else {
+							c.writeAndFlush(msg);
+						}
+						break;
+					case Client.SMART_HOME_MOBILE:
+					case Client.SMART_CITY_MOBILE:
+					case Client.SMART_CITY_CONTROLLER:
+					case Client.SMART_CITY_SCREEN:
+						if (msg.getUserId() == null || msg.getUserId().length() == 0) {
+							Message.Builder mb = msg.toBuilder();
+							mb.setUserId(client.getUser());
+							msg = mb.build();
+						}
+						if (!group.SendOne(msg, client.getServo()))
+							nonExistent(ctx, msg);
+						break;
+					default:
+						drop(ctx);
+				}
+				break;
+			}
+			case MODIFY_PASSWORD: {
+				switch (client.getType()) {
+					case Client.SMART_HOME_SERVO:
+					case Client.SMART_CITY_SERVO:
+						Channel c = group.get(msg.getUserId());
+						if (c == null) {
+							break;// 丢弃
+						} else {
+							c.writeAndFlush(msg);
+						}
+						break;
+					case Client.SMART_HOME_MOBILE:
+					case Client.SMART_CITY_MOBILE:
+					case Client.SMART_CITY_CONTROLLER:
+					case Client.SMART_CITY_SCREEN:
+						if (msg.getUserId() == null || msg.getUserId().length() == 0) {
+							Message.Builder mb = msg.toBuilder();
+							mb.setUserId(client.getUser());
+							msg = mb.build();
+						}
+						if (!group.SendOne(msg, client.getServo()))
+							nonExistent(ctx, msg);
+						break;
+					default:
+						drop(ctx);
+				}
+				break;
+			}
+			case DISCONNECT: {
+				drop(ctx);
+				break;
+			}
+			case HEARTBEAT: {
+				ctx.channel().writeAndFlush(msg);
+				break;
+			}
+			case LOGIN: {
+				switch (client.getType()) {
+					case Client.SMART_HOME_SERVO:
+					case Client.SMART_CITY_SERVO:
+						Channel c = group.get(msg.getUserId());
+						if (c == null) {
+							break;// 丢弃
+						} else {
+							if (msg.getResult() == Result.SUCCESS) {
+								String uid = msg.getLogin().getId();
+//								if (group.contains(uid)) {
+//									conflict(c, msg);
+//									break;
+//								}
+								Client clt = c.attr(CLIENT).get();
+								group.update(clt.getUser(), uid, c);
+								clt.setUser(uid);
+								clt.checked();
+							}
+							c.writeAndFlush(msg);
+						}
+						break;
+
+					case Client.SMART_HOME_MOBILE:
+					case Client.SMART_CITY_MOBILE:
+					case Client.SMART_CITY_CONTROLLER:
+					case Client.SMART_CITY_SCREEN:
+						if (msg.getUserId() == null || msg.getUserId().length() == 0) {
+							Message.Builder mb = msg.toBuilder();
+							mb.setUserId(client.getUser());
+							msg = mb.build();
+						}
+						if (!group.SendOne(msg, client.getServo()))
+							nonExistent(ctx, msg);
+						break;
+					default:
+						drop(ctx);
+				}
+				break;
+			}
+			case LOGOUT: {
+				group.update(client.getUser(), client.getID(), client.getChannel());
+				client.setUser(client.getID());
+				client.unChecked();
+				ctx.channel().writeAndFlush(msg);
+				break;
+			}
+			
+			/**
+			 * 1.控制台手机端都可访问，返回给所有用户
+			 */
+			case READ_DEVICE_STATUS:
+			case WRITE_DEVICE_STATUS:
+			case NOTICE:
+			case CREATE_TASK:
+			case CREATE_SCENE:
+			case UPDATE_USER:
+			case UPDATE_TASK:
+			case UPDATE_DEVICE:
+			case UPDATE_SCENE_STATUS:
+			case DELETE_TASK:
+			case DELETE_SCENE:{	
+				if (client.isChecked()) {
+					switch (client.getType()) {
+						case Client.SMART_CITY_SERVO:
+						case Client.SMART_HOME_SERVO:
+							group.SendClients(msg, client.getServo());/*收到本地服务器发送的指令 返回给所有用户*/
+							Message build = Message.newBuilder().setHeartbeat(Messages.Heartbeat.getDefaultInstance()).build();
+							if (!group.SendOne(build, client.getServo())){
+							}
+							break;
+						case Client.SMART_CITY_MOBILE:
+						case Client.SMART_CITY_CONTROLLER:
+						case Client.SMART_CITY_SCREEN:
+						case Client.SMART_HOME_MOBILE:
+							if (isEmpty(msg.getUserId())) {
+								denied(ctx, msg);
+								break;
+							}
+							if (!group.SendOne(msg, client.getServo())) /*收到客户端发送的指令  发送给相对应的指定本地服务器 */
+								nonExistent(ctx, msg);
+							break;
+						default:
+							drop(ctx);
+					}
+				} else {
+					// 丢弃未校验身份的信息
+				}
+				break;
+			}
+			
+			/**
+			 * 2.控制台可以访问 手机端不可访问，返回给所有用户
+			 */
+			case READ_DEVICE_CONFIG:
+			case WRITE_DEVICE_CONFIG:	
+			case MOVE_ZONE:
+			case MOVE_DEVICE:
+			case MOVE_POSITION:
+			case CREATE_USER:
+			case CREATE_ROLE:
+			case CREATE_ZONE:	
+			case CREATE_DEVICE:
+			case UPDATE_ROLE:
+			case UPDATE_ZONE:
+			case DELETE_USER:
+			case DELETE_ROLE:
+			case DELETE_ZONE:
+			case DELETE_DEVICE:	{
+				if (client.isChecked()) {
+					switch (client.getType()) {
+						case Client.SMART_CITY_SERVO:
+						case Client.SMART_HOME_SERVO:
+							// 同时发送给移动端和控制台
+							group.SendClients(msg, client.getServo());/*收到本地服务器发送的指令 返回给所有用户*/
+							Message build = Message.newBuilder().setHeartbeat(Messages.Heartbeat.getDefaultInstance()).build();
+							if (!group.SendOne(build, client.getServo())){
+							}
+							break;
+						case Client.SMART_CITY_CONTROLLER:
+							if (isEmpty(msg.getUserId())) {
+								denied(ctx, msg);
+								break;
+							}
+							if (!group.SendOne(msg, client.getServo()))/*收到客户端发送的指令  发送给相对应的指定本地服务器 */
+								nonExistent(ctx, msg);
+							break;
+						case Client.SMART_CITY_MOBILE:
+						case Client.SMART_HOME_MOBILE:
+						case Client.SMART_CITY_SCREEN:
+							// 不支持移动端发起M
+						default:
+							drop(ctx);
+					}
+				} else {
+					// 丢弃未校验身份的信息
+				}
+				break;
+			}
+			
+			/**
+			 * 3.控制台不可以访问手机端可以访问，返回给所有用户  暂不支持
+			 */
+			
+			/**
+			 * 4.控制台手机端都可以访问，返回给指定指定用户
+			 */
+			case SELECT_DEVICES:
+			case SELECT_TASKS:
+			case SELECT_ZONES:
+			case SELECT_USERS:
+			case SELECT_ROLES:
+			case SELECT_SCENES:
+			case SELECT_DELETES:	
+			case QUERY_DEVICE_STATUS:
+			case QUERY_DEVICE_MAINTAIN:
+			case QUERY_LOG:
+			case UPLOAD_USER_ICON:
+			case DOWNLOAD_USER_ICON:	
+			case GET_WEATHER_DATA:{
+				if (client.isChecked()) {
+					switch (client.getType()) {
+						case Client.SMART_CITY_SERVO:
+						case Client.SMART_HOME_SERVO:
+							// 仅回复给指定用户 1
+							group.SendOne(msg, msg.getUserId()); /*收到本地服务器发送的指令 只返回给指定用户*/
+							Message build = Message.newBuilder().setHeartbeat(Messages.Heartbeat.getDefaultInstance()).build();
+							if (!group.SendOne(build, client.getServo())){
+							}
+							break;
+						case Client.SMART_CITY_MOBILE:
+						case Client.SMART_CITY_CONTROLLER:
+						case Client.SMART_CITY_SCREEN:
+						case Client.SMART_HOME_MOBILE:
+							if (isEmpty(msg.getUserId())) {
+								denied(ctx, msg);
+								break;
+							}
+							if (!group.SendOne(msg, client.getServo())) /*收到客户端发送的指令  发送给相对应的指定本地服务器 */
+								nonExistent(ctx, msg);
+							break;
+						default:
+							drop(ctx);
+					}
+				} else {
+					// 丢弃未校验身份的信息
+				}
+				break;
+			}
+			
+			/**
+			 * 5.控制台可以访问手机端不可访问，返回给指定用户
+			 */
+			case CREATE_MAINTAIN:
+			case UPDATE_MAINTAIN:
+			case DELETE_MAINTAIN:
+			case FILE_LIST:
+			case FILE_DOWNLOAD:
+			case FILE_UPLOAD:
+			case GET_SERVO:
+			case GET_SERVO_CONFIG:
+			case SET_SERVO_CONFIG:{
+				if (client.isChecked()) {
+					switch (client.getType()) {
+						case Client.SMART_CITY_SERVO:
+						case Client.SMART_HOME_SERVO:
+							// 仅回复给指定用户 1
+							group.SendOne(msg, msg.getUserId()); /*收到本地服务器发送的指令 只返回给指定用户*/
+							Message build = Message.newBuilder().setHeartbeat(Messages.Heartbeat.getDefaultInstance()).build();
+							if (!group.SendOne(build, client.getServo())){
+							}
+							break;
+						case Client.SMART_CITY_CONTROLLER:
+							if (isEmpty(msg.getUserId())) {
+								denied(ctx, msg);
+								break;
+							}
+							if (!group.SendOne(msg, client.getServo())) /*收到客户端发送的指令  发送给相对应的指定本地服务器 */
+								nonExistent(ctx, msg);
+							break;
+						case Client.SMART_CITY_SCREEN:
+						case Client.SMART_HOME_MOBILE:
+						case Client.SMART_CITY_MOBILE:
+						default:
+							drop(ctx);
+					}
+				} else {
+					// 丢弃未校验身份的信息
+				}
+				break;
+			}
+			
+			/**
+			 * 6.控制台不可以访问手机端可以访问，返回给指定用户  暂不支持
+			 */
+			
+			/**
+			 * 7.控制台，手机端可以访问，服务器发送上来的数据不回复，只处理 (用于数据同步 例如意见反馈，支持本地发送，同步到云端)
+			 */
+			case CREATE_FEEDBACK:{
+				if (client.isChecked()) {
+					switch (client.getType()) {
+						case Client.SMART_CITY_SERVO:
+						case Client.SMART_HOME_SERVO:
+							// 服务器发送上来的数据，只做处理 用于保存意见反馈，不反馈
+							//TODO 保存意见反馈
+							break;
+						case Client.SMART_CITY_MOBILE:
+						case Client.SMART_CITY_CONTROLLER:
+						case Client.SMART_CITY_SCREEN:
+						case Client.SMART_HOME_MOBILE:
+							// 客户端请求，不在下发给本地，云端做处理即可
+							if (isEmpty(msg.getUserId())) {
+								denied(ctx, msg);
+								break;
+							}
+							//TODO 保存意见反馈
+							break;
+						default:
+							drop(ctx);
+					}
+				} else {
+					// 丢弃未校验身份的信息
+				}
+				break;
+			}
+
+			// 不支持或未定义的指令(通常由版本差异导致)
+			case ACTION_NOT_SET:
+			default:
+				unSupported(ctx, msg);
+				break;
+		}
+
+		time = System.currentTimeMillis() - time;
+		if (Config.DEBUG)
+			Log.debug("TIME m:" + time);
+	}
+
+	public void drop(ChannelHandlerContext ctx) {
+		// 强制下线
+		ctx.channel().disconnect();
+		ctx.channel().close();
+	}
+
+	public void nonExistent(ChannelHandlerContext ctx, Message msg) {
+		nonExistent(ctx.channel(), msg);
+	}
+
+	public void nonExistent(Channel c, Message msg) {
+		// 目标不存在
+		Message.Builder mb = msg.toBuilder();
+		mb.setResult(Result.NON_EXISTENT);
+		c.writeAndFlush(mb.build());
+
+		if (Config.DEBUG)
+			Log.debug(mb.toString());
+	}
+
+	public void conflict(ChannelHandlerContext ctx, Message msg) {
+		conflict(ctx.channel(), msg);
+	}
+
+	public void conflict(Channel c, Message msg) {
+		// 冲突
+		Message.Builder mb = msg.toBuilder();
+		mb.setResult(Result.CONFLICT);
+		c.writeAndFlush(mb.build());
+
+		if (Config.DEBUG)
+			Log.debug("CONFLICT : " + mb.toString());
+	}
+
+	public void denied(ChannelHandlerContext ctx, Message msg) {
+		denied(ctx.channel(), msg);
+	}
+
+	public void denied(Channel c, Message msg) {
+		// 反馈指令没有权限
+		Message.Builder mb = msg.toBuilder();
+		mb.setResult(Result.DENIED);
+		c.writeAndFlush(mb.build());
+
+		if (Config.DEBUG)
+			Log.debug("DENIED : "+mb.toString());
+	}
+
+	public void illegalArgument(ChannelHandlerContext ctx, Message msg) {
+		illegalArgument(ctx.channel(), msg);
+	}
+
+	public void illegalArgument(Channel c, Message msg) {
+		// 反馈指令参数错误
+		Message.Builder mb = msg.toBuilder();
+		mb.setResult(Result.ILLEGAL_ARGUMENT);
+		c.writeAndFlush(mb.build());
+
+		if (Config.DEBUG)
+			Log.debug("ILLEGAL_ARGUMENT : " + mb.toString());
+	}
+
+	public void unSupported(ChannelHandlerContext ctx, Message msg) {
+		// 反馈不支持的指令
+		Message.Builder mb = msg.toBuilder();
+		mb.setResult(Result.UNSUPPORTED);
+		ctx.channel().writeAndFlush(mb.build());
+
+		if (Config.DEBUG)
+			Log.debug("UNSUPPORTED : "+mb.toString());
+	}
+
+	// 用户事件
+	@Override
+	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+		if (evt instanceof IdleStateEvent) {
+			IdleStateEvent e = (IdleStateEvent) evt;
+			if (e.state() == IdleState.ALL_IDLE)
+				ctx.close();
+		}
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+		// 出现异常时,记录错误关闭通道
+		Log.error(cause);
+		drop(ctx);
+	}
+
+	public boolean isEmpty(String value) {
+		if (value == null)
+			return true;
+
+		return value.length() == 0;
+	}
+}

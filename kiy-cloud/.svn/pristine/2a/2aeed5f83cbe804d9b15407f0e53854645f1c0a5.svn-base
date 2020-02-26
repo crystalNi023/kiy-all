@@ -1,0 +1,16 @@
+package test;
+
+import com.kiy.cloud.data.dao.ServoDao;
+import com.kiy.cloud.data.dao.impl.ServoDaoImpl;
+
+public class test {
+	public static void main(String[] args) {
+		ServoDao servoDao = new ServoDaoImpl();
+		try {
+			String findUserById = servoDao.findCustomerIdById("1575f7ba-7753-11e7-bb87-4061866d97d0");
+			System.out.println(findUserById);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+}

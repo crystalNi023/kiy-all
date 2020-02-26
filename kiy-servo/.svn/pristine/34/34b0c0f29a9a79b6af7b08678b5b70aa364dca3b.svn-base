@@ -1,0 +1,15 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.notice;
+
+/**
+ * 手机短信通知
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class SMS {
+
+	// AT 指令
+}

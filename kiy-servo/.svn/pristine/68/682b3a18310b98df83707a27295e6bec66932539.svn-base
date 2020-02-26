@@ -1,0 +1,366 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.driver;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.TooManyListenersException;
+import java.util.concurrent.TimeUnit;
+
+import purejavacomm.CommPort;
+import purejavacomm.CommPortIdentifier;
+import purejavacomm.NoSuchPortException;
+import purejavacomm.PortInUseException;
+import purejavacomm.SerialPort;
+import purejavacomm.SerialPortEvent;
+import purejavacomm.SerialPortEventListener;
+import purejavacomm.UnsupportedCommOperationException;
+
+import com.kiy.common.Device;
+import com.kiy.servo.Config;
+import com.kiy.servo.Executor;
+import com.kiy.servo.Log;
+
+/**
+ * 主动模式(定时传回)
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public abstract class SerialPortReceiver extends DriverAdpater {
+
+	private String key;
+	private SerialPort sp;
+	private InputStream in;
+	private OutputStream out;
+	private int delay = 0;
+	private ByteBuf buffer;
+
+	protected Coder coder;
+	protected int data_bits = SerialPort.DATABITS_8;
+	protected int stop_bits = SerialPort.STOPBITS_1;
+	protected int parity_check = SerialPort.PARITY_NONE;
+
+	public SerialPortReceiver(Device d) {
+		super(d);
+	}
+
+	@Override
+	public void start() {
+		if (coder == null)
+			return;
+		CommPortIdentifier portIdentifier = null;
+		try {
+			portIdentifier = CommPortIdentifier.getPortIdentifier(device.getSerialPort());
+			if (portIdentifier.isCurrentlyOwned()) {
+				Log.error("Port is currently in use.");
+				reset();
+				return;
+			}
+		} catch (NoSuchPortException ex) {
+			Log.error("Port " + device.getSerialPort() + " is inexistent.");
+			reset();
+			return;
+		}
+
+		CommPort cp = null;
+
+		try {
+			cp = portIdentifier.open(SerialPortReceiver.class.getName(), 2000);
+			if (cp instanceof SerialPort) {
+				sp = (SerialPort) cp;
+				sp.setSerialPortParams(device.getSerialBaudRate(), data_bits, stop_bits, parity_check);
+				sp.setInputBufferSize(coder.getMaxFrame());
+				
+				sp.setOutputBufferSize(coder.getMaxFrame());
+				sp.enableReceiveTimeout(Config.DRIVER_TIMEOUT * 1000);
+				// sp.enableReceiveFraming(0);
+				sp.enableReceiveThreshold(0);
+
+				sp.addEventListener(new EventListener());
+
+				sp.notifyOnBreakInterrupt(true);
+				sp.notifyOnCarrierDetect(true);
+				sp.notifyOnCTS(true);
+				sp.notifyOnDSR(true);
+				sp.notifyOnDataAvailable(true);
+				sp.notifyOnFramingError(true);
+				sp.notifyOnOutputEmpty(true);
+				sp.notifyOnOverrunError(true);
+				sp.notifyOnParityError(true);
+				sp.notifyOnRingIndicator(true);
+
+				in = sp.getInputStream();
+				out = sp.getOutputStream();
+
+				delay = device.getSerialBaudRate() / Config.DRIVER_DELAY;
+				key = device.getSerialPort() + ':' + device.getSerialBaudRate() + ',' + data_bits + stop_bits + parity_check;
+				Log.info("OPEN " + key + " delay:" + delay);
+			} else {
+				cp.close();
+				Log.error("Port " + device.getSerialPort() + " is not serial port.");
+				reset();
+			}
+		} catch (PortInUseException | UnsupportedCommOperationException | TooManyListenersException | IOException ex) {
+			Log.error(ex);
+			if (cp != null)
+				cp.close();
+			reset();
+		}
+	}
+
+	public void receive() {
+		if (in == null || out == null)
+			return;
+
+		if (buffer == null)
+			buffer = ByteBufAllocator.DEFAULT.buffer(coder.getMaxFrame());
+		try {
+			buffer.writeBytes(in, coder.getMaxFrame());
+			switch (coder.frame(device, buffer)) {
+				case Coder.OK:
+					break;
+				case Coder.CONTINUE:
+					return;
+				case Coder.OVERFLOW:
+					buffer.clear();
+					Log.error(key + " OVERFLOW");
+					return;
+				case Coder.FORMAT:
+					Log.error(key + " FORMAT");
+					buffer.clear();
+					return;
+				default:
+					Log.error(key + " UNKNOWN ");
+					buffer.clear();
+					return;
+			}
+		} catch (IOException ex) {
+			Log.error(ex);
+			buffer.release();
+			buffer = null;
+			reset();
+			return;
+		}
+Log.debug("SerialPortReceiver-001");
+		// DECODE
+		coder.decode(null, buffer, (byte) 0, 0);
+		buffer.clear();//临时
+		buffer.release();
+		buffer = null;
+	}
+
+	public synchronized void send(Device device, byte code, int tag) {
+		if (in == null || out == null)
+			return;
+
+		ByteBuf bf = ByteBufAllocator.DEFAULT.buffer(coder.getMaxFrame());
+
+		// ENCODE
+		Log.debug("SerialPortReceiver-002");
+		coder.encode(device, bf, code, tag);
+		if (bf.readableBytes() == 0) {
+			Log.error(key + " encode 0 byte");
+			bf.release();
+			return;
+		}
+
+		try {
+			// WRITE
+			bf.readBytes(out, bf.readableBytes());
+			out.flush();
+
+			if (Config.DEBUG)
+				Log.debug("SEND " + key + " byte " + bf.readableBytes());
+
+			// READ
+			bf.clear();
+			int count = sp.getReceiveTimeout();
+			w: while (--count > 0) {
+				// Log.debug("WAIT " + key + " count " + count);
+				bf.writeBytes(in, coder.getMaxFrame());
+				switch (coder.frame(device, bf)) {
+					case Coder.OK:
+						break w;
+					case Coder.CONTINUE:
+						Thread.sleep(1);
+						continue w;
+					case Coder.OVERFLOW:
+						bf.release();
+						Log.error(key + " OVERFLOW");
+						return;
+					case Coder.FORMAT:
+						Log.error(key + " FORMAT");
+						bf.release();
+						return;
+					default:
+						Log.error(key + " UNKNOWN ");
+						bf.release();
+						return;
+				}
+			}
+			if (Config.DEBUG)
+				Log.debug("RECV " + key + " byte " + bf.readableBytes());
+
+			if (count > 0) {
+				// DELAY
+				Thread.sleep(delay);
+			}
+		} catch (IOException | InterruptedException ex) {
+			Log.error(ex);
+			bf.release();
+			reset();
+			return;
+		}
+		Log.debug("SerialPortReceiver-003");
+		// DECODE
+		coder.decode(device, bf, code, tag);
+		bf.release();
+	}
+
+	@Override
+	public void reset() {
+		stop();
+		Executor.getScheduledExecutorService().schedule(new Runnable() {
+			@Override
+			public void run() {
+				start();
+			}
+		}, Config.DRIVER_RESTART, TimeUnit.SECONDS);
+	}
+
+	@Override
+	public void stop() {
+		if (sp == null)
+			return;
+
+		try {
+			if (in != null) {
+				in.close();
+				in = null;
+			}
+			if (out != null) {
+				out.close();
+				out = null;
+			}
+			sp.close();
+			sp = null;
+		} catch (IOException ex) {
+			Log.error(ex);
+		}
+	}
+
+	@Override
+	public boolean isActive() {
+		return sp != null && in != null && out != null;
+	}
+
+	@Override
+	public void destroy() {
+		coder = null;
+	}
+
+	/**
+	 * 串口事件
+	 */
+	private class EventListener implements SerialPortEventListener {
+
+		@Override
+		public void serialEvent(SerialPortEvent e) {
+			switch (e.getEventType()) {
+				case SerialPortEvent.DATA_AVAILABLE:
+				try {
+					while(in.available()>0) {
+						try {
+							Thread.sleep(200);
+						} catch (InterruptedException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+						break;
+					}
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+					// 数据到达
+					receive();
+					break;
+				case SerialPortEvent.OUTPUT_BUFFER_EMPTY:
+					// 缓冲区空
+					// Log.debug("OUTPUT_BUFFER_EMPTY 缓冲区空");
+					break;
+				case SerialPortEvent.BI:
+					// 通讯中断
+					// Log.debug("BI 通讯中断");
+					break;
+				case SerialPortEvent.CD:
+					// 载波检测
+					// Log.debug("CD 载波检测");
+					break;
+				case SerialPortEvent.CTS:
+					// 清除发送
+					// Log.debug("CTS 清除发送");
+					break;
+				case SerialPortEvent.DSR:
+					// 设备就绪
+					// Log.debug("DSR 设备就绪");
+					break;
+				case SerialPortEvent.FE:
+					// 帧错误
+					// Log.debug("FE 帧错误");
+					break;
+				case SerialPortEvent.OE:
+					// 溢位错误
+					// Log.debug("OE 溢位错误");
+					break;
+				case SerialPortEvent.PE:
+					// 奇偶校验错
+					// Log.debug("PE 奇偶校验错");
+					break;
+				case SerialPortEvent.RI:
+					// 振铃
+					// Log.debug("RI 振铃");
+					break;
+				default:
+					break;
+			}
+		}
+	}
+
+	/**
+	 * 获取系统所有可用端口
+	 */
+	public static List<String> getAllPort() {
+		ArrayList<String> items = new ArrayList<String>();
+		Enumeration<?> ports = CommPortIdentifier.getPortIdentifiers();
+		String item = null;
+		while (ports.hasMoreElements()) {
+			Object p = ports.nextElement();
+			if (p instanceof CommPortIdentifier) {
+				CommPortIdentifier portIdentifier = (CommPortIdentifier) p;
+
+				switch (portIdentifier.getPortType()) {
+					case CommPortIdentifier.PORT_PARALLEL:
+						item = portIdentifier.getName() + "(Parallel)";
+						break;
+					case CommPortIdentifier.PORT_SERIAL:
+						item = portIdentifier.getName() + "(Serial)";
+						break;
+					default:
+						item = portIdentifier.getName() + "(Unknown)";
+				}
+				items.add(item);
+			}
+		}
+		return items;
+	}
+}

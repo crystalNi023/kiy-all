@@ -1,0 +1,636 @@
+package com.kiy.cloud.http;
+
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http.multipart.HttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.cloud.data.bean.FeedbackBean;
+import com.kiy.cloud.data.bean.UserIconBean;
+import com.kiy.cloud.data.dao.impl.FeedBackDaoImpl;
+import com.kiy.cloud.data.dao.impl.UserIconDaoImpl;
+import com.kiy.cloud.master.MasterGroup;
+import com.kiy.cloud.master.MasterHandler;
+import com.kiy.cloud.recognize.RecognizeListener;
+import com.kiy.cloud.recognize.RecognizeMessageQueue;
+import com.kiy.common.Tool;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.SelectDevices;
+import com.kiy.protocol.Messages.SyncUserIcon;
+import com.kiy.protocol.Messages.SyncUserIcon.Builder;
+import com.kiy.protocol.Units.MDevice;
+
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+
+	public static final boolean SPEECH_RECOGNIZE = true;
+	public static final boolean SPEECH_SYNTHESIS = false;
+
+	public static final int FEEDBACK_IMG = 3;
+	public static final int USER_ICON_IMG = 4;
+	public static final int PHONETIC_FILE = 5;
+
+	private static final String SUCCESS = "SUCCESS";
+	private static final String SERVER_INTERNAL_ERROR = "Server internal error";
+
+	private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE); // Disk
+
+	private HttpPostRequestDecoder decoder;
+
+	/**
+	 * 上传的文件的URL
+	 */
+	private String fileUrl;
+	/**
+	 * 上传的文件的真实路径
+	 */
+	private String fileTurePath;
+
+	public void process(int type, String path, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) throws IOException {
+		switch (path) {
+		// 创建意见反馈
+			case "create_feedback":
+				createFeedback(type, parameters, writer, request);
+				break;
+			// 上传用户头像
+			case "upload_userIcon":
+				uploadUserIcon(type, parameters, writer, request);
+				break;
+			// 语音识别
+			case "phonetic_recognition":
+				phoneticRecognition(type, writer, request);
+				break;
+			// 获取在线伺服器
+			case "getOnlineServo":{
+				MasterGroup groups = MasterHandler.getGroups();
+				if (groups != null) {
+					ConcurrentMap<String,Channel> channel_keys = groups.getOnlineServoKey();
+					getOnlineServo(writer, type, channel_keys);
+				} else {
+					getOnlineServo(writer, type, null);
+				}
+			}
+				break;
+			case "select_devices":{
+				System.err.println("获取设备列表");
+				final String servoId = parameters.getValue("servo_id");
+				
+				System.err.println("获取设备列表 ID = "+servoId);
+				
+				//1.发送请求给本地服务器
+				MasterGroup groups = MasterHandler.getGroups();
+				
+				//1.1 构建protobuf 消息
+				
+				Message.Builder msg = Message.newBuilder();
+				msg.setUserId("cloud-"+servoId);
+				SelectDevices.Builder selectDevice = SelectDevices.newBuilder();
+				msg.setSelectDevices(selectDevice.build());
+				
+				final MessageContainer reciveMsg = new MessageContainer();
+				
+				CloudResponseListener cloudResponseListener = new CloudResponseListener() {
+					@Override
+					public void receive(Message msg) {
+						if (msg.getActionCase() == ActionCase.SELECT_DEVICES&&msg.getUserId().equals(("cloud-"+servoId))) {
+							reciveMsg.setMsg(msg);
+						}
+					}
+				};	
+				
+				MasterHandler.addCloudResponseListener(cloudResponseListener);
+				
+				groups.Send2LocalServo(msg.build(), servoId);
+				while (true) {
+					try {
+						Thread.sleep(1);
+					} catch (InterruptedException e) {
+						Log.error(e);
+					}
+					if (reciveMsg.getMsg()!=null) {
+						MasterHandler.removeCloudResponseListener(cloudResponseListener);
+						break;
+					}
+				}
+				//2.处理本地服务器返回的请求
+				
+				Message message = reciveMsg.getMsg();
+				selectDevices(writer, type, message);
+			} 	
+			break;
+			case "test":
+				MasterGroup groups1 = MasterHandler.getGroups();
+				if (groups1 != null) {
+					ConcurrentMap<String,Channel> channel_keys = groups1.getChannel_keys();
+					getOnlineServo(writer, type, channel_keys);
+				} else {
+					getOnlineServo(writer, type, null);
+				}
+			default:
+				break;
+		}
+	}
+
+	/**
+	 * 读取上传文件
+	 */
+	private void getUploadFile(int type, PrintWriter writer, FullHttpRequest request, int fileType) {
+		HttpContent chunk = request;
+		try {
+			decoder.offer(chunk);
+		} catch (ErrorDataDecoderException e1) {
+			Log.error(e1);
+			serverError(writer, type, SERVER_INTERNAL_ERROR);
+			reset();
+			return;
+		}
+		readHttpDataChunkByChunk(type, writer, fileType); // 从解码器decoder中读出数据
+	}
+
+	/**
+	 * 写入文件
+	 */
+	private void writeHttpData(InterfaceHttpData data, int fileType) throws IOException {
+		if (data.getHttpDataType() != HttpDataType.Attribute && data.getHttpDataType() != HttpDataType.InternalAttribute) {
+			String uploadFileName = getUploadFileName(data);
+			if (Tool.isEmpty(uploadFileName)) {
+				return;
+			}
+
+			String substring = uploadFileName.substring(uploadFileName.lastIndexOf('.'), uploadFileName.length());
+			FileUpload fileUpload = (FileUpload) data;
+			if (fileUpload.isCompleted()) {
+				String f = "";
+				if (fileType == FEEDBACK_IMG) {
+					f = Config.FEEDBACK_URL;
+				} else if (fileType == USER_ICON_IMG) {
+					f = Config.USER_ICON_URL;
+				} else {
+					f = Config.PHONETIC_URL;
+				}
+				File dir = new File(Config.getWorkPath() + f);
+				if (!dir.exists()) {
+					dir.mkdir();
+				}
+				File dest = new File(dir, System.currentTimeMillis() + UUID.randomUUID().toString() + substring);
+				fileUpload.renameTo(dest);
+				fileTurePath = dest.getAbsolutePath();
+				if (fileType == FEEDBACK_IMG) {
+					fileUrl = Config.IMG_URL + "feedback/" + dest.getName();
+				} else if (fileType == USER_ICON_IMG) {
+					fileUrl = Config.IMG_URL + "userIcon/" + dest.getName();
+				}
+			}
+		}
+	}
+
+	/**
+	 * chunk 从decoder中读出数据，写入临时对象，然后写入文件， 这个封装主要是为了释放临时对象
+	 */
+	private void readHttpDataChunkByChunk(int type, PrintWriter writer, int fileType) {
+		try {
+			while (decoder.hasNext()) {
+				InterfaceHttpData data = decoder.next();
+				if (data != null) {
+					try {
+						writeHttpData(data, fileType);
+					} catch (IOException e) {
+						Log.error(e);
+						serverError(writer, type, SERVER_INTERNAL_ERROR);
+						reset();
+						return;
+					} finally {
+						data.release();
+					}
+				}
+			}
+		} catch (EndOfDataDecoderException e) {
+			// 无处理
+		}
+	}
+
+	/**
+	 * 重置
+	 */
+	private void reset() {
+		fileUrl = null;
+		fileTurePath = null;
+		if (decoder != null) {
+			decoder.destroy();
+			decoder = null;
+		}
+
+	}
+
+	/**
+	 * 在InterfaceHttpData中读取上传的文件名称
+	 */
+	private String getUploadFileName(InterfaceHttpData data) {
+		String content = data.toString();
+		String temp = content.substring(0, content.indexOf("\n"));
+		content = temp.substring(temp.lastIndexOf("=") + 2, temp.lastIndexOf("\""));
+		return content;
+	}
+
+	/**
+	 * 返回成功消息
+	 */
+	public void success(PrintWriter writer, int type, String success) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0000", true);
+			JSON.field(writer, "msg", success, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0000");
+			XML.element(writer, "msg", success);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/**
+	 * 传递参数错误消息
+	 */
+	public void parameterError(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0001", true);
+			JSON.field(writer, "msg", error, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0001");
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/**
+	 * 服务器错误消息
+	 */
+	public void serverError(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", "0002", true);
+			JSON.field(writer, "msg", error, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", "0002");
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/*************************************************/
+	/**
+	 * 数据处理
+	 */
+	/*************************************************/
+
+	/**
+	 * 创建意见反馈
+	 */
+	private void createFeedback(int type, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) {
+		decoder = new HttpPostRequestDecoder(factory, request);
+		try {
+			String username = parameters.getValue("username"); // 意见反馈用户名
+			String servoId = parameters.getValue("servo_id"); // 服务器key
+			String content = parameters.getValue("content"); // 意见反馈内容
+			if (Tool.isEmpty(username) || Tool.isEmpty(servoId) || Tool.isEmpty(content)) {
+				parameterError(writer, type, "username,servo_id,content can not be null!");
+				reset();
+				return;
+			}
+			String choice = parameters.getValue("choice");
+			getUploadFile(type, writer, request, FEEDBACK_IMG);
+
+			FeedbackBean feedbackBean = new FeedbackBean();
+			feedbackBean.setUsername(username);
+			feedbackBean.setServoId(servoId);
+			feedbackBean.setImg_url(fileUrl);
+			feedbackBean.setContent(content);
+			if (!Tool.isEmpty(choice)) {
+				feedbackBean.setChoice(Integer.valueOf(choice));
+			}
+			boolean createFeedBack = false;
+			createFeedBack = new FeedBackDaoImpl().createFeedBack(feedbackBean);
+			if (createFeedBack) {
+				success(writer, type, SUCCESS);
+				reset();
+				return;
+			} else {
+				serverError(writer, type, SERVER_INTERNAL_ERROR);
+				reset();
+				return;
+			}
+		} catch (Exception e) {
+			Log.error(e);
+			serverError(writer, type, SERVER_INTERNAL_ERROR);
+			reset();
+			return;
+		}
+	}
+
+	/**
+	 * 上传用户头像
+	 */
+	private void uploadUserIcon(int type, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) {
+		decoder = new HttpPostRequestDecoder(factory, request);
+		try {
+			String userId = parameters.getValue("user_id"); // 意见反馈用户key
+			String servoId = parameters.getValue("servo_id"); // 服务器key
+			if (Tool.isEmpty(userId) || Tool.isEmpty(servoId)) {
+				parameterError(writer, type, "user_id,servo_id can not be null");
+				reset();
+				return;
+			}
+			getUploadFile(type, writer, request, USER_ICON_IMG);
+			if (Tool.isEmpty(fileUrl)) {
+				parameterError(writer, type, "user_icon can not be null");
+				reset();
+				return;
+			}
+			UserIconBean userIconBean = new UserIconBean();
+			userIconBean.setUserId(userId);
+			userIconBean.setServoId(servoId);
+			userIconBean.setUserIcon(fileUrl);
+			boolean createUser = false;
+			createUser = new UserIconDaoImpl().createUserIcon(userIconBean);
+
+			if (createUser) { /* 云端本地数据同步 */
+				Message.Builder msg = Message.newBuilder();
+				Builder newBuilder = SyncUserIcon.newBuilder();
+				newBuilder.setIconUrl(fileUrl);
+				newBuilder.setUserId(userId);
+				newBuilder.build();
+				msg.setSyncUserIcon(newBuilder);
+				MasterGroup groups = MasterHandler.getGroups();
+				boolean isSend = false;
+				if (groups != null) {
+					isSend = groups.Send2LocalServo(msg.build(), servoId);
+				}
+				if (isSend) {
+					if (CODE_JSON == type) {
+						JSON.begin(writer);
+						JSON.field(writer, "result", "0000", true);
+						JSON.field(writer, "msg", SUCCESS, false);
+						JSON.field(writer, "user_id", userId);
+						JSON.field(writer, "user_icon_url", fileUrl);
+						JSON.end(writer);
+					} else if (CODE_XML == type) {
+						XML.document(writer);
+						XML.element(writer, "result", "0000");
+						XML.element(writer, "msg", SUCCESS);
+						XML.element(writer, "uset_id", userId);
+						XML.element(writer, "user_icon_url", fileUrl);
+					} else {
+						throw new IllegalArgumentException();
+					}
+					reset();
+					return;
+				} else {
+					// 上传失败，伺服器不在线
+					serverError(writer, type, "本地服务器不在线");
+					reset();
+				}
+			} else {
+				serverError(writer, type, SERVER_INTERNAL_ERROR);
+				reset();
+				return;
+			}
+		} catch (Exception e) {
+			Log.error(e);
+			serverError(writer, type, SERVER_INTERNAL_ERROR);
+			// 删除以保存的图片
+			File file = new File(fileTurePath);
+			if (file.exists()) {
+				file.delete();
+			}
+			return;
+		}
+	}
+
+	/**
+	 * 语音识别
+	 */
+	private void phoneticRecognition(int type, final PrintWriter writer, FullHttpRequest request) {
+		decoder = new HttpPostRequestDecoder(factory, request);
+		try {
+			getUploadFile(type, writer, request, PHONETIC_FILE);
+			if (Tool.isEmpty(fileTurePath)) {
+				parameterError(writer, type, "phonetic file can not be null");
+				reset();
+				return;
+			}
+			RecognizeMessageQueue instance = RecognizeMessageQueue.getInstance();
+			instance.add( fileTurePath , null , SPEECH_RECOGNIZE);
+			
+			final StringBuilder result = new StringBuilder();
+			instance.setRecognoizeListener(new RecognizeListener() {
+				@Override
+				public void onRecognizeSuccess(String filepath, String re) {
+					if (filepath.equals(fileTurePath)) {
+						result.append(re);
+						File file = new File(fileTurePath);
+						if (file.exists()) {
+							file.delete();
+						}
+					}
+				}
+			});
+			while (true) {
+				Thread.sleep(1);
+				if (result.length() > 0) {
+					break;
+				}
+			}
+			writer.print(result);
+			reset();
+		} catch (Exception e) {
+			Log.error(e);
+			serverError(writer, type, SERVER_INTERNAL_ERROR);
+			// 删除已保存的图片
+			File file = new File(fileTurePath);
+			if (file.exists()) {
+				file.delete();
+			}
+			reset();
+			return;
+		}
+	}
+	
+	
+	private void selectDevices(PrintWriter writer, int type,Message msg){
+		SelectDevices selectDevices = msg.getSelectDevices();
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "devices", true);
+			if (!selectDevices.getItemsList().isEmpty()) {
+				for (MDevice mdDevice : selectDevices.getItemsList()) {
+					JSON.objectBegin(writer, first);
+					{
+						JSON.field(writer, "id", mdDevice.getId(),true);
+						JSON.field(writer, "vendor", mdDevice.getVendor());
+						JSON.field(writer, "kind", mdDevice.getKind());
+						JSON.field(writer, "model", mdDevice.getModel());
+						JSON.field(writer, "link", mdDevice.getLink());
+						JSON.field(writer, "use", mdDevice.getUse());
+						JSON.field(writer, "sn", mdDevice.getSn());
+						JSON.field(writer, "name", mdDevice.getName());
+						JSON.field(writer, "number", mdDevice.getNumber());
+						JSON.field(writer, "username", mdDevice.getUsername());
+						JSON.field(writer, "password", mdDevice.getPassword());
+						JSON.field(writer, "networkIp", mdDevice.getNetworkIp());
+						JSON.field(writer, "netWorkPort", mdDevice.getNetworkPort());
+						JSON.field(writer, "serialPort", mdDevice.getSerialPort());
+						JSON.field(writer, "serialBaudRate", mdDevice.getSerialBaudRate());
+						JSON.field(writer, "load", mdDevice.getLoad());
+						JSON.field(writer, "power", mdDevice.getPower());
+						JSON.field(writer, "mutual", mdDevice.getMutual());
+						JSON.field(writer, "delay", mdDevice.getDelay());
+						JSON.field(writer, "address", mdDevice.getAddress());
+						JSON.field(writer, "installed", mdDevice.getInstalled());
+						JSON.field(writer, "produced", mdDevice.getProduced());
+						JSON.field(writer, "longitude", String.valueOf(mdDevice.getLongitude()));
+						JSON.field(writer, "latitude", String.valueOf(mdDevice.getLatitude()));
+						JSON.field(writer, "altitude", String.valueOf(mdDevice.getAltitude()));
+						JSON.field(writer, "phaseCheck", mdDevice.getPhaseCheck());
+						JSON.field(writer, "phasePower", mdDevice.getPhasePower());
+						JSON.field(writer, "notice", mdDevice.getNotice());
+						JSON.field(writer, "detect", mdDevice.getDetect());
+						JSON.field(writer, "remark", mdDevice.getRemark());
+						JSON.field(writer, "created", mdDevice.getCreated());
+						JSON.field(writer, "updated", mdDevice.getUpdated());
+					}
+					JSON.objectEnd(writer);
+					if (first)
+						first = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			}else {
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			}
+		}else {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_devices");
+			if (!selectDevices.getItemsList().isEmpty()) {
+				for (MDevice mdDevice : selectDevices.getItemsList()) {
+					XML.elementBegin(writer, "device");
+					{
+						XML.element(writer, "id", mdDevice.getId());
+						XML.element(writer, "vendor", mdDevice.getVendor());
+						XML.element(writer, "kind", mdDevice.getKind());
+						XML.element(writer, "model", mdDevice.getModel());
+						XML.element(writer, "link", mdDevice.getLink());
+						XML.element(writer, "use", mdDevice.getUse());
+						XML.element(writer, "sn", mdDevice.getSn());
+						XML.element(writer, "name", mdDevice.getName());
+						XML.element(writer, "number", mdDevice.getNumber());
+						XML.element(writer, "username", mdDevice.getUsername());
+						XML.element(writer, "password", mdDevice.getPassword());
+						XML.element(writer, "networkIp", mdDevice.getNetworkIp());
+						XML.element(writer, "netWorkPort", mdDevice.getNetworkPort());
+						XML.element(writer, "serialPort", mdDevice.getSerialPort());
+						XML.element(writer, "serialBaudRate", mdDevice.getSerialBaudRate());
+						XML.element(writer, "load", mdDevice.getLoad());
+						XML.element(writer, "power", mdDevice.getPower());
+						XML.element(writer, "mutual", mdDevice.getMutual());
+						XML.element(writer, "delay", mdDevice.getDelay());
+						XML.element(writer, "address", mdDevice.getAddress());
+						XML.element(writer, "installed", mdDevice.getInstalled());
+						XML.element(writer, "produced", mdDevice.getProduced());
+						XML.element(writer, "longitude", String.valueOf(mdDevice.getLongitude()));
+						XML.element(writer, "latitude", String.valueOf(mdDevice.getLatitude()));
+						XML.element(writer, "altitude", String.valueOf(mdDevice.getAltitude()));
+						XML.element(writer, "phaseCheck", mdDevice.getPhaseCheck());
+						XML.element(writer, "phasePower", mdDevice.getPhasePower());
+						XML.element(writer, "notice", mdDevice.getNotice());
+						XML.element(writer, "detect", mdDevice.getDetect());
+						XML.element(writer, "remark", mdDevice.getRemark());
+						XML.element(writer, "created", mdDevice.getCreated());
+						XML.element(writer, "updated", mdDevice.getUpdated());
+					}
+					
+					XML.elementEnd(writer, "device");
+				}
+				XML.elementEnd(writer, "select_devices");
+			}else {
+				XML.elementEnd(writer, "select_devices");
+			}
+		}
+	}
+	
+	private void getOnlineServo(PrintWriter writer, int type,
+			ConcurrentMap<String, Channel> channels) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "servos", true);
+			if (channels != null) {
+				Set<String> keySet = channels.keySet();
+				for (String cId : keySet) {
+					JSON.objectBegin(writer, first);
+					{
+						JSON.field(writer, "id", cId, true);
+					}
+					JSON.objectEnd(writer);
+					if (first)
+						first = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			} else {
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			}
+
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "get_online_servos");
+			if (channels != null) {
+				Set<String> keySet = channels.keySet();
+				for (String cId : keySet) {
+					XML.elementBegin(writer, "servo");
+					{
+						XML.element(writer, "id", cId);
+					}
+					XML.elementEnd(writer, "servo");
+				}
+				XML.elementEnd(writer, "get_online_servos");
+			} else {
+				XML.elementEnd(writer, "get_online_servos");
+			}
+
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+}

@@ -1,0 +1,679 @@
+package com.kiy.controller;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.FocusAdapter;
+import org.eclipse.swt.events.FocusEvent;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Scale;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.Sence;
+import com.kiy.common.SenceDevice;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Kind;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+public class FSence extends Dialog {
+	private Shell shell;
+
+	private CLabel labelText; // 输入验证
+	private Text nameText;// 场景名称
+	private Text remarkText; // 场景描述
+	private Button btnAddWrite;
+	private Button btnAddWrite1;
+	private Composite compositeOpen;
+	private CLabel labelOpenFeed;
+	private Scale scaleOpenFeed;
+	private CCombo comboOpenFeature;
+	private Composite compositeClose;
+	private CLabel labelCloseFeed;
+	private Scale scaleCloseFeed;
+	private CCombo comboCloseFeature;
+	private TableColumn tableColumn;
+	private TableColumn tableColumn_1;
+	private TableColumn tableColumn1;
+	private TableColumn tableColumn_1_1;
+	private Button btnAccept;
+	private Button btnCancel;
+	private Table tableOpen;
+	private Table tableClose;
+
+	public List<Device> openDevicesTemp = new ArrayList<>();
+	public List<Device> closeDevicesTemp = new ArrayList<>();
+	private Servo servo;
+	private Sence sence;
+
+	public boolean isUpdate = false;
+	private boolean closing;
+
+	public FSence(Shell arg0) {
+		super(arg0);
+	}
+
+	public Sence open(Servo s, Sence e) {
+		if (s == null) {
+			throw new NullPointerException("Servo can not be null!");
+		}
+		servo = s;
+		sence = e;
+
+		createContent();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+		return sence;
+	}
+
+	private void createContent() {
+		shell = new Shell(getParent(), SWT.DIALOG_TRIM | SWT.SYSTEM_MODAL);
+		shell.setSize(595, 429);
+		shell.setText(Lang.getString("FSence.ShellName.text"));
+		shell.addFocusListener(focusAdapter);
+		shell.addShellListener(shellAdapter);
+
+		labelText = new CLabel(shell, SWT.NONE);
+		labelText.setBounds(16, 16, 517, 32);
+		labelText.setVisible(false);
+		labelText.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/verify.png"));
+
+		Label labelImage = new Label(shell, SWT.NONE);
+		labelImage.setBounds(541, 16, 32, 32);
+		labelImage.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/device_scheduling_32.png"));
+
+		Label labelTop = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
+		labelTop.setBounds(0, 62, 665, 2);
+
+		TabFolder tabFolder = new TabFolder(shell, SWT.NONE);
+		tabFolder.setBounds(16, 70, 557, 287);
+
+		TabItem tabConvention = new TabItem(tabFolder, SWT.NONE);
+		tabConvention.setText(Lang.getString("FSence.TableItemConventional.text"));
+
+		Composite compositeConvention = new Composite(tabFolder, SWT.NONE);
+		tabConvention.setControl(compositeConvention);
+		// 常规
+		{
+			CLabel lblNewLabel = new CLabel(compositeConvention, SWT.NONE);
+			lblNewLabel.setBounds(16, 28, 76, 23);
+			lblNewLabel.setText(Lang.getString("FSence.TableItemName.text"));
+
+			// 场景名称
+			nameText = new Text(compositeConvention, SWT.BORDER);
+			nameText.setBounds(100, 28, 433, 23);
+			nameText.setTextLimit(32);
+			nameText.addModifyListener(modifyListener);
+			nameText.addFocusListener(focusAdapter);
+
+			CLabel lblNewLabel_1 = new CLabel(compositeConvention, SWT.NONE);
+			lblNewLabel_1.setBounds(16, 92, 76, 23);
+			lblNewLabel_1.setText(Lang.getString("FSence.TableItemDescription.text"));
+			// 场景描述
+			remarkText = new Text(compositeConvention, SWT.BORDER | SWT.WRAP);
+			remarkText.setBounds(100, 87, 433, 78);
+			remarkText.setTextLimit(128);
+
+			// 取消按钮
+			btnCancel = new Button(shell, SWT.NONE);
+			btnCancel.setBounds(493, 365, 80, 27);
+			btnCancel.setText(Lang.getString("Cancel.text"));
+			btnCancel.addSelectionListener(btnCancelSelectionAdapter);
+
+			// 确定按钮
+			btnAccept = new Button(shell, SWT.NONE);
+			btnAccept.setBounds(405, 365, 80, 27);
+			btnAccept.setText(Lang.getString("Ensure.text"));
+			btnAccept.addSelectionListener(btnAcceptSelectionAdapter);
+
+			TabItem tabItem = new TabItem(tabFolder, 0);
+			tabItem.setText(Lang.getString("FSence.tabItem.text"));
+
+			compositeOpen = new Composite(tabFolder, SWT.NONE);
+			tabItem.setControl(compositeOpen);
+
+			CLabel label_9 = new CLabel(compositeOpen, SWT.NONE);
+			label_9.setText(Lang.getString("FSence.label_9.text"));
+			label_9.setBounds(16, 28, 67, 23);
+
+			btnAddWrite = new Button(compositeOpen, SWT.NONE);
+			btnAddWrite.setText("编辑");
+			btnAddWrite.setBounds(16, 59, 67, 23);
+			btnAddWrite.addSelectionListener(btnAddOpenSelectionAdapter);
+
+			tableOpen = new Table(compositeOpen, SWT.BORDER | SWT.FULL_SELECTION);
+			tableOpen.setLinesVisible(true);
+			tableOpen.setHeaderVisible(true);
+			tableOpen.setBounds(91, 28, 242, 221);
+
+			tableColumn = new TableColumn(tableOpen, SWT.NONE);
+			tableColumn.setWidth(115);
+			tableColumn.setText("名称");
+
+			tableColumn_1 = new TableColumn(tableOpen, SWT.NONE);
+			tableColumn_1.setWidth(115);
+			tableColumn_1.setText("区域");
+
+			CLabel label_10 = new CLabel(compositeOpen, SWT.NONE);
+			label_10.setText("控制项：");
+			label_10.setBounds(341, 28, 67, 23);
+
+			comboOpenFeature = new CCombo(compositeOpen, SWT.BORDER);
+			comboOpenFeature.setBounds(416, 28, 125, 23);
+			comboOpenFeature.addSelectionListener(comboWriteFeatureSelectionAdater);
+
+			CLabel label_11 = new CLabel(compositeOpen, SWT.NONE);
+			label_11.setText("动作：");
+			label_11.setBounds(341, 59, 67, 42);
+
+			labelOpenFeed = new CLabel(compositeOpen, SWT.NONE);
+			labelOpenFeed.setText("0%");
+			labelOpenFeed.setBounds(416, 59, 44, 42);
+
+			scaleOpenFeed = new Scale(compositeOpen, SWT.NONE);
+			scaleOpenFeed.setMinimum(0);
+			scaleOpenFeed.setSelection(0);
+			scaleOpenFeed.setBounds(463, 59, 78, 42);
+			scaleOpenFeed.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					int maximum = scaleOpenFeed.getMaximum();
+					if (maximum == 100) {
+						String s = String.valueOf((scaleOpenFeed.getSelection()) + "%");
+						labelOpenFeed.setText(s);
+					} else {
+						String s = String.valueOf((scaleOpenFeed.getSelection()) * 100 + "%");
+						labelOpenFeed.setText(s);
+					}
+				}
+			});
+
+			TabItem tabItem1 = new TabItem(tabFolder, 0);
+			tabItem1.setText(Lang.getString("FSence.tabItem.text2"));
+
+			compositeClose = new Composite(tabFolder, SWT.NONE);
+			tabItem1.setControl(compositeClose);
+
+			CLabel label_1 = new CLabel(compositeClose, SWT.NONE);
+			label_1.setText(Lang.getString("FSence.label_8.text"));
+			label_1.setBounds(16, 28, 67, 23);
+
+			btnAddWrite1 = new Button(compositeClose, SWT.NONE);
+			btnAddWrite1.setText("编辑");
+			btnAddWrite1.setBounds(16, 59, 67, 23);
+			btnAddWrite1.addSelectionListener(btnAddCloseSelectionAdapter);
+
+			tableClose = new Table(compositeClose, SWT.BORDER | SWT.FULL_SELECTION);
+			tableClose.setLinesVisible(true);
+			tableClose.setHeaderVisible(true);
+			tableClose.setBounds(91, 28, 242, 221);
+
+			tableColumn1 = new TableColumn(tableClose, SWT.NONE);
+			tableColumn1.setWidth(115);
+			tableColumn1.setText("名称");
+
+			tableColumn_1_1 = new TableColumn(tableClose, SWT.NONE);
+			tableColumn_1_1.setWidth(115);
+			tableColumn_1_1.setText("区域");
+
+			CLabel label_3 = new CLabel(compositeClose, SWT.NONE);
+			label_3.setText("控制项：");
+			label_3.setBounds(341, 28, 67, 23);
+
+			comboCloseFeature = new CCombo(compositeClose, SWT.BORDER);
+			comboCloseFeature.setBounds(416, 28, 125, 23);
+			comboCloseFeature.addSelectionListener(comboWriteFeatureSelectionAdater);
+
+			CLabel label_4 = new CLabel(compositeClose, SWT.NONE);
+			label_4.setText("动作：");
+			label_4.setBounds(341, 59, 67, 42);
+
+			labelCloseFeed = new CLabel(compositeClose, SWT.NONE);
+			labelCloseFeed.setText("0%");
+			labelCloseFeed.setBounds(416, 59, 44, 42);
+
+			scaleCloseFeed = new Scale(compositeClose, SWT.NONE);
+			scaleCloseFeed.setMinimum(0);
+			scaleCloseFeed.setSelection(0);
+			scaleCloseFeed.setBounds(463, 59, 78, 42);
+			scaleCloseFeed.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					int maximum = scaleCloseFeed.getMaximum();
+					if (maximum == 100) {
+						String s = String.valueOf((scaleCloseFeed.getSelection()) + "%");
+						labelCloseFeed.setText(s);
+					} else {
+						String s = String.valueOf((scaleCloseFeed.getSelection()) * 100 + "%");
+						labelCloseFeed.setText(s);
+					}
+				}
+			});
+			make();
+		}
+	}
+
+	private void make() {
+		if (sence != null) {
+			nameText.setText(sence.getName());
+			remarkText.setText(sence.getRemark());
+			// 开启场景
+			if (sence.getOpenDevices() != null) {
+				// 1.表格显示
+				List<SenceDevice> openDevices = sence.getOpenDevices();
+				Set<Device> devices = new HashSet<>();
+				for (SenceDevice senceDevice : openDevices) {
+					devices.add(servo.getDevice(senceDevice.getDeviceId()));
+				}
+				openDevicesTemp.addAll(devices);
+				for (Device device : openDevicesTemp) {
+					TableItem tableItem = new TableItem(tableOpen, SWT.NONE);
+					tableItem.setText(0, device.getName());
+					tableItem.setText(1, device.getZone() == null ? "" : device.getZone().getName());
+					tableItem.setData(device);
+				}
+				// 2.控制项
+				if (openDevicesTemp.size() > 0) {
+					Feature feature = openDevicesTemp.get(0).getFeature(0);
+					comboOpenFeature.add(feature.getName());
+					comboOpenFeature.select(0);
+					comboOpenFeature.setData(feature.getName(), feature.INDEX);
+					int step = feature.STEP;
+					scaleOpenFeed.setMaximum(feature.MAXIMUM);
+					if (step > 1) {
+						scaleOpenFeed.setPageIncrement(step);
+					} else {
+						scaleOpenFeed.setPageIncrement(100);
+					}
+				}
+			}
+
+			// 关闭场景
+			if (sence.getOffDevices() != null) {
+				// 1.表格显示
+				List<SenceDevice> closeDevices = sence.getOffDevices();
+				Set<Device> devices = new HashSet<>();
+				for (SenceDevice senceDevice : closeDevices) {
+					devices.add(servo.getDevice(senceDevice.getDeviceId()));
+				}
+				closeDevicesTemp.addAll(devices);
+				for (Device device : closeDevicesTemp) {
+					TableItem tableItem = new TableItem(tableClose, SWT.NONE);
+					tableItem.setText(0, device.getName());
+					tableItem.setText(1, device.getZone() == null ? "" : device.getZone().getName());
+					tableItem.setData(device);
+				}
+				// 2.控制项
+				if (closeDevicesTemp.size() > 0) {
+					Feature feature2 = closeDevicesTemp.get(0).getFeature(closeDevices.get(0).getFeatureIndex());
+					comboCloseFeature.add(feature2.getName());
+					comboCloseFeature.select(0);
+					comboCloseFeature.setData(feature2.getName(), feature2.INDEX);
+
+					int step2 = feature2.STEP;
+					scaleCloseFeed.setMaximum(feature2.MAXIMUM);
+					if (step2 > 1) {
+						scaleCloseFeed.setPageIncrement(step2);
+					} else {
+						scaleCloseFeed.setPageIncrement(100);
+					}
+				}
+			}
+		}
+	}
+
+	/*
+	 * TODO 添加验证
+	 */
+	private FocusAdapter focusAdapter = new FocusAdapter() {
+		@Override
+		public void focusGained(FocusEvent arg0) {
+			verify();
+		}
+	};
+
+	private ModifyListener modifyListener = new ModifyListener() {
+
+		@Override
+		public void modifyText(ModifyEvent arg0) {
+			verify();
+		}
+	};
+
+	private ShellAdapter shellAdapter = new ShellAdapter() {
+
+		@Override
+		public void shellClosed(ShellEvent arg0) {
+			closing = true;
+			close();
+		}
+	};
+
+	private void close() {
+		if (closing) {
+
+		} else {
+			shell.close();
+		}
+	}
+
+	/**
+	 * 验证输入
+	 */
+	private void verify() {
+		btnAccept.setEnabled(false);
+		labelText.setVisible(true);
+
+		if (Tool.isEmpty(nameText.getText())) {
+			labelText.setText(Lang.getString("FSence.verifynameText.text"));
+			return;
+		} else {
+			labelText.setText(Tool.EMPTY);
+			labelText.setVisible(false);
+			btnAccept.setEnabled(true);
+		}
+	}
+
+	/**
+	 * TODO 编辑开启场景设备
+	 */
+	private SelectionAdapter btnAddOpenSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FSelectDevice f = new FSelectDevice(shell);
+			TableItem[] items = tableOpen.getItems();
+			Set<Device> devices = new HashSet<>();
+			for (TableItem item : items) {
+				Device d = (Device) item.getData();
+				devices.add(d);
+			}
+
+			Set<Device> selectDevices = f.open(servo, devices);
+			tableOpen.removeAll();
+
+			for (Device device : selectDevices) {
+				TableItem tableItem = new TableItem(tableOpen, SWT.NONE);
+				tableItem.setText(0, device.getName());
+				tableItem.setText(1, device.getZone() == null ? "" : device.getZone().getName());
+				tableItem.setData(device);
+			}
+
+			Object data = comboOpenFeature.getData("device");
+			if (data == null) {
+				if (selectDevices.iterator().hasNext()) {
+					Device next = selectDevices.iterator().next();
+					Feature[] features = next.getFeatures();
+					comboOpenFeature.removeAll();
+					comboOpenFeature.setData("device", next.getKind());
+					for (Feature feature : features) {
+						if (feature.PRIMARY != true || feature.READ_ONLY == true) {
+							continue;
+						}
+						comboOpenFeature.add(feature.getName());
+						comboOpenFeature.setData(feature.getName(), feature.INDEX);
+					}
+					scaleOpenFeed.setSelection(0);
+					labelOpenFeed.setText("0%");
+				}
+			} else if (selectDevices.iterator().hasNext() && selectDevices.iterator().next().getKind() != (Kind) data) {
+				if (selectDevices.iterator().hasNext()) {
+					Device next = selectDevices.iterator().next();
+					Feature[] features = next.getFeatures();
+					comboOpenFeature.removeAll();
+					comboOpenFeature.setData("device", next.getKind());
+					for (Feature feature : features) {
+						if (feature.PRIMARY != true || feature.READ_ONLY == true) {
+							continue;
+						}
+						comboOpenFeature.add(feature.getName());
+						comboOpenFeature.setData(feature.getName(), feature.INDEX);
+					}
+					scaleOpenFeed.setSelection(0);
+					labelOpenFeed.setText("0%");
+				}
+			}
+		}
+	};
+
+	/**
+	 * TODO 编辑关闭场景设备
+	 */
+	private SelectionAdapter btnAddCloseSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FSelectDevice f = new FSelectDevice(shell);
+			TableItem[] items = tableClose.getItems();
+			Set<Device> devices = new HashSet<>();
+			for (TableItem item : items) {
+				Device d = (Device) item.getData();
+				devices.add(d);
+			}
+
+			Set<Device> selectDevices = f.open(servo, devices);
+			tableClose.removeAll();
+
+			for (Device device : selectDevices) {
+				TableItem tableItem = new TableItem(tableClose, SWT.NONE);
+				tableItem.setText(0, device.getName());
+				tableItem.setText(1, device.getZone() == null ? "" : device.getZone().getName());
+				tableItem.setData(device);
+			}
+
+			Object data = comboCloseFeature.getData("device");
+			if (data == null) {
+				if (selectDevices.iterator().hasNext()) {
+					Device next = selectDevices.iterator().next();
+					Feature[] features = next.getFeatures();
+					comboCloseFeature.removeAll();
+					comboCloseFeature.setData("device", next.getKind());
+					for (Feature feature : features) {
+						if (feature.PRIMARY != true || feature.READ_ONLY == true) {
+							continue;
+						}
+						comboCloseFeature.add(feature.getName());
+						comboCloseFeature.setData(feature.getName(), feature.INDEX);
+					}
+					scaleCloseFeed.setSelection(0);
+					labelCloseFeed.setText("0%");
+				}
+			} else if (selectDevices.iterator().hasNext() && selectDevices.iterator().next().getKind() != (Kind) data) {
+				if (selectDevices.iterator().hasNext()) {
+					Device next = selectDevices.iterator().next();
+					Feature[] features = next.getFeatures();
+					comboOpenFeature.removeAll();
+					comboOpenFeature.setData("device", next.getKind());
+					for (Feature feature : features) {
+						if (feature.PRIMARY != true || feature.READ_ONLY == true) {
+							continue;
+						}
+						comboOpenFeature.add(feature.getName());
+						comboOpenFeature.setData(feature.getName(), feature.INDEX);
+					}
+					scaleOpenFeed.setSelection(0);
+					labelOpenFeed.setText("0%");
+				}
+			}
+		}
+	};
+	private SelectionAdapter comboWriteFeatureSelectionAdater = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			String text = comboOpenFeature.getText();
+			if (!text.isEmpty()) {
+				Object data = comboOpenFeature.getData(text);
+				if (data == null || !(data instanceof Integer)) {
+					return;
+				}
+				// 1.取到feature下标
+				int index = (Integer) data;
+				// 2.取到设备对象
+				if (tableOpen.getItemCount() <= 0) {
+					return;
+				}
+				Device device = (Device) tableOpen.getItem(0).getData();
+				// 3.取得feature对象
+				Feature feature = device.getFeature(index);
+				int max = feature.MAXIMUM;
+				scaleOpenFeed.setMaximum(max);
+
+				int step = feature.STEP;
+				if (step > 1) {
+					scaleOpenFeed.setPageIncrement(step);
+				} else {
+					scaleOpenFeed.setPageIncrement(100);
+				}
+			}
+		}
+	};
+
+	// 确认
+	private void accept() {
+		if (sence == null) {
+			sence = new Sence();
+			sence.newId();
+		}else {
+			sence.setUpdated(new Date());
+		}
+		// 常规
+		{
+			// 名称
+			sence.setName(nameText.getText());
+			// 描述
+			sence.setRemark(remarkText.getText());
+
+			{
+				if (tableOpen.getItemCount() > 0) {
+					/**
+					 * 开启场景
+					 */
+					SenceDevice senceDevice = new SenceDevice();
+					Device device = null;
+					TableItem item = tableOpen.getItem(0);
+					Object data1 = item.getData();
+					if (data1 != null && data1 instanceof Device) {
+						device = (Device) data1;
+						senceDevice.setDeviceId(device.getId());
+					}
+					Feature feature = device.getFeature(0);
+					senceDevice.setFeatureIndex(feature.INDEX);
+					senceDevice.setFeatureValue(feature.getValue());
+					senceDevice.setSwitchStatus(true);
+					sence.addOpenSenceDevice(senceDevice);
+				}
+			}
+			{
+				if (tableClose.getItemCount() > 0) {
+					/**
+					 * 关闭场景
+					 */
+					SenceDevice senceDevice = new SenceDevice();
+					Device device = null;
+					TableItem item = tableClose.getItem(0);
+					Object data1 = item.getData();
+					if (data1 != null && data1 instanceof Device) {
+						device = (Device) data1;
+						senceDevice.setDeviceId(device.getId());
+					}
+					Feature feature = device.getFeature(0);
+					senceDevice.setFeatureIndex(feature.INDEX);
+					senceDevice.setFeatureValue(feature.getValue());
+					senceDevice.setSwitchStatus(false);
+					System.err.println(sence.addOffSenceDevice(senceDevice)+"111111111111111111111");
+					sence.addOffSenceDevice(senceDevice);
+				}
+			}
+//			Message.Builder msg = Message.newBuilder();
+//			msg.setUserId(servo.getUser().getId());
+////			msg.setKey(1);
+//		
+//			CreateSence.Builder createSence = CreateSence.newBuilder();
+//			MSence.Builder mSence = createSence.getItemBuilder();
+//			mSence.setId(sence.getId());
+//			mSence.setName(sence.getName());
+//			mSence.setRemark(sence.getRemark());
+//			mSence.setSwitch(sence.getSwitchStatu());
+//			List<SenceDevice> offDevices = sence.getOffDevices();
+//			for (SenceDevice senceDevice2 : offDevices) {
+//				MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+//				mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+//				mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+//				mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+//				mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+//				mSence.addOffDevices(mSBuilder.build());
+//			}
+//			List<SenceDevice> openDevice = sence.getOpenDevice();
+//			for (SenceDevice senceDevice2 : openDevice) {
+//				MSenceDevice.Builder mSBuilder = MSenceDevice.newBuilder();
+//				mSBuilder.setDeviceId(senceDevice2.getDeviceId());
+//				mSBuilder.setSwitch(senceDevice2.getSwitchStatus());
+//				mSBuilder.setFeatureIndex(senceDevice2.getFeatureIndex());
+//				mSBuilder.setFeatureValue(senceDevice2.getFeatureValue());
+//				mSence.addOpenDevices(mSBuilder.build());
+//			}
+//			createSence.setItem(mSence);
+//			msg.setCreateSence(createSence).build();
+//
+//			System.err.println(msg.toString());
+//
+//			CtrClient client = servo.getClient();
+//			client.send(msg.build());
+		}
+	}
+
+	private SelectionAdapter btnAcceptSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			isUpdate = true;
+			accept();
+			close();
+		}
+	};
+
+	private void cancel() {
+		sence = null;
+		close();
+	}
+
+	private SelectionAdapter btnCancelSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			cancel();
+		}
+	};
+
+}

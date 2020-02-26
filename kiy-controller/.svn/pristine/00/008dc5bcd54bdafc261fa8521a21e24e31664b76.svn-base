@@ -1,0 +1,178 @@
+/**
+ * 2017年1月17日
+ */
+package com.kiy.controller;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.eclipse.swt.widgets.Display;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Unit;
+import com.kiy.protocol.Messages.Message;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class ServoManager {
+	/**
+	 * 禁止随意修改此类,若确有必要修改,请事先商讨.
+	 */
+	private final static String filename = "servers.data";
+
+	private final ConcurrentHashMap<FormMessage, Servo> forms;
+	private final HashSet<Servo> servos;
+	private final Handler handler;
+	private final FMain main;
+
+	public ServoManager(FMain m) {
+		main = m;
+		handler = new Handler(m, this);
+		servos = new HashSet<Servo>();
+		forms = new ConcurrentHashMap<FormMessage, Servo>();
+	}
+
+	public void add(Servo s) {
+		if (s == null)
+			throw new NullPointerException();
+
+		servos.add(s);
+	}
+
+	public void off(Servo s) {
+		if (s == null)
+			throw new NullPointerException();
+
+		servos.remove(s);
+	}
+
+	public void add(FormMessage f, Servo s) {
+		if (f == null)
+			throw new NullPointerException();
+
+		if (s == null)
+			throw new NullPointerException();
+
+		forms.put(f, s);
+	}
+
+	public void off(FormMessage f) {
+		if (f == null)
+			throw new NullPointerException();
+
+		forms.remove(f);
+	}
+
+	public Set<Servo> getAll() {
+		return servos;
+	}
+
+	public Handler getHandler() {
+		return handler;
+	}
+
+	public void close() {
+		for (Servo s : servos) {
+			CtrClient client = s.getClient();
+			if (client != null) {
+				client.stop();
+				client.close();
+			}
+		}
+		servos.clear();
+
+		for (Entry<FormMessage, Servo> e : forms.entrySet()) {
+			e.getKey().close();
+		}
+		forms.clear();
+
+		main.close();
+
+		CtrClient.shutdown();
+	}
+
+	public void received(final Servo servo, final Message message,final Map<Message,Unit> units) {
+		Display.getDefault().asyncExec(new Runnable() {
+			@Override
+			public void run() {
+				main.received(servo, message,units);
+			}
+		});
+
+		for (final Entry<FormMessage, Servo> e : forms.entrySet()) {
+			if (servo == e.getValue()) {
+				Display.getDefault().asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						e.getKey().received(servo, message,units);
+					}
+				});
+			}
+		}
+	}
+
+	public void load() throws IOException, ClassNotFoundException {
+		String path = Tool.getWorkPath();
+		File file = new File(path + File.separatorChar + filename);
+		if (file.exists()) {
+			ObjectInputStream in = null;
+			try {
+				in = new ObjectInputStream(new FileInputStream(file));
+				Object o = in.readObject();
+				if (o != null && o instanceof Servo[]) {
+					Servo[] ss = (Servo[]) o;
+					for (Servo s : ss) {
+						servos.add(s);
+					}
+				}
+			} finally {
+				if (in != null) {
+					in.close();
+				}
+			}
+		}
+	}
+
+	public void save() throws IOException {
+		if (servos.isEmpty())
+			return;
+
+		String path = System.getProperty("user.dir");
+		File file = new File(path + File.separatorChar + filename);
+		file.setExecutable(true);// 设置可执行权限
+		file.setReadable(true);// 设置可读权限
+		file.setWritable(true);// 设置可写权限
+		if (file.exists()) {
+
+		}
+
+		Servo[] s = new Servo[servos.size()];
+		servos.toArray(s);
+
+		ObjectOutputStream out = null;
+		try {
+			out = new ObjectOutputStream(new FileOutputStream(file));
+			out.writeObject(s);
+			out.flush();
+		} finally {
+			if (out != null) {
+				out.close();
+			}
+		}
+	}
+
+}

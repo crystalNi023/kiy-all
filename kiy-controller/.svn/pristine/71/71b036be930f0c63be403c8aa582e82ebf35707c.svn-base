@@ -1,0 +1,224 @@
+package com.kiy.controller;
+
+import java.util.Comparator;
+import java.util.HashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.common.Sence;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.controller.view.VTable;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * 
+ * 查询场景列表
+ *
+ */
+public class FSenceRecord extends Dialog implements FormMessage {
+
+	private Shell shell;
+	private FVTable vt;
+
+	private Servo servo;
+
+	public FSenceRecord(Shell parent) {
+		super(parent, 0);
+	}
+
+	public void open(Servo s) {
+		servo = s;
+		createContents();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FSenceRecord.ShellName.text") + servo.toString());
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		Table tableSence = new Table(shell, SWT.VIRTUAL|SWT.BORDER | SWT.FULL_SELECTION);
+		tableSence.setHeaderVisible(true);
+		tableSence.setLinesVisible(true);
+		{
+			// 场景名称
+			TableColumn tblTaskrNameColumn = new TableColumn(tableSence, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FSenceRecord.tblPlanName.text"));
+			tblTaskrNameColumn.setWidth(120);
+			// 状态
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblTaskrNameColumn.setWidth(100);
+			// 备注
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserRemarkNameColumn.text"));
+			tblTaskrNameColumn.setWidth(200);
+			// 创建时间
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text1"));
+			tblTaskrNameColumn.setWidth(200);
+			// 更新时间
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text2"));
+			tblTaskrNameColumn.setWidth(200);
+		}
+		vt = new FVTable(tableSence);
+		
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+		// 新建顶部菜单
+		MenuItem createItem = new MenuItem(menu, SWT.CASCADE);
+		createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createItem.setData(new ActionCase[] { ActionCase.CREATE_SENCE });
+		// 编辑顶部菜单
+		MenuItem editItem = new MenuItem(menu, SWT.CASCADE);
+		editItem.setText(Lang.getString("FSenceRecord.MenuEdit.text"));
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_SENCE });
+		// 删除顶部菜单
+		MenuItem deleteItem = new MenuItem(menu, SWT.CASCADE);
+		deleteItem.setText(Lang.getString("FSence.delete"));
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_SENCE });
+		// 右键菜单
+		Menu taskMenu = new Menu(shell, SWT.POP_UP);
+		//右键新建菜单
+		MenuItem createSence = new MenuItem(taskMenu, SWT.PUSH);
+		createSence.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createSence.setData(new ActionCase[] { ActionCase.CREATE_SENCE });
+		//右键编辑菜单
+		MenuItem editSence = new MenuItem(taskMenu, SWT.PUSH);
+		editSence.setText(Lang.getString("FSenceRecord.MenuEdit.text"));
+		editSence.setData(new ActionCase[] { ActionCase.UPDATE_SENCE });
+		//右键删除菜单
+		MenuItem deleSence = new MenuItem(taskMenu, SWT.PUSH);
+		deleSence.setText(Lang.getString("FSence.delete"));
+		deleSence.setData(new ActionCase[] { ActionCase.DELETE_SENCE });
+
+		tableSence.setMenu(taskMenu);
+		
+		vt.beginUpdate();
+		vt.add(servo.getSences());
+		vt.endUpdate();
+
+	}
+	
+	@Override
+	public void received(Servo s, Message m, HashMap<Message, Unit> units) {
+	}
+
+	@Override
+	public void close() {
+		// 无处理
+	}
+	
+	private class FVTable extends VTable<Sence> {
+
+		public FVTable(Table t) {
+			super(t);
+		}
+
+		@Override
+		public void row(TableItem tableItem, Sence sence) {
+			tableItem.setText(0, sence.getName());
+			if (sence.getSwitchStatu()) {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_able.png")));
+				tableItem.setText(1, Lang.getString("FSenceRecord.open.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+			} else {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_unable.png")));
+				tableItem.setText(1, Lang.getString("FSenceRecord.off.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+			}
+			tableItem.setText(2, sence.getRemark());
+			tableItem.setText(3, F.format(sence.getCreated()));
+			tableItem.setText(4, F.format(sence.getUpdated()));
+		}
+
+		@Override
+		public void column(TableColumn column, int direction) {
+			switch (vt.getColumnIndex(column)) {
+				case 0:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getName() == null ? "" : a.getName(), b.getName() == null ? "" : b.getName());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getName() == null ? "" : b.getName(), a.getName() == null ? "" : a.getName());
+						}
+					});
+					break;
+				case 1:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark() == null ? "" : a.getRemark(), b.getRemark() == null ? "" : b.getRemark());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark() == null ? "" : b.getRemark(), a.getRemark() == null ? "" : a.getRemark());
+						}
+					});
+					break;
+				case 2:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getCreated().getTime(), b.getCreated().getTime());
+							else
+								return Long.compare(b.getCreated().getTime(), a.getCreated().getTime());
+						}
+					});
+					break;
+				case 3:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getUpdated().getTime(), b.getUpdated().getTime());
+							else
+								return Long.compare(b.getUpdated().getTime(), a.getUpdated().getTime());
+						}
+					});
+					break;
+			}
+
+		}
+
+	}
+	
+
+	public Shell getShell() {
+		return shell;
+	}
+
+}

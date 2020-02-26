@@ -1,0 +1,15 @@
+package com.kiy.cloud.data.dao;
+
+import com.kiy.cloud.data.bean.UserBean;
+
+
+public interface UserDao {
+	
+	/**
+	 * 创建用户上传头像记录
+	 * @param userBean
+	 * @return
+	 * @throws Exception
+	 */
+	public boolean createUser(UserBean userBean) throws Exception;
+}

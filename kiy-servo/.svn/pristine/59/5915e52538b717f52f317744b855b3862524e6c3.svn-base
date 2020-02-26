@@ -1,0 +1,152 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.cloud;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+
+import com.kiy.common.Tool;
+import com.kiy.common.User;
+import com.kiy.protocol.Messages;
+import com.kiy.protocol.Messages.Connect;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.Processer;
+import com.kiy.servo.Shell;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class CloudHandler extends SimpleChannelInboundHandler<Messages.Message> {
+
+	private final Processer processer;
+	private Message retry = null;
+
+	public CloudHandler() {
+		processer = new Processer(false);
+	}
+
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) {
+		Message.Builder mb = Message.newBuilder();
+		Connect.Builder cb = mb.getConnectBuilder();
+		String ip=Tool.getLinuxLocalIp();
+		cb.setKey(Config.CLOUD_ID);
+		cb.setName("SMART_HOME_SERVO");
+		cb.setIp(ip);
+		if(null == ip || "".equals(ip)){//未获取到ip时重启系统
+			try {
+				Shell.exec("reboot -f");
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		ctx.channel().writeAndFlush(mb.build());
+	}
+
+	@Override
+	public void channelInactive(ChannelHandlerContext ctx) {
+		// channel.disconnect();
+		// 会触发此方法,并且心跳机制停止工作。
+		Cloud.reset();
+	}
+
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, Message request) throws Exception {
+		long time = System.currentTimeMillis();
+
+		if (Config.DEBUG&&request.getActionCase()!=ActionCase.HEARTBEAT)
+			Log.debug("CLOUD REQ " + request.toString());
+
+		User user = Data.getServo().getUser(request.getUserId());
+		Message.Builder response = request.toBuilder();
+		
+		if (request.getActionCase() == ActionCase.CONNECT&& request.getResult() == Result.SUCCESS) {
+			Connect connect = request.getConnect();
+			String string = connect.getKey();
+//			String phone = connect.getName();
+			String[] split = string.split(",");
+			Config.WEATHER_WEAID = split[0];
+			Config.AQI_WEAID = split[1];
+//			Config.PHONE = phone;
+			
+			Config.save();
+		}
+		
+		if ( request.getActionCase() == ActionCase.HEARTBEAT&&request.getResult() == Result.ERROR) {
+			Message.Builder mb = Message.newBuilder();
+			Connect.Builder cb = mb.getConnectBuilder();
+			cb.setKey(Config.CLOUD_ID);
+			cb.setName("SMART_HOME_SERVO");
+			cb.setIp(Tool.getLinuxLocalIp());
+			ctx.channel().writeAndFlush(mb.build());
+		}
+		
+		int r = processer.handler(ctx.channel(), user, request, response);
+
+		Message m_response = response.build();
+		if (r == Processer.NONE) {
+			// 什么也不做
+		} else if (r == Processer.SINGLE) {
+			// 仅回复发送者
+			ctx.channel().writeAndFlush(m_response);
+		} else if (r == Processer.MULTIPLE) {
+			// 回复给所有登录用户(包括消息发送者自己)
+			ctx.channel().writeAndFlush(m_response);
+			Master.getGroup().writeAndFlush(m_response, MatcherLogon.Logon);
+		} else if (r == Processer.RETRY) {
+			// 稍后重试消息发送
+			retry = m_response;
+		} else {
+			Log.error(request.getActionCase() + "Processer result tag error");
+		}
+
+		if (Config.DEBUG&&response.getActionCase()!=ActionCase.HEARTBEAT)
+			Log.debug("CLOUD RSP " + m_response.toString());
+
+		// 记录日志
+		Data.CreateLog(user, request, m_response, System.currentTimeMillis() - time);
+	}
+
+	@Override
+	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+		if (evt instanceof IdleStateEvent) {
+			IdleStateEvent e = (IdleStateEvent) evt;
+			if (e.state() == IdleState.READER_IDLE) {
+//				if (Config.DEBUG)
+					Log.debug("CLOUD READER_IDLE");
+				Cloud.stop();
+				Cloud.start();
+			} else if (e.state() == IdleState.WRITER_IDLE) {
+//				if (Config.DEBUG)
+					Log.debug("CLOUD WRITER_IDLE");
+				
+				if (retry == null) {
+					ctx.channel().writeAndFlush(Message.newBuilder().setHeartbeat(Messages.Heartbeat.getDefaultInstance()).build());
+				} else {
+					ctx.channel().writeAndFlush(retry);
+					retry = null;
+				}
+			} else {
+				// 不应执行到此处
+			}
+		}
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+		Log.error(cause);
+		Cloud.reset();
+	}
+}

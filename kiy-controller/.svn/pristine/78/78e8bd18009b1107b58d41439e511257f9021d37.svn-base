@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+	<div>
+	<h1>创建计划策略</h1>
+	<hr>
+	<p>首先选择[主窗口]->[伺服器]选项卡->[计划策略]，然后会弹出计划策略窗口。如下图所示</p>
+	<img src="createPlan_1.png" />
+	<p>选择[操作]->[新建]，弹出新建计划策略窗口。填写你要创建的计划策略的信息，点击确定按钮，创建计划策略。如下图所示</p>
+	<img src="createPlan_2.png" />
+	<p>创建计划策略成功后，您可以在[计划策略]窗口中查看到你新创建的计划策略。点击右键菜单可以进行计划策略的编辑和删除操作。</p>
+	<p><a href="createDeviceMaintain.html">上一页</a>  <a href="queryLog.html">下一页</a></p>
+	</div>
+</body>
+</html>

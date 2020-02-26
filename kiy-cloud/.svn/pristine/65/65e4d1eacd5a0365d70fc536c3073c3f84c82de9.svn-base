@@ -1,0 +1,188 @@
+/**
+ * 2017年3月1日
+ */
+package com.kiy.cloud.http;
+
+import io.netty.channel.Channel;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+
+import com.kiy.cloud.Log;
+import com.kiy.cloud.data.Data;
+import com.kiy.cloud.master.MasterGroup;
+import com.kiy.cloud.master.MasterHandler;
+
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+	
+	private static final String BAD_PARAMETER = "BAD_PARAMETER";
+
+	public HttpProcess() {
+
+	}
+
+	public void process(int type, String path, HttpParameters parameters,
+			PrintWriter writer) {
+		switch (path) {
+		case "getOnlineServo": {
+			MasterGroup groups = MasterHandler.getGroups();
+			if (groups != null) {
+				ConcurrentMap<String, Channel> channel_keys = groups
+						.getChannel_keys();
+				getOnlineServo(writer, type, channel_keys);
+			} else {
+				getOnlineServo(writer, type, null);
+			}
+
+			break;
+		}
+		case "user_bind": {
+			try {
+				String phone = parameters.getValue("phone");
+				String value = parameters.getValue("servo_type");
+				if(value==null){
+					// 参数错误
+					error(writer, type, BAD_PARAMETER);
+					return;
+				}
+				Integer servo_type = Integer.valueOf(parameters
+						.getValue("servo_type"));
+				int checkUser = Data.checkUser(phone, servo_type);
+				switch (checkUser) {
+				case 0:
+					// 检测成功，可以绑定
+					User user = new User();
+					user.newId();
+					String servoId = parameters.getValue("servo_id");
+					if(servoId==null){
+						// 参数错误
+						error(writer, type, BAD_PARAMETER);
+						return;
+					}
+					String userName = parameters.getValue("user_name");
+					if(userName==null){
+						// 参数错误
+						error(writer, type, BAD_PARAMETER);
+						return;
+					}
+					user.setPhone(phone);
+					user.setServoId(servoId);
+					user.setUserName(userName);
+					//数据库存储
+					boolean bindUser = Data.bindUser(user);
+					if(bindUser){
+						//绑定成功
+						success(writer,type,"绑定成功");
+					}else{
+						//绑定失败
+						error(writer, type, "绑定失败");
+					}
+					break;
+				case 1:
+					// 该手机号已绑定相应客户端
+					error(writer, type, "该手机号已绑定相应客户端");
+					break;
+				case 2:
+					// 非法参数
+					error(writer, type, BAD_PARAMETER);
+					break;
+				case 3:
+					// 服务器内部错误
+					error(writer, type, "服务器内部错误");
+					break;
+				default:
+					break;
+				}
+			} catch (IOException e) {
+				Log.error(e);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	private void getOnlineServo(PrintWriter writer, int type,
+			ConcurrentMap<String, Channel> channels) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "servos", true);
+			if (channels != null) {
+				Set<String> keySet = channels.keySet();
+				for (String cId : keySet) {
+					JSON.objectBegin(writer, first);
+					{
+						JSON.field(writer, "id", cId.toString(), true);
+					}
+					JSON.objectEnd(writer);
+					if (first)
+						first = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			} else {
+				JSON.arrayEnd(writer);
+				JSON.end(writer);
+			}
+
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "get_online_servos");
+			if (channels != null) {
+				Set<String> keySet = channels.keySet();
+				for (String cId : keySet) {
+					XML.elementBegin(writer, "servo");
+					{
+						XML.element(writer, "id", cId.toString());
+					}
+					XML.elementEnd(writer, "servo");
+				}
+				XML.elementEnd(writer, "get_online_servos");
+			} else {
+				XML.elementEnd(writer, "get_online_servos");
+			}
+
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+	
+	public void success(PrintWriter writer, int type, String success) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", 0, true);
+			JSON.field(writer,"msg",success,false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", 0);
+			XML.element(writer, "msg", success);
+			
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	public void error(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", 1, true);
+			JSON.field(writer,"msg",error,false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", 1);
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+}

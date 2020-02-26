@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- mapper标签要指定namespace属性，不然会报错，可看做包名-->
+<mapper namespace="feedbacks">
+   <insert id="createFeedback" parameterType="com.kiy.cloud.data.bean.FeedbackBean">
+    INSERT INTO feedback (username,servo_id,content,choice,img_url)VALUES 
+    (#{username},#{servo_id},#{content},#{choice}, #{img_url})
+    </insert>
+</mapper>

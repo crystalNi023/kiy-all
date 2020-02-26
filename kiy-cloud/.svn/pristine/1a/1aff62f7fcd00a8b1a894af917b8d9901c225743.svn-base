@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- mapper标签要指定namespace属性，不然会报错，可看做包名-->
+<mapper namespace="user">
+    <select id="findCustmomerById" parameterType="String" resultType="com.jimmy.domain.User">
+       SELECT `customer_id` FROM `servos` WHERE `id`=?
+    </select>
+</mapper>

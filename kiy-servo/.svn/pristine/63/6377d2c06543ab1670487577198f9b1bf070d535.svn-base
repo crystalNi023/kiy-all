@@ -1,0 +1,27 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.notice;
+
+import com.kiy.servo.Config;
+
+/**
+ * 通知类，通过短信，邮件等方式通知用户
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Notice {
+
+	private Notice() {
+	}
+
+	public static void initialize() {
+		if (!Config.NOTICE)
+			return;
+	}
+
+	public static void destroy() {
+
+	}
+}

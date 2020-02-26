@@ -1,0 +1,99 @@
+/**
+ * 2017年1月20日
+ */
+package com.kiy.controller;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Set;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Kind;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ReadDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus.Builder;
+import com.kiy.resources.Lang;
+
+/**
+ * 获取设备被状态
+ * 
+ * @author wuyazhou
+ *
+ */
+public class AGetDeviceStatus extends A<FMain> {
+
+	/**
+	 * @param m
+	 */
+	public AGetDeviceStatus(FMain m) {
+		super(m);
+	}
+
+	@Override
+	protected void run() {
+		Set<Device> devices = main.getSelectionDevices();
+		if (devices.size() == 0) {
+			F.mbInformation(main.getShell(), Lang.getString("AGetStatus.MessageBoxGetStatusTitle.text"), Lang.getString("AGetStatus.MessageBoxGetStatusContent.text"));
+			return;
+		}
+
+		Servo servo = main.getCurrentServo();
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(main.getShell(), client);
+		if (judgeClientActive) {
+			return;
+		}
+		
+		if(devices.size()==1){
+			for(Device d : devices){
+				if(d.getKind() == Kind.CAMERA){
+					openCamera(d.getNetworkIp(),String.valueOf(d.getNetworkPort()),d.getUsername(),d.getPassword());
+				}
+			}
+		}
+
+		for (Device d : devices) {
+			if (d.getKind().equals(Kind.NONE) || d.getKind().equals(Kind.OTHER)||d.getKind().equals(Kind.CAMERA)) {
+				continue;
+			} else {
+				Message.Builder bm = Message.newBuilder();
+				bm.setUserId(servo.getUser().getId());
+				bm.setKey(CtrClient.getKey());
+				
+				ReadDeviceStatus.Builder readDeviceStatus = ReadDeviceStatus.newBuilder();
+				Builder mDeviceStatus = readDeviceStatus.getItemBuilder();
+				mDeviceStatus.setDeviceId(d.getId());
+				bm.setReadDeviceStatus(readDeviceStatus.build());
+				client.send(bm.build());
+			}
+		}
+	}
+	
+	
+	private void openCamera(String ip,String port,String username,String password){
+		
+		if(!FMain.isOpenCammera){
+			// 初始化ProcessBuilder 参数传入运行下一个jar的指令，也可以使用空构造器，使用Command方法传入指令
+			ProcessBuilder pb = new ProcessBuilder("java", "-jar",
+					"kiy-camera.jar", ip, port, username,password);
+			// 设置进程运行目录
+			String path = System.getProperty("user.dir");
+			pb.directory(new File(path));
+			// 运行进程
+			Process p = null;
+			try {
+				p = pb.start();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			FMain.isOpenCammera =true;
+			// isAlive 判断新开的进程是否活跃，是否被销毁
+			while (p.isAlive()) {
+				FMain.isOpenCammera = false;
+			}
+		}
+	}
+}

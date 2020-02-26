@@ -1,0 +1,31 @@
+package com.kiy.cloud.data.dao;
+
+import com.kiy.cloud.data.bean.ServoBean;
+import com.kiy.cloud.data.bean.UserBean;
+
+
+/**
+ * Servo 数据库处理
+ * @author HLX Tel:18996470535 
+ * @date 2018年5月16日 
+ * Copyright:Copyright(c) 2018
+ */
+public interface ServoDao {  
+	/**
+	 * 通过服务器id查找客户id
+	 * @param id
+	 * @return
+	 * @throws Exception
+	 */
+    public String findCustomerIdById(String id) throws Exception ;
+    
+    /**
+     * 通过服务器id查找服务器对象
+     * @param id
+     * @return
+     * @throws Exception
+     */
+    public ServoBean findServoById(String id) throws Exception ;
+    
+    public void insertUser(UserBean userBean) throws Exception;
+}

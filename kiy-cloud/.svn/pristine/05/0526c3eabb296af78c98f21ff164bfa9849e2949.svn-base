@@ -1,0 +1,47 @@
+CREATE SCHEMA `kiy-cloud` DEFAULT CHARACTER SET utf8;
+USE `kiy-cloud`;
+
+CREATE TABLE `kiy-cloud`.`customers` (
+  `id` CHAR(36) NOT NULL,
+  `name` VARCHAR(64) NOT NULL COMMENT '公司名称',
+  `code` VARCHAR(32) NULL COMMENT '营业执照统一代码',
+  `phone` VARCHAR(32) NULL ,
+  `id_card` VARCHAR(32) NULL,
+  `province` VARCHAR(32) NULL,
+  `district` VARCHAR(32) NULL,
+  `city` VARCHAR(32) NULL,
+  `town` VARCHAR(32) NULL,
+  `address` VARCHAR(64) NULL,
+  `remark` VARCHAR(64) NULL,
+  `created` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`));
+  
+  CREATE TABLE `kiy-cloud`.`servos` (
+  `id` CHAR(36) NOT NULL,
+  `type` TINYINT(1) NOT NULL,
+  `customer_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(32)  NOT NULL,
+  `address` VARCHAR(32) NOT NULL,
+  `remark` VARCHAR(64) NULL,
+  `created` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`));
+  
+ CREATE TABLE `kiy-cloud`.`users` (
+  `id` CHAR(20) NOT NULL,
+  `user_id` CHAR(36) NOT NULL ,
+  `servo_id` CHAR(36) NOT NULL,
+  `user_icon` VARCHAR(128) NOT NULL,
+  `created` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   PRIMARY KEY (`id`)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+  
+ALTER TABLE `kiy-cloud`.`servos` 
+  ADD CONSTRAINT `fk_servos_customer_id`
+  FOREIGN KEY (`customer_id`)
+  REFERENCES `customers` (`id`)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE;
+  

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<style>
+			table tr td{
+				text-align: center;
+				align-content: center;
+			}
+		</style>
+	</head>
+	<body>
+		<form action="http://127.0.0.1:9090/html/servo_login" method="post">
+		<div id="" style="text-align: center;">
+			<table align="center" style="">
+				<tr>
+					<td>设备ID:</td>
+					<td><input name="servo_id" type="text" /></td>
+				</tr>
+				<tr>
+					<td>用户名：</td>
+					<td><input name="username" type="text" /></td>
+				</tr>
+				<tr>
+					<td>密码：</td>
+					<td><input name="password" type="password" /></td>
+				</tr>
+				<tr>
+					<td colspan="2"><input type="submit" value="登录" /></td>
+				</tr>
+			</table>
+			
+		</div>
+		</form>
+	</body>
+</html>

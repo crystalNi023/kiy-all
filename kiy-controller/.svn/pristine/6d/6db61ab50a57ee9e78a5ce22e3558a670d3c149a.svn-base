@@ -1,0 +1,691 @@
+package com.kiy.controller;
+
+import java.util.HashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.custom.ScrolledComposite;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.protocol.Messages.GetServoConfig;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.SetServoConfig;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.resources.Lang;
+
+/**
+ * @author (KeDaiQin TEL:18302367318)
+ *
+ */
+public class FServoConfig extends Dialog implements FormMessage {
+
+	private boolean closing;
+	private Shell shell;
+	private Button btnCancel;
+	private Button btnAccept;
+	private Composite composite;
+	private Text textName;
+	private Text textMasterIP;
+	private CCombo comboHttpMode;
+	private Text textHttpIP;
+	private Combo comboDbType;
+	private Text textDbUrl;
+	private Text textDbUser;
+	private Text textDbPassword;
+	private Text textMailHost;
+	private Text textMailUser;
+	private Text textMailPassword;
+	private Spinner spinnerThread;
+	private Spinner spinnerDriverHeartbeat;
+	private Spinner spinnerDriverRestart;
+	private Spinner spinnerMasterPort;
+	private Spinner spinnerHttpPort;
+	private Spinner spinnerHttpSslPort;
+	private Spinner spinnerDbMax;
+	private Spinner spinnerHostPort;
+	private CLabel label_8;
+	private Button btnCheckButton_2;
+	private CLabel lblNewLabel_5;
+	private CLabel label_1;
+	private CLabel label_9;
+	private CLabel lblHttp;
+	private CLabel lblip;
+	private CLabel lblHttp_1;
+	private CLabel lblHttpssl;
+	private CLabel label_13;
+	private CLabel label_14;
+	private CLabel label_15;
+	private CLabel label_16;
+	private CLabel label_17;
+	private CLabel lblNewLabel_7;
+	private CLabel label_21;
+	private CLabel label_22;
+	private CLabel label_23;
+	private Button btnCheckButton;
+	private Button btnDb;
+	private Button btnCheckButton_1;
+	private Button btnCheckButton_4;
+	private Servo servo;
+
+	public FServoConfig(Shell parent) {
+		super(parent, 0);
+		closing = false;
+	}
+
+	/**
+	 * Open the dialog.
+	 */
+	public void open(Servo s) {
+		servo = s;
+		createContents();
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	/**
+	 * Create contents of the dialog.
+	 */
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE);
+		shell.addShellListener(new ShellAdapter() {
+			@Override
+			public void shellActivated(ShellEvent e) {
+				make();
+			}
+
+			@Override
+			public void shellClosed(ShellEvent e) {
+				closing = true;
+				close();
+			}
+		});
+		shell.setSize(680, 519);
+		shell.setText(Lang.getString("FServoConf.ShellTitle.text"));
+		F.center(getParent(), shell);
+
+		Label lblNewLabel = new Label(shell, SWT.CENTER);
+		lblNewLabel.setBounds(16, 19, 80, 23);
+		lblNewLabel.setAlignment(SWT.LEFT);
+		lblNewLabel.setText(Lang.getString("FServoConf.LabelServoName.text"));
+
+		textName = new Text(shell, SWT.BORDER);
+		textName.setBounds(104, 16, 292, 23);
+
+		ScrolledComposite scrolledComposite = new ScrolledComposite(shell, SWT.H_SCROLL | SWT.V_SCROLL);
+		scrolledComposite.setBounds(0, 47, 674, 393);
+		scrolledComposite.setExpandHorizontal(true);
+		scrolledComposite.setExpandVertical(true);
+
+		composite = new Composite(scrolledComposite, SWT.NONE);
+
+		Label lblNewLabel_1 = new Label(composite, SWT.NONE);
+		lblNewLabel_1.setBounds(16, 19, 80, 23);
+		lblNewLabel_1.setText(Lang.getString("FServoConf.LabelNumberOfThreads.text"));
+
+		spinnerThread = new Spinner(composite, SWT.BORDER);
+		spinnerThread.setBounds(103, 16, 80, 23);
+		
+		int baseY = 26;
+		if(FMain.THIS_IS_MAC){
+			baseY = 16;
+		}else{
+			baseY = 26;
+		}
+
+		Group group_1 = new Group(composite, SWT.NONE);
+		group_1.setText(Lang.getString("FServoConfig.group_1.text")); 
+		group_1.setBounds(16, 47, 630, 129);
+
+		//控制
+		{
+			btnCheckButton_2 = new Button(group_1, SWT.CHECK);
+			btnCheckButton_2.setBounds(104, baseY, 180, 23);
+			btnCheckButton_2.setText(Lang.getString("FServoConfig.btnCheckButton_2.text")); //$NON-NLS-1$
+			btnCheckButton_2.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					if (btnCheckButton_2.getSelection()) {
+						cancleSetControlWidget();
+					} else {
+						setControlWidget();
+					}
+				}
+			});
+
+			label_8 = new CLabel(group_1, SWT.NONE);
+			label_8.setBounds(16, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			label_8.setText(Lang.getString("FServoConf.LabelMasterServiceAddress.text"));
+
+			textMasterIP = new Text(group_1, SWT.BORDER);
+			textMasterIP.setBounds(104,  baseY+(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			label_9 = new CLabel(group_1, SWT.NONE);
+			label_9.setBounds(16, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			label_9.setText(Lang.getString("FServoConf.LabelMasterServicePort.text"));
+
+			spinnerMasterPort = new Spinner(group_1, SWT.BORDER);
+			spinnerMasterPort.setBounds(104, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+		}
+		
+
+		Group group = new Group(composite, SWT.NONE);
+		group.setText(Lang.getString("FServoConfig.group.text")); //$NON-NLS-1$
+		group.setBounds(16, 184, 630, 129);
+		
+		{
+			btnCheckButton = new Button(group, SWT.CHECK);
+			btnCheckButton.setBounds(104, baseY, 180, 23);
+			btnCheckButton.setText(Lang.getString("FServoConfig.btnCheckButton.text"));
+			btnCheckButton.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					if (btnCheckButton.getSelection()) {
+						cancleSetDeviceWidget();
+					} else {
+						setDeviceWidget();
+					}
+				}
+			});
+
+			lblNewLabel_5 = new CLabel(group, SWT.NONE);
+			lblNewLabel_5.setBounds(16, baseY+(F.MARGIN+F.LABEL_HEIGHT), 100, 23);
+			lblNewLabel_5.setText(Lang.getString("FServoConf.LabelDeviceInterruptRestartInterval.text"));
+
+			spinnerDriverRestart = new Spinner(group, SWT.BORDER);
+			spinnerDriverRestart.setBounds(124, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			label_1 = new CLabel(group, SWT.NONE);
+			label_1.setBounds(16,  baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 100, 23);
+			label_1.setText(Lang.getString("FServoConf.LabelEquipmentHeartbeatInterval.text"));
+
+			spinnerDriverHeartbeat = new Spinner(group, SWT.BORDER);
+			spinnerDriverHeartbeat.setBounds(124, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+		}
+
+	
+
+		Group group_3 = new Group(composite, SWT.NONE);
+		group_3.setText(Lang.getString("FServoConfig.group_3.text")); //$NON-NLS-1$
+		group_3.setBounds(16, 321, 630, 214);
+		
+		{
+			btnDb = new Button(group_3, SWT.CHECK);
+			btnDb.setBounds(102, baseY, 180, 23);
+			btnDb.setText(Lang.getString("FServoConfig.btnCheckButton_3.text")); //$NON-NLS-1$
+			btnDb.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					if (btnDb.getSelection()) {
+						cancleSetDbWidget();
+					} else {
+						setDbWidget();
+					}
+				}
+			});
+
+			label_13 = new CLabel(group_3, SWT.NONE);
+			label_13.setText(Lang.getString("FServoConf.LabelMaximumNumberOfDatabaseConnections.text"));
+			label_13.setBounds(14, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			spinnerDbMax = new Spinner(group_3, SWT.BORDER);
+			spinnerDbMax.setBounds(102, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			label_14 = new CLabel(group_3, SWT.NONE);
+			label_14.setText(Lang.getString("FServoConf.LabelDatabaseType.text"));
+			label_14.setBounds(14, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			comboDbType = new Combo(group_3, SWT.READ_ONLY);
+			comboDbType.setBounds(102, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+			comboDbType.add("MySql");
+			comboDbType.add("Oracle");
+
+			label_15 = new CLabel(group_3, SWT.NONE);
+			label_15.setText(Lang.getString("FServoConf.LabelDatabaseConnectionString.text"));
+			label_15.setBounds(14, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			textDbUrl = new Text(group_3, SWT.BORDER);
+			textDbUrl.setBounds(102, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			label_16 = new CLabel(group_3, SWT.NONE);
+			label_16.setText(Lang.getString("FServoConf.LabelDatabaseUsername.text"));
+			label_16.setBounds(14, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			textDbUser = new Text(group_3, SWT.BORDER);
+			textDbUser.setBounds(102, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			label_17 = new CLabel(group_3, SWT.NONE);
+			label_17.setText(Lang.getString("FServoConf.LabelDatabasePassword.text"));
+			label_17.setBounds(14, baseY+5*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			textDbPassword = new Text(group_3, SWT.BORDER);
+			textDbPassword.setBounds(102, baseY+5*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+		}
+
+		
+
+		Group grpHttp = new Group(composite, SWT.NONE);
+		grpHttp.setText(Lang.getString("FServoConfig.grpHttp.text")); //$NON-NLS-1$
+		grpHttp.setBounds(16, 543, 630, 183);
+		
+		{
+			btnCheckButton_1 = new Button(grpHttp, SWT.CHECK);
+			btnCheckButton_1.setBounds(104, baseY, 180, 23);
+			btnCheckButton_1.setText(Lang.getString("FServoConfig.btnCheckButton_1.text")); //$NON-NLS-1$
+			btnCheckButton_1.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					if (btnCheckButton_1.getSelection()) {
+						cancleSetHttpWidget();
+					} else {
+						setHttpWidget();
+					}
+				}
+			});
+
+			lblHttp = new CLabel(grpHttp, SWT.NONE);
+			lblHttp.setBounds(16, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			lblHttp.setText(Lang.getString("FServoConf.LabelHttpInterfaceServiceMode.text"));
+
+			comboHttpMode = new CCombo(grpHttp, SWT.READ_ONLY);
+			comboHttpMode.setBounds(104, baseY+(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+			comboHttpMode.add("HTTP");
+			comboHttpMode.add("HTTPS");
+
+			lblip = new CLabel(grpHttp, SWT.NONE);
+			lblip.setBounds(16, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			lblip.setText(Lang.getString("FServoConf.LabelHttpInterfaceServiceBindingIPAddress.text"));
+
+			textHttpIP = new Text(grpHttp, SWT.BORDER);
+			textHttpIP.setBounds(104, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			lblHttp_1 = new CLabel(grpHttp, SWT.NONE);
+			lblHttp_1.setBounds(16, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			lblHttp_1.setText(Lang.getString("FServoConf.LabelHttpInterfaceServiceBindingPort.text"));
+
+			spinnerHttpPort = new Spinner(grpHttp, SWT.BORDER);
+			spinnerHttpPort.setMaximum(65535);
+			spinnerHttpPort.setSelection(80);
+			spinnerHttpPort.setBounds(104, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			lblHttpssl = new CLabel(grpHttp, SWT.NONE);
+			lblHttpssl.setBounds(16, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			lblHttpssl.setText(Lang.getString("FServoConf.LabelHttpInterfaceSSLPort.text"));
+
+			spinnerHttpSslPort = new Spinner(grpHttp, SWT.BORDER);
+			spinnerHttpSslPort.setMaximum(65535);
+			spinnerHttpSslPort.setSelection(443);
+			spinnerHttpSslPort.setBounds(104, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+		}
+
+		
+		Group group_4 = new Group(composite, SWT.NONE);
+		group_4.setText(Lang.getString("FServoConfig.group_4.text_1")); 
+		group_4.setBounds(16, 734, 630, 188);
+
+		{
+			btnCheckButton_4 = new Button(group_4, SWT.CHECK);
+			btnCheckButton_4.setBounds(104, baseY, 180, 23);
+			btnCheckButton_4.setText(Lang.getString("FServoConfig.btnCheckButton_4.text")); 
+			btnCheckButton_4.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					if (btnCheckButton_4.getSelection()) {
+						cancleSetMailWidget();
+					} else {
+						setMailWidget();
+					}
+				}
+			});
+
+			lblNewLabel_7 = new CLabel(group_4, SWT.NONE);
+			lblNewLabel_7.setBounds(16, baseY+(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+			lblNewLabel_7.setText(Lang.getString("FServoConf.LabelMailDeliveryServer.text"));
+
+			textMailHost = new Text(group_4, SWT.BORDER);
+			textMailHost.setBounds(104, baseY+(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			label_21 = new CLabel(group_4, SWT.NONE);
+			label_21.setText(Lang.getString("FServoConf.LabelMailDeliveryServerPort.text"));
+			label_21.setBounds(16, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			spinnerHostPort = new Spinner(group_4, SWT.BORDER);
+			spinnerHostPort.setBounds(104, baseY+2*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			label_22 = new CLabel(group_4, SWT.NONE);
+			label_22.setText(Lang.getString("FServoConf.LabelMailServerLoginUser.text"));
+			label_22.setBounds(16, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			textMailUser = new Text(group_4, SWT.BORDER);
+			textMailUser.setBounds(104, baseY+3*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+
+			label_23 = new CLabel(group_4, SWT.NONE);
+			label_23.setText(Lang.getString("FServoConf.LabelMailServerLoginPassword.text"));
+			label_23.setBounds(16, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 80, 23);
+
+			textMailPassword = new Text(group_4, SWT.BORDER);
+			textMailPassword.setBounds(104, baseY+4*(F.MARGIN+F.LABEL_HEIGHT), 180, 23);
+		}
+		
+		scrolledComposite.setContent(composite);
+		scrolledComposite.setMinSize(composite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+
+		Button btnNewButton = new Button(shell, SWT.NONE);
+		btnNewButton.setBounds(357, 448, 125, 27);
+		btnNewButton.setText(Lang.getString("FServoConf.ButtonGetServoConfiguration.text"));
+		btnNewButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				sendMess(servo.getClient());
+			}
+		});
+
+		btnAccept = new Button(shell, SWT.NONE);
+		btnAccept.setBounds(490, 448, 80, 27);
+		btnAccept.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				accept();
+			}
+		});
+		btnAccept.setText(Lang.getString("Ensure.text"));
+
+		btnCancel = new Button(shell, SWT.NONE);
+		btnCancel.setBounds(578, 448, 80, 27);
+		btnCancel.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				cancel();
+			}
+		});
+		btnCancel.setText(Lang.getString("Cancel.text"));
+
+	}
+
+	private void make() {
+
+	}
+
+	// 置灰控制组件
+	private void setControlWidget() {
+		label_8.setEnabled(false);
+		textMasterIP.setEnabled(false);
+		label_9.setEnabled(false);
+		spinnerMasterPort.setEnabled(false);
+	}
+
+	// 取消置灰
+	private void cancleSetControlWidget() {
+		label_8.setEnabled(true);
+		textMasterIP.setEnabled(true);
+		label_9.setEnabled(true);
+		spinnerMasterPort.setEnabled(true);
+	}
+
+	// 置灰设备组件
+	private void setDeviceWidget() {
+		lblNewLabel_5.setEnabled(false);
+		spinnerDriverRestart.setEnabled(false);
+		label_1.setEnabled(false);
+		spinnerDriverHeartbeat.setEnabled(false);
+	}
+
+	// 取消置灰
+	private void cancleSetDeviceWidget() {
+		lblNewLabel_5.setEnabled(true);
+		spinnerDriverRestart.setEnabled(true);
+		label_1.setEnabled(true);
+		spinnerDriverHeartbeat.setEnabled(true);
+	}
+
+	// 置灰Http组件
+	private void setHttpWidget() {
+		comboHttpMode.setEnabled(false);
+		lblHttp.setEnabled(false);
+		textHttpIP.setEnabled(false);
+		lblip.setEnabled(false);
+		lblHttp_1.setEnabled(false);
+		lblHttpssl.setEnabled(false);
+		spinnerHttpPort.setEnabled(false);
+		spinnerHttpSslPort.setEnabled(false);
+	}
+
+	// 取消置灰
+	private void cancleSetHttpWidget() {
+		comboHttpMode.setEnabled(true);
+		lblHttp.setEnabled(true);
+		textHttpIP.setEnabled(true);
+		lblip.setEnabled(true);
+		lblHttp_1.setEnabled(true);
+		lblHttpssl.setEnabled(true);
+		spinnerHttpPort.setEnabled(true);
+		spinnerHttpSslPort.setEnabled(true);
+	}
+
+	// 置灰数据库组件
+	private void setDbWidget() {
+		label_13.setEnabled(false);
+		spinnerDbMax.setEnabled(false);
+		label_14.setEnabled(false);
+		comboDbType.setEnabled(false);
+		textDbUrl.setEnabled(false);
+		label_15.setEnabled(false);
+		label_16.setEnabled(false);
+		textDbPassword.setEnabled(false);
+		textDbUser.setEnabled(false);
+		label_17.setEnabled(false);
+	}
+
+	// 取消置灰
+	private void cancleSetDbWidget() {
+		label_13.setEnabled(true);
+		spinnerDbMax.setEnabled(true);
+		label_14.setEnabled(true);
+		comboDbType.setEnabled(true);
+		textDbUrl.setEnabled(true);
+		label_15.setEnabled(true);
+		label_16.setEnabled(true);
+		textDbPassword.setEnabled(true);
+		textDbUser.setEnabled(true);
+		label_17.setEnabled(true);
+	}
+
+	// 置灰提醒组件
+	private void setMailWidget() {
+		textMailHost.setEnabled(false);
+		lblNewLabel_7.setEnabled(false);
+		label_21.setEnabled(false);
+		textMailUser.setEnabled(false);
+		textMailPassword.setEnabled(false);
+		label_22.setEnabled(false);
+		label_23.setEnabled(false);
+		spinnerHostPort.setEnabled(false);
+	}
+
+	// 取消置灰
+	private void cancleSetMailWidget() {
+		textMailHost.setEnabled(true);
+		lblNewLabel_7.setEnabled(true);
+		label_21.setEnabled(true);
+		textMailUser.setEnabled(true);
+		textMailPassword.setEnabled(true);
+		label_22.setEnabled(true);
+		label_23.setEnabled(true);
+		spinnerHostPort.setEnabled(true);
+	}
+
+	private void cancel() {
+		close();
+	}
+
+	private void accept() {
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setKey(CtrClient.getKey());
+		b_m.setUserId(servo.getUser().getId());
+		
+		SetServoConfig.Builder setServoConfig = SetServoConfig.newBuilder();
+		
+		if (btnDb.getSelection() == true) {
+			setServoConfig.setDb(true);
+		}
+		if (btnCheckButton.getSelection() == true) {
+			setServoConfig.setDriver(true);
+		}
+		if (btnCheckButton_4.getSelection() == true) {
+			setServoConfig.setNotice(true);
+		}
+		if (btnCheckButton_1.getSelection() == true) {
+			setServoConfig.setHttp(true);
+		}
+		if (btnCheckButton_2.getSelection() == true) {
+			setServoConfig.setMaster(true);
+		}
+		setServoConfig.setName(textName.getText());
+		setServoConfig.setThread(spinnerThread.getSelection());
+		setServoConfig.setDriverRestart(spinnerDriverRestart.getSelection());
+		setServoConfig.setDriverHeartbeat(spinnerDriverHeartbeat.getSelection());
+		setServoConfig.setMasterIp(textMasterIP.getText());
+		setServoConfig.setMasterPort(spinnerMasterPort.getSelection());
+		setServoConfig.setHttpMode(comboHttpMode.getText());
+		setServoConfig.setHttpIp(textHttpIP.getText());
+		setServoConfig.setHttpPort(spinnerHttpPort.getSelection());
+		setServoConfig.setHttpSslPort(spinnerHttpSslPort.getSelection());
+		setServoConfig.setDbMax(spinnerDbMax.getSelection());
+		setServoConfig.setDbType(comboDbType.getText());
+		setServoConfig.setDbUrl(textDbUrl.getText());
+		setServoConfig.setDbUser(textDbUser.getText());
+		setServoConfig.setDbPassword(textDbPassword.getText());
+		setServoConfig.setMailHost(textMailHost.getText());
+		setServoConfig.setMailHostPort(spinnerHostPort.getSelection());
+		setServoConfig.setMailUser(textMailUser.getText());
+		setServoConfig.setMailPassword(textMailPassword.getText());
+		b_m.setSetServoConfig(setServoConfig);
+		servo.getClient().send(b_m.build());
+		close();
+	}
+
+	private void sendMess(CtrClient client) {
+		Message.Builder m = Message.newBuilder();
+		m.setKey(CtrClient.getKey());
+		m.setUserId(servo.getUser().getId());
+		GetServoConfig.Builder gb = GetServoConfig.newBuilder();
+		m.setGetServoConfig(gb);
+		client.send(m.build());
+	}
+
+	public void setValue(GetServoConfig getServoConfig) {
+		textName.setText(getServoConfig.getName());
+		spinnerThread.setSelection(getServoConfig.getThread());
+
+		if (getServoConfig.getMaster() == false) {
+			setControlWidget();
+		} else {
+			cancleSetControlWidget();
+			btnCheckButton_2.setSelection(true);
+		}
+
+		if (getServoConfig.getDb() == false) {
+			setDbWidget();
+		} else {
+			cancleSetDbWidget();
+			btnDb.setSelection(true);
+		}
+
+		if (getServoConfig.getDriver() == false) {
+			setDeviceWidget();
+		} else {
+			cancleSetDeviceWidget();
+			btnCheckButton.setSelection(true);
+		}
+
+		if (getServoConfig.getHttp() == false) {
+			setHttpWidget();
+		} else {
+			cancleSetHttpWidget();
+			btnCheckButton_1.setSelection(true);
+		}
+
+		if (getServoConfig.getNotice() == false) {
+			setMailWidget();
+		} else {
+			cancleSetMailWidget();
+			btnCheckButton_4.setSelection(true);
+		}
+
+		spinnerDriverRestart.setSelection(getServoConfig.getDriverRestart());
+		spinnerDriverHeartbeat.setSelection(getServoConfig.getDriverHeartbeat());
+
+		textMasterIP.setText(String.valueOf(getServoConfig.getMasterIp()));
+		spinnerMasterPort.setSelection(getServoConfig.getMasterPort());
+
+		comboHttpMode.setText(String.valueOf(getServoConfig.getHttpMode()));
+		textHttpIP.setText(String.valueOf(getServoConfig.getHttpIp()));
+		spinnerHttpPort.setSelection(getServoConfig.getHttpPort());
+		spinnerHttpSslPort.setSelection(getServoConfig.getHttpSslPort());
+
+		spinnerDbMax.setSelection(getServoConfig.getDbMax());
+		comboDbType.setText(String.valueOf(getServoConfig.getDbType()));
+		textDbUrl.setText(String.valueOf(getServoConfig.getDbUrl()));
+		textDbUser.setText(String.valueOf(getServoConfig.getDbUser()));
+		textDbPassword.setText(String.valueOf(getServoConfig.getDbPassword()));
+
+		textMailHost.setText(String.valueOf(getServoConfig.getMailHost()));
+		spinnerHostPort.setSelection(getServoConfig.getMailHostPort());
+		textMailUser.setText(String.valueOf(getServoConfig.getMailUser()));
+		textMailPassword.setText(String.valueOf(getServoConfig.getMailPassword()));
+	}
+
+	@Override
+	public void received(Servo s, Message m,HashMap<Message, Unit> units) {
+		if (m.getActionCase() == ActionCase.GET_SERVO_CONFIG) {
+			if (m.getResult() == Result.SUCCESS) {
+				final GetServoConfig gsc = m.getGetServoConfig();
+				if (gsc != null) {
+					Display.getDefault().asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							setValue(gsc);
+						}
+					});
+				} else {
+					F.mbWaring(shell, Lang.getString("FServoConf.ShellTitle.text"), Lang.getString("FServoConf.MessageBoxContent.text"));
+				}
+			}
+		}
+
+	}
+
+	@Override
+	public void close() {
+		if (closing) {
+
+		} else {
+			shell.close();
+		}
+
+	}
+}

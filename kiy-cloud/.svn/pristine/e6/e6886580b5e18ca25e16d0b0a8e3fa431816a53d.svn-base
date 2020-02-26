@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- mapper标签要指定namespace属性，不然会报错，可看做包名-->
+<mapper namespace="singleProductUser">
+    <insert id="create" parameterType="com.kiy.cloud.data.bean.SingleProductUserBean">
+       INSERT INTO `single_product_user`(id,single_product_user_id,username,password,enable,type,remark)VALUES
+       (#{id},#{singleProductUserId},#{username},#{password},#{enable},#{type},#{remark})
+    </insert>
+    <update id="relationXMDeviceAccount" parameterType="com.kiy.cloud.data.bean.SingleProductUserBean">
+		UPDATE `single_product_user` SET `xm_device_account`=#{xmDeviceAccount},`xm_device_password`=#{xmDevicePassword}
+		WHERE (`username`=#{username})
+    </update>
+    <delete id="delete" parameterType="string">
+       DELETE FROM `single_product_user` WHERE id = #{id}
+    </delete>
+    <select id="selectByUsername" resultType="com.kiy.cloud.data.bean.SingleProductUserBean">
+       SELECT *,single_product_user_id as singleProductUserId,xm_device_account as xmDeviceAccount,xm_device_password as xmDevicePassword 
+       FROM  `single_product_user` WHERE username = #{username}
+    </select>
+    <select id="getListBySingleProductUserId" resultType="com.kiy.cloud.data.bean.SingleProductUserBean">
+       SELECT *,single_product_user_id as singleProductUserId ,xm_device_account as xmDeviceAccount,xm_device_password as xmDevicePassword 
+       FROM  `single_product_user` WHERE single_product_user_id = #{singleProductUserId}
+    </select>
+    <select id="select" resultType="com.kiy.cloud.data.bean.SingleProductUserBean">
+       SELECT *,single_product_user_id as singleProductUserId ,xm_device_account as xmDeviceAccount,xm_device_password as xmDevicePassword 
+       FROM  `single_product_user` WHERE id = #{id}
+    </select>
+</mapper>

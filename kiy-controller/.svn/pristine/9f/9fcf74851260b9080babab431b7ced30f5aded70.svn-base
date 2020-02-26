@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+	<div>
+	<h1>创建设备</h1>
+	<hr>
+	<p>首先在<a href="parameterList.html">结构视图</a>中选择你要创建设备的伺服器。选择[主窗口]->[伺服器]选项卡->[新建]选项卡->[设备]或者在<a href="parameterList.html">结构视图</a>里点击右键->[新建]选项卡->[设备]，然后会弹出创建设备窗口。如下图所示</p>
+	<img src="createDevice_1.png" />
+	<p>填写你要创建的设备的信息，点击确定按钮，创建设备。</p>
+	<p>创建设备成功后，您可以在<a href="parameterList.html">结构视图</a>中查看到你新创建的设备，<a href="parameterList.html">消息视图</a>中也会显示你创建设备成功的信息。</p>
+	<p><a href="createRole.html">上一页</a>  <a href="createZone.html">下一页</a></p>
+	</div>
+</body>
+</html>

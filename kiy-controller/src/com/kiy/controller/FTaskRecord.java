@@ -1,0 +1,505 @@
+package com.kiy.controller;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MenuAdapter;
+import org.eclipse.swt.events.MenuEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.common.Unit;
+import com.kiy.common.User;
+//import com.kiy.protocol.Messages.Command;
+import com.kiy.protocol.Messages.DeleteTask;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Messages.UpdateTask;
+import com.kiy.protocol.Units.MTask.Builder;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * 
+ * @author HLX
+ *
+ */
+public class FTaskRecord extends Dialog implements FormMessage {
+
+	private Shell shell;
+	private Table tableTask;
+	
+	private CtrClient client;
+
+
+	private Servo servo;
+	private Task task;
+	private List<Task> listTask;
+
+	public FTaskRecord(Shell parent) {
+		super(parent, 0);
+		listTask = new ArrayList<>();
+	}
+
+	public void open(Servo s) {
+		servo = s;
+		createContents();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FTaskRecord.ShellName.text") + servo.toString());
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		client = servo.getClient();
+
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		tableTask = new Table(shell, SWT.BORDER | SWT.FULL_SELECTION);
+		tableTask.setHeaderVisible(true);
+		tableTask.setLinesVisible(true);
+		{
+			TableColumn tblTaskrNameColumn = new TableColumn(tableTask, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FTaskRecord.tblPlanName.text"));
+			tblTaskrNameColumn.setWidth(120);
+
+			tblTaskrNameColumn = new TableColumn(tableTask, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblTaskrNameColumn.setWidth(100);
+			
+			tblTaskrNameColumn = new TableColumn(tableTask, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FTaskRecord.tblStartTime.text"));
+			tblTaskrNameColumn.setWidth(160);
+
+			tblTaskrNameColumn = new TableColumn(tableTask, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FTaskRecord.tblEndTime.text"));
+			tblTaskrNameColumn.setWidth(160);
+
+			tblTaskrNameColumn = new TableColumn(tableTask, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FTaskRecord.tblCollection.text"));
+			tblTaskrNameColumn.setWidth(160);
+
+			tblTaskrNameColumn = new TableColumn(tableTask, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FTaskRecord.tblControl.text"));
+			tblTaskrNameColumn.setWidth(160);
+		}
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+
+		MenuItem createItem = new MenuItem(menu, SWT.CASCADE);
+		createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+
+		// 新建
+		createItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 打开新建计划任务窗口
+				new ATaskCreate().sendMessage(servo, client, getParent());
+			}
+
+		});
+		createItem.setData(new ActionCase[] { ActionCase.CREATE_TASK });
+
+		// 编辑
+		MenuItem editItem = new MenuItem(menu, SWT.CASCADE);
+		editItem.setText(Lang.getString("FTaskRecord.MenuEdit.text"));
+		editItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 编辑任务
+				editTask();
+			}
+		});
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_TASK });
+
+		// 删除
+		MenuItem deleteItem = new MenuItem(menu, SWT.CASCADE);
+		deleteItem.setText(Lang.getString("FTask.delete"));
+		deleteItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 删除任务
+				deleteTask();
+			}
+		});
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_TASK });
+		
+		MenuItem[] items = menu.getItems();
+		MenuCommandUtil mcu = new MenuCommandUtil(servo);
+		mcu.LoadMenuForCommand(items);
+
+		// 初始化表格
+		taskSelect();
+		// 右键菜单
+		mouseRightClick(servo);
+	}
+
+	// 查询任务排序
+	private void taskSelect() {
+		listTask.clear();
+		for (TableItem tableItem : tableTask.getItems()) {
+			tableItem.dispose();
+		}
+		for (Task t : servo.getTasks()) {
+			listTask.add(t);
+		}
+		defaultSortUser();
+		for (Task t : listTask) {
+			set(t);
+		}
+	}
+
+	// 修改任务排序
+	private void taskUpdate() {
+		taskSelect();
+	}
+
+	// 新增任务排序
+	private void taskAdd() {
+		taskSelect();
+	}
+
+	// 删除任务排序
+	private void taskDelete() {
+		taskSelect();
+	}
+
+	// 排序器
+	private void defaultSortUser() {
+		Collections.sort(listTask, new Comparator<Task>() {
+			public int compare(Task a, Task b) {
+				return Long.compare(a.getStart().getTime(), b.getStart().getTime());
+			}
+		});
+	}
+
+	/**
+	 * 鼠标右击打开计划编辑菜单
+	 */
+	private void mouseRightClick(final Servo servo) {
+		Menu taskMenu = new Menu(shell, SWT.POP_UP);
+		MenuItem createTask = new MenuItem(taskMenu, SWT.PUSH);
+		MenuItem editItem = new MenuItem(taskMenu, SWT.PUSH);
+		MenuItem deleteItem = new MenuItem(taskMenu, SWT.PUSH);
+		MenuItem enableItem = new MenuItem(taskMenu,SWT.PUSH);
+
+		createTask.setText(Lang.getString("FTaskRecord.MenuCreate.text"));
+		editItem.setText(Lang.getString("FTaskRecord.MenuEdit.text"));
+		deleteItem.setText(Lang.getString("FTaskRecord.MenuDelete.text"));
+		enableItem.setText(Lang.getString("FUserAndRole.enable.text"));
+		createTask.setData(new ActionCase[] { ActionCase.CREATE_TASK });
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_TASK });
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_TASK });
+		enableItem.setData(new ActionCase[] { ActionCase.UPDATE_TASK });
+		tableTask.setMenu(taskMenu);
+
+		taskMenu.addMenuListener(new MenuAdapter() {
+			@Override
+			public void menuShown(MenuEvent arg0) {
+				Menu m = (Menu) arg0.widget;
+				MenuItem[] items = m.getItems();
+
+				MenuCommandUtil mcu = new MenuCommandUtil(servo);
+				mcu.LoadMenuForCommand(items);
+			}
+		});
+
+		// 新建
+		createTask.addSelectionListener(new SelectionAdapter() {
+
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 打开新建计划任务窗口
+				new ATaskCreate().sendMessage(servo, client, getParent());
+			}
+
+		});
+
+		// 删除
+		deleteItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 删除任务
+				deleteTask();
+			}
+		});
+
+		// 编辑
+		editItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 编辑任务
+				editTask();
+			}
+		});
+		
+		//禁用/取消禁用
+		enableItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				//禁用/取消禁用任务
+				setTaskEnable();
+			}
+		});
+
+		// table双击事件
+		tableTask.addListener(SWT.MouseDoubleClick, new Listener() {
+			@Override
+			public void handleEvent(Event arg0) {
+				User user = servo.getUser();
+				if (user != null) {
+					if (user.allow(ActionCase.UPDATE_TASK.getNumber())) {
+						int listHaveChoose = tableTask.getSelectionIndex();
+						if (listHaveChoose != -1/* 未选中 */) {
+							TableItem ti = tableTask.getItem(listHaveChoose);
+							Task t = (Task) ti.getData();
+							AUpdateTask a = new AUpdateTask(FTaskRecord.this, servo, t);
+							a.sendMessage();
+						} else {
+							// 无处理
+						}
+					} else {
+						F.mbInformation(shell, Lang.getString("FTaskRecord.NoCommandToEditTask"),
+								Lang.getString("FTaskRecord.NoCommandToEditTask.content"));
+					}
+				}
+			}
+		});
+	}
+
+	public Shell getShell() {
+		return shell;
+	}
+
+	@Override
+	public void received(Servo s, Message m, Map<Message, Unit> units) {
+		// 返回状态
+		Result status = m.getResult();
+		// 返回指令
+		ActionCase command = m.getActionCase();
+		// 刷新表格处理
+		if (command == ActionCase.CREATE_TASK) {
+			if (status == Result.SUCCESS) {
+				taskAdd();
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FTaskRecord.MessageBoxCreateTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FTaskRecord.MessageBoxCreateTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 删除计划
+		if (command == ActionCase.DELETE_TASK) {
+			if (status == Result.SUCCESS) {
+				taskDelete();
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FTaskRecord.MessageBoxDeleteTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FTaskRecord.MessageBoxDeleteTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+		// 修改计划
+		if (command == ActionCase.UPDATE_TASK) {
+			if (status == Result.SUCCESS) {
+				taskUpdate();
+			} else if (status == Result.ERROR) {
+				MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+				mb.setText(Lang.getString("FTaskRecord.MessageBoxModifyTaskTitle.text"));
+				mb.setMessage(String.format(Lang.getString("FTaskRecord.MessageBoxModifyTaskContent.text"), servo));
+				mb.open();
+			} else {
+				// 无处理
+			}
+		}
+	}
+
+	// 设置表格
+	private void set(Task task) {
+		TableItem item = new TableItem(tableTask, SWT.NONE);
+		item.setText(0, task.getName());
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		
+		if (task.getEnable()) {
+			item.setImage(1, Resource.getImage(FMain.class, "/com/kiy/resources/user_able.png"));
+			item.setText(1, Lang.getString("FUserAndRole.userEnable.text"));
+			item.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+		} else {
+			item.setImage(1, Resource.getImage(FMain.class, "/com/kiy/resources/user_unable.png"));
+			item.setText(1, Lang.getString("FUserAndRole.userUnenable.text"));
+			item.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+		}
+		
+		
+		String start = sdf.format(task.getStart());
+		item.setText(2, start);
+
+		String stop = sdf.format(task.getStop());
+		item.setText(3, stop);
+
+		item.setText(4, Lang.getString("FTaskRecord.TableItemDeviceType.text")
+				+ task.getReadModel().name());
+
+		item.setText(5, Lang.getString("FTaskRecord.TableItemDeviceType.text")
+				+ task.getWriteModel().name());
+
+		item.setData(task);
+
+	}
+
+	// 删除任务消息发送
+	private void deleteTask() {
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		TableItem[] item = tableTask.getSelection();
+
+		if (item.length <= 0) {
+			F.mbInformation(shell, Lang.getString("FTaskRecord.delete"), Lang.getString("FtaskRecord.delete.tip"));
+			return;
+		}
+
+		for (int i = 0; i < item.length; i++) {
+			Object data = item[i].getData();
+			if (data instanceof Task) {
+				task = (Task) data;
+				int open = F.mbQuestionCancel(shell, Lang.getString("FTaskRecord.MessageBoxDeleteTaskTitle.text"),
+						String.format(Lang.getString("ADeleteUnit.deleteQuesion.text"), task.getName()));
+				if (open == SWT.OK) {
+					Message.Builder b_m = Message.newBuilder();
+					b_m.setKey(CtrClient.getKey());
+					b_m.setUserId(servo.getUser().getId());
+					DeleteTask.Builder deleteTask = DeleteTask.newBuilder();
+					deleteTask.setId(task.getId());
+					b_m.setDeleteTask(deleteTask);
+					client.send(b_m.build());
+				} else {
+					// 删除提示框选择取消，不删除
+				}
+			}
+		}
+	}
+
+	// 编辑任务
+	private void editTask() {
+		TableItem[] item = tableTask.getSelection();
+		int selectionIndex = tableTask.getSelectionIndex();
+		if (selectionIndex == -1) {
+			F.mbInformation(shell, Lang.getString("FTaskRecord.edit"), Lang.getString("FtaskRecord.edit.tip"));
+			return;
+		}
+		Object data = item[0].getData();
+		if (data instanceof Task) {
+			task = (Task) data;
+			AUpdateTask a = new AUpdateTask(this, servo, task);
+			a.sendMessage();
+		}
+	}
+
+	@Override
+	public void close() {
+		// 无处理
+	}
+	
+	private void setTaskEnable() {
+		TableItem[] item = tableTask.getSelection();
+		int selectionIndex = tableTask.getSelectionIndex();
+		if (selectionIndex == -1) {
+			F.mbInformation(shell, Lang.getString("FTaskRecord.edit"), Lang.getString("FtaskRecord.edit.tip"));
+			return;
+		}
+		Object data = item[0].getData();
+		if (data instanceof Task) {
+			task = (Task) data;
+			
+			Message.Builder b_m = Message.newBuilder();
+			b_m.setKey(CtrClient.getKey());
+			b_m.setUserId(servo.getUser().getId());
+			UpdateTask.Builder updateTask = UpdateTask.newBuilder();
+			Builder builder = updateTask.getItemBuilder();
+			
+			builder.setId(task.getId());
+			builder.setName(task.getName());
+			builder.setStart(task.getStart().getTime());
+			builder.setStop(task.getStop().getTime());
+			builder.setMonth(task.getMonth());
+			builder.setWeek(task.getWeek());
+			builder.setDay(task.getDay());
+			builder.setInterval(task.getInterval());
+			builder.setRepeat(task.getRepeat());
+			builder.setReadModel(task.getReadModel().getValue());
+			builder.setWriteModel(task.getWriteModel().getValue());
+			builder.setReadFeature(task.getReadFeature());
+			builder.setWriteFeature(task.getWriteFeature());
+			builder.setLimitLower(task.getLimitLower());
+			builder.setLimitUpper(task.getLimitUpper());
+			builder.setFeed(task.getFeed());
+			builder.setFeedUpper(task.getFeedUpper());
+			builder.setFeedLower(task.getFeedLower());
+			if (!Tool.isEmpty(task.getRoleId())) {
+				builder.setRoleId(task.getRoleId());
+			}
+			builder.setRemark(task.getRemark());
+			builder.setUpdated(task.getUpdated().getTime());
+			if(task.getReadDeviceIds()!=null) {
+				for (String deviceId : task.getReadDeviceIds()) {
+					builder.addReads(deviceId);
+				}
+			}
+			
+			if(task.getWriteDeviceIds()!=null) {
+				for (String deviceId : task.getWriteDeviceIds()) {
+					builder.addWrites(deviceId);
+				}
+			}
+			builder.setEnable(!task.getEnable());
+			builder.setUpdated(new Date().getTime());
+			b_m.setUpdateTask(updateTask);
+			client.send(b_m.build());
+		}
+	}
+}

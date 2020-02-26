@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- mapper标签要指定namespace属性，不然会报错，可看做包名-->
+<mapper namespace="xmDevice">
+    <insert id="create" parameterType="com.kiy.cloud.data.bean.XMDeviceBean">
+       INSERT INTO `xm_device` (`id`,`device_mac`,`device_name`,`login_name`,`login_psw`,`device_ip`,`state`,`n_port`,`n_type`,`n_id`,`remark`) 
+     			   VALUES (#{id},#{deviceMac},#{deviceName},#{loginName},#{loginPsw},#{deviceIp},#{state},#{nPort},#{nType},#{nId},#{remark})
+    </insert>
+    <update id="updateDeviceName" parameterType="com.kiy.cloud.data.bean.XMDeviceBean">
+		UPDATE `xm_device` SET `device_name`=#{deviceName} WHERE `device_mac`=#{deviceMac}
+    </update> 
+    <delete id="deleteByDeviceMac" parameterType="string">
+       DELETE FROM `xm_device` WHERE device_mac = #{deviceMac}
+    </delete>
+    <select id="selectBySingleProductUserId" parameterType="string" resultType="com.kiy.cloud.data.bean.XMDeviceBean">
+      SELECT *,single_product_user_id as singleProductUserId, device_mac as deviceMac,device_name as deviceName,login_name as loginName,
+      		login_psw as loginPsw,device_ip as deviceIp,n_port as nPort,n_type as nType,n_id as nId 
+      		FROM  xm_device JOIN single_product_xm_device s ON xm_device.id = s.xm_device_id AND s.single_product_user_id= #{singleProductUserId}
+    </select>
+    <select id="getOneByDeviceMac" parameterType="string" resultType="com.kiy.cloud.data.bean.XMDeviceBean">
+      SELECT *,device_mac as deviceMac,device_name as deviceName,login_name as loginName,
+      		login_psw as loginPsw,device_ip as deviceIp,n_port as nPort,n_type as nType,n_id as nId,single_product_user_id as singleProductUserId
+      		FROM  xm_device LEFT JOIN single_product_xm_device on xm_device.id = single_product_xm_device.xm_device_id
+            WHERE device_mac = #{deviceMac}
+    </select>
+	<insert id="createSingleProductXMDevice" parameterType="com.kiy.cloud.data.bean.XMDeviceBean">
+       INSERT INTO `single_product_xm_device` (`single_product_user_id`,`xm_device_id`) 
+     			   VALUES (#{singleProductUserId},#{id})
+    </insert>
+      <delete id="deleteSingleProductXMDevice" parameterType="string">
+       DELETE FROM `single_product_xm_device` WHERE `single_product_user_id` = #{singleProductUserId} AND `xm_device_id` = #{id}
+    </delete>
+</mapper>

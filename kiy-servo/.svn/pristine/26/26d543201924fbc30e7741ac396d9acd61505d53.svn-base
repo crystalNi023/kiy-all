@@ -1,0 +1,73 @@
+package com.kiy.servo.mqtt;
+
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
+
+import com.kiy.common.Device;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Vendor;
+import com.kiy.servo.Config;
+
+/**
+ * MQTT数据处理
+ * 
+ * @author HLX Tel:18996470535
+ * @date 2018年6月25日 Copyright:Copyright(c) 2018
+ */
+public class MQTTCoder {
+	/**
+	 * 读取数据
+	 */
+	public static final int READ = 1;
+	/**
+	 * 解析数据
+	 */
+	public static final int WRITE = 2;
+
+	public static final String BIAS = "/";
+	/**
+	 * 编辑发布数据
+	 * 
+	 * @param device
+	 * @param action
+	 * @throws MqttException 
+	 * @throws MqttPersistenceException 
+	 */
+	public void encode(String GatewayKey,Device device, MQTTServer client, int action) throws MqttPersistenceException, MqttException {
+		Vendor vendor = device.getVendor();
+		Model model = device.getModel();
+		String number = device.getNumber();
+		MqttMessage message = new MqttMessage();
+		 message.setQos(1);
+	        message.setRetained(true);
+		switch (action) {
+			case READ:
+				if (vendor==Vendor.EASTSOFT ) {
+					switch (model) {
+						case ES_0001:
+						case ES_0002:
+							StringBuilder sb = new StringBuilder();
+							StringBuilder topic = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+					        String string = "{\"cmd\":\"read\"}"; 
+					        message.setPayload(string.getBytes());
+							client.publish(client.getTopic(topic.toString()), message);
+							System.err.println(topic.toString());
+							System.err.println("send");
+							break;
+						default:
+							break;
+					}
+				}
+				break;
+			case WRITE:
+
+				break;
+			default:
+				break;
+		}
+	}
+
+}

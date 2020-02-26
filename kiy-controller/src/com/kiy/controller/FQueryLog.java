@@ -1,0 +1,645 @@
+package com.kiy.controller;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.DateTime;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.common.User;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.QueryLog;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Units.MLog;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+public class FQueryLog extends Dialog implements FormMessage {
+	private Shell shell;
+	private Composite queryComposite;
+	private Composite CompositeTable;
+	private Table table;
+	private Composite bottomComposite;
+
+	private DateTime startSecond;
+	private DateTime endSecond;
+
+	private Label lblResult;
+	private Date start;
+	private Date end;
+	private User mUser;
+	private Servo mServo;
+
+	private Map<MLog, TableItem> items; // 用于存放tableItem
+	private List<MLog> list; // 查询的Log集合
+
+	private Text textSearch;
+
+	private List<MLog> allLog; // 默认7天内所有的日志
+
+	public FQueryLog(Shell parent) {
+		super(parent);
+		items = new ConcurrentHashMap<>();
+		list = new ArrayList<>();
+		allLog = new ArrayList<>();
+	}
+
+	public void open(User user, Servo servo) {
+		mServo = servo;
+		mUser = user;
+		createContent();
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContent() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		if (mUser == null) {
+			shell.setText(Lang.getString("FQueryLog.ShellTitle.text") + "-" + mServo.toString());
+		} else {
+			shell.setText(Lang.getString("FQueryLog.ShellTitle.text") + "-" + mServo.toString() + "-" + mUser.getName());
+		}
+
+		shell.setSize(900, 500);
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		shell.setLayout(new FormLayout());
+		F.center(getParent(), shell);
+
+		FormData fd = new FormData();
+		fd.bottom = new FormAttachment(0, 35);
+		fd.top = new FormAttachment(0);
+		fd.left = new FormAttachment(0);
+		fd.right = new FormAttachment(100, 0);
+
+		queryComposite = new Composite(shell, SWT.NONE);
+		queryComposite.setBounds(0, 0, 452, 33);
+		queryComposite.setLayoutData(fd);
+		{
+			// 开始时间
+			Label label = new Label(queryComposite, SWT.NONE);
+			label.setBounds(16, 8, 70, 17);
+			label.setText(Lang.getString("FQueryLog.LabelStartTime.text"));
+
+			// 开始日期
+			final DateTime startDay = new DateTime(queryComposite, SWT.BORDER | SWT.DROP_DOWN);
+			startDay.setBounds(94, 5, 110, 24);
+			Calendar calendar = Calendar.getInstance();
+			calendar.add(Calendar.DAY_OF_YEAR, -1);
+
+			// 设置当前选中时间为当前时间前一周
+			long timeInMillis = calendar.getTimeInMillis();
+			startDay.setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DATE));
+
+			// 开始时间
+			startSecond = new DateTime(queryComposite, SWT.BORDER | SWT.TIME);
+			startSecond.setBounds(212, 5, 110, 24);
+			startSecond.setTime(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), calendar.get(Calendar.SECOND));
+
+			// 结束时间标签
+			Label labelEndTime = new Label(queryComposite, SWT.NONE);
+			labelEndTime.setBounds(338, 8, 70, 17);
+			labelEndTime.setText(Lang.getString("FQueryLog.LabelEndTime.text"));
+
+			// 结束日期
+			final DateTime endDay = new DateTime(queryComposite, SWT.BORDER | SWT.DROP_DOWN);
+			endDay.setBounds(416, 5, 110, 24);
+
+			// 结束时间
+			endSecond = new DateTime(queryComposite, SWT.BORDER | SWT.TIME);
+			endSecond.setBounds(534, 5, 110, 24);
+
+			// 默认查询一周的日志
+			final CtrClient client = mServo.getClient();
+			if (client != null && client.isConnected() && client.isRunning()) {
+				requestUserLog(timeInMillis, System.currentTimeMillis(), client, mUser);
+			}
+
+			// 查询按钮
+			Button button = new Button(queryComposite, SWT.NONE);
+			button.setBounds(652, 4, 80, 26);
+			button.setText(Lang.getString("FQueryLog.ButtonInquery.text"));
+
+			// 点击查询
+			button.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent event) {
+					int sYear = startDay.getYear();
+					int sMonth = startDay.getMonth() + 1;
+					int sDay = startDay.getDay();
+					int sHours = startSecond.getHours();
+					int sMinutes = startSecond.getMinutes();
+					int sSeconds = startSecond.getSeconds();
+
+					int eYear = endDay.getYear();
+					int eMonth = endDay.getMonth() + 1;
+					int eDay = endDay.getDay();
+					int eHours = endSecond.getHours();
+					int eMinutes = endSecond.getMinutes();
+					int eSeconds = endSecond.getSeconds();
+					// 聚合年月日时分秒
+					String startDate = sYear + "-" + sMonth + "-" + sDay + " " + sHours + ":" + sMinutes + ":" + sSeconds;
+					String endDate = eYear + "-" + eMonth + "-" + eDay + " " + eHours + ":" + eMinutes + ":" + eSeconds;
+					SimpleDateFormat form = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+					try {
+						start = form.parse(startDate);
+						end = form.parse(endDate);
+					} catch (ParseException e1) {
+						return;
+					}
+
+					// 默认先查询出一周内的所有日志
+					if (client != null && client.isConnected() && client.isRunning()) {
+						requestUserLog(start.getTime(), end.getTime(), client, mUser);
+					}
+				}
+			});
+		}
+		FormData fd_1 = new FormData();
+		fd_1.top = new FormAttachment(queryComposite, 0);
+
+		textSearch = new Text(queryComposite, SWT.BORDER);
+		textSearch.setBounds(740, 5, 126, 24);
+		textSearch.setMessage(Lang.getString("FQueryLog.SearchLog"));
+
+		textSearch.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent arg0) {
+				String text = textSearch.getText();
+				Set<MLog> search = null;
+				int listSize = list.size();
+				int AllLogSize = allLog.size();
+
+				if (listSize >= AllLogSize) {
+					// System.out.println("从list中查询");
+					// System.out.println("allLog的大小 = " + allLog.size() +
+					// " list的大小 = " + list.size());
+					SearchLog searchLog = new SearchLog(list, mServo);
+					search = searchLog.search(text);
+				} else {
+					// System.out.println("allLog的大小 = " + allLog.size() +
+					// " list的大小 = " + list.size());
+					SearchLog searchLog = new SearchLog(allLog, mServo);
+					search = searchLog.search(text);
+				}
+
+				// 清空表格和本地缓存log集合
+				table.removeAll();
+				list.clear();
+
+				if (search != null) {
+					for (MLog mlog : search) {
+						list.add(mlog);// 添加进集合
+					}
+					sortFrist(); // 排序
+					// 虚拟化监听
+					table.addListener(SWT.SetData, new Listener() {
+						@Override
+						public void handleEvent(Event event) {
+							show(event);
+						}
+					});
+					
+					table.setItemCount(list.size());
+
+					// 设置状态栏查询条数
+					String result = search.size() + Lang.getString("FQueryLog.LabelResultNum.text");
+					lblResult.setText(result);
+
+				}
+
+			}
+		});
+
+		fd_1.left = new FormAttachment(0, 3);
+		fd_1.right = new FormAttachment(100, -3);
+
+		CompositeTable = new SashForm(shell, SWT.SMOOTH);
+		CompositeTable.setBounds(16, 71, 452, 400);
+		CompositeTable.setLayoutData(fd_1);
+
+		table = new Table(CompositeTable, SWT.BORDER | SWT.FULL_SELECTION | SWT.VIRTUAL);
+		table.setHeaderVisible(true);
+		table.setLinesVisible(true);
+		table.setLayout(new FillLayout());
+		// 表格内容
+		{
+			// 虚拟化监听
+			table.addListener(SWT.SetData, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					show(event);
+				}
+			});
+
+			// 排序监听
+			Listener columnListener = new Listener() {
+				@Override
+				public void handleEvent(Event e) {
+					sort((TableColumn) e.widget);
+				}
+			};
+
+			// 创建时间
+			TableColumn columnCreateTime = new TableColumn(table, SWT.LEFT);
+			columnCreateTime.setWidth(160);
+			columnCreateTime.setText(Lang.getString("FQueryLog.TableItemCreateTime.text"));
+			columnCreateTime.setMoveable(true);
+			columnCreateTime.addListener(SWT.Selection, columnListener);
+			// 用户名
+			TableColumn columnUserName = new TableColumn(table, SWT.LEFT);
+			columnUserName.setWidth(100);
+			columnUserName.setText(Lang.getString("FQueryLog.TableItemUserName.text"));
+			columnUserName.setMoveable(true);
+			columnUserName.addListener(SWT.Selection, columnListener);
+			// 指令
+			TableColumn columnCommand = new TableColumn(table, SWT.LEFT);
+			columnCommand.setWidth(160);
+			columnCommand.setText(Lang.getString("FQueryLog.TableItemCommand.text"));
+			columnCommand.setMoveable(true);
+			columnCommand.addListener(SWT.Selection, columnListener);
+			// 状态
+			TableColumn columnStatus = new TableColumn(table, SWT.LEFT);
+			columnStatus.setWidth(100);
+			columnStatus.setText(Lang.getString("FQueryLog.TableItemStatus.text"));
+			columnStatus.setMoveable(true);
+			columnStatus.addListener(SWT.Selection, columnListener);
+			// 耗时
+			TableColumn columnTime = new TableColumn(table, SWT.LEFT);
+			columnTime.setWidth(100);
+			columnTime.setText(Lang.getString("FQueryLog.TableItemTimeConsuming.text"));
+			columnTime.setMoveable(true);
+			columnTime.addListener(SWT.Selection, columnListener);
+			// 备注
+			TableColumn columnRemark = new TableColumn(table, SWT.LEFT);
+			columnRemark.setWidth(230);
+			columnRemark.setText(Lang.getString("FQueryLog.TableItemRemark.text"));
+			columnRemark.setMoveable(true);
+			columnRemark.addListener(SWT.Selection, columnListener);
+			
+			table.setSortColumn(columnTime);
+			table.setSortDirection(SWT.UP);
+		}
+
+		bottomComposite = new Composite(shell, SWT.NONE);
+		fd_1.bottom = new FormAttachment(bottomComposite, 0);
+		bottomComposite.setLayoutData(new FormData());
+		FormData fd_2 = new FormData();
+		fd_2.top = new FormAttachment(100, -33);
+
+		fd_2.bottom = new FormAttachment(100);
+		fd_2.right = new FormAttachment(100, 0);
+		fd_2.left = new FormAttachment(0);
+		bottomComposite.setLayoutData(fd_2);
+
+		// 状态栏显示
+		lblResult = new Label(bottomComposite, SWT.NONE);
+		lblResult.setBounds(16, 8, 300, 17);
+
+		// 右键菜单
+		Menu menu = new Menu(shell, SWT.POP_UP);
+		MenuItem openLog = new MenuItem(menu, SWT.PUSH);
+
+		openLog.setText(Lang.getString("FQueryLog.MenuOpen.text"));
+		table.setMenu(menu);
+
+		openLog.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				int listHaveChoose = table.getSelectionIndex();
+				if (listHaveChoose != -1/* 未选中 */) {
+					TableItem ti = table.getItem(listHaveChoose);
+					Object obj = ti.getData();
+					if (obj != null) {
+						if (obj instanceof MLog) {
+							MLog mLog = (MLog) obj;
+							new FUserLogDetails(shell).open(mServo, mLog);
+						}
+					}
+				} else {
+					MessageBox mb = new MessageBox(shell, SWT.ICON_INFORMATION | SWT.OK);
+					mb.setText(Lang.getString("FQueryLog.MessageBoxOpenLogDetailsTitle.text"));
+					mb.setMessage(Lang.getString("FQueryLog.MessageBoxOpenLogDetailsContent.text"));
+					mb.open();
+					return;
+				}
+			}
+
+		});
+
+		// table双击事件
+		table.addListener(SWT.MouseDoubleClick, new Listener() {
+
+			@Override
+			public void handleEvent(Event arg0) {
+				int listHaveChoose = table.getSelectionIndex();
+				if (listHaveChoose != -1/* 未选中 */) {
+					TableItem ti = table.getItem(listHaveChoose);
+					Object obj = ti.getData();
+					if (obj != null) {
+						if (obj instanceof MLog) {
+							MLog mLog = (MLog) obj;
+							new FUserLogDetails(shell).open(mServo, mLog);
+						}
+					}
+				}
+			}
+
+		});
+
+		table.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent arg0) {
+				if (arg0.keyCode == SWT.CR) {
+					int listHaveChoose = table.getSelectionIndex();
+					if (listHaveChoose != -1/* 未选中 */) {
+						TableItem ti = table.getItem(listHaveChoose);
+						Object obj = ti.getData();
+						if (obj != null) {
+							if (obj instanceof MLog) {
+								MLog mLog = (MLog) obj;
+								new FUserLogDetails(shell).open(mServo, mLog);
+							}
+						}
+					}
+				}
+			}
+		});
+		
+
+	}
+
+	private void show(Event e) {
+		// 每个item第一次显示时
+		TableItem item = (TableItem) e.item;
+		MLog mLog = list.get(e.index);
+		item.setData(mLog);
+		items.put(mLog, item);
+		update(mLog);
+	}
+
+	/**
+	 * 更新Log
+	 * 
+	 * @param d
+	 */
+	public void update(MLog mLog) {
+		if (mLog == null)
+			return;
+		TableItem item = items.get(mLog);
+		if (item == null)
+			return;
+		table.setItemCount(list.size());
+		// 创建时间
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		String create = sdf.format(new Date(mLog.getCreated()));
+		item.setText(0, String.valueOf(create));
+
+		// 用户名
+		User user = mServo.getUser(mLog.getUserId());
+		if (user != null) {
+			String userName = String.valueOf(user.getName());
+			item.setText(1, String.valueOf(userName));
+		} else {
+			item.setText(1, "");
+		}
+		// 指令
+		ActionCase forNumber = ActionCase.forNumber(mLog.getCommand());
+		String command = String.valueOf(forNumber.name());
+		item.setText(2, Lang.getString("Command." + command));
+		// 状态
+		int status2 = mLog.getResult();
+		String status = String.valueOf(Result.forNumber(status2).name());
+		item.setText(3, Lang.getString("Status." + status));
+		// 耗时
+		item.setText(4, String.valueOf(mLog.getTime()) + "ms");
+		// 备注
+		String remark = String.valueOf(mLog.getRemark());
+		item.setText(5, remark);
+	}
+
+	private void sort(TableColumn c) {
+		TableColumn sortColumn = table.getSortColumn();
+		if (c == null && sortColumn == null)
+			return;
+
+		int dir = table.getSortDirection();
+		if (c == null) {
+			c = sortColumn;
+		} else if (sortColumn == c) {
+			dir = dir == SWT.UP ? SWT.DOWN : SWT.UP;
+		} else {
+			table.setSortColumn(c);
+			dir = SWT.UP;
+		}
+
+		final int direction = dir;
+		switch (table.indexOf(c)) {
+		case 0:
+			Collections.sort(list, new Comparator<MLog>() {
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return Long.compare(b.getCreated(), a.getCreated());
+					else
+						return Long.compare(a.getCreated(), b.getCreated());
+				}
+			});
+			break;
+		case 1:
+			Collections.sort(list, new Comparator<MLog>() {
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(getUserName(a), getUserName(b));
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(getUserName(b), getUserName(a));
+				}
+			});
+			break;
+		case 2:
+			Collections.sort(list, new Comparator<MLog>() {
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return Integer.compare(a.getCommand(), b.getCommand());
+					else
+						return Float.compare(b.getCommand(), a.getCommand());
+				}
+			});
+			break;
+		case 3:
+			Collections.sort(list, new Comparator<MLog>() {
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return Integer.compare(a.getResult(), b.getResult());
+					else
+						return Integer.compare(b.getResult(), a.getResult());
+				}
+			});
+			break;
+		case 4:
+			Collections.sort(list, new Comparator<MLog>() {
+				@Override
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return Integer.compare(a.getTime(), b.getTime());
+					else
+						return Integer.compare(b.getTime(), a.getTime());
+				}
+			});
+			break;
+		case 5:
+			Collections.sort(list, new Comparator<MLog>() {
+				@Override
+				public int compare(MLog a, MLog b) {
+					if (SWT.UP == direction)
+						return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark(), b.getRemark());
+					else
+						return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark(), a.getRemark());
+				}
+			});
+			break;
+		}
+		table.setSortDirection(dir);
+		table.clearAll();
+	}
+
+	private String getUserName(MLog a) {
+		User user = mServo.getUser(a.getUserId());
+		if (user != null) {
+			return String.valueOf(user.getName());
+		} else {
+			return "";
+		}
+	}
+
+	private void sortFrist() {
+		Collections.sort(list, new Comparator<MLog>() {
+			@Override
+			public int compare(MLog a, MLog b) {
+				return Long.compare(b.getCreated(), a.getCreated());
+			}
+		});
+	}
+
+	/**
+	 * 查询用户日志
+	 * 
+	 * @param start
+	 *            开始时间
+	 * @param end
+	 *            结束时间
+	 */
+	private void requestUserLog(Long start, Long end, CtrClient client, User user) {
+		Message.Builder m_b = Message.newBuilder();
+		m_b.setKey(CtrClient.getKey());
+		m_b.setUserId(client.getServo().getUser().getId());
+		QueryLog.Builder queryLog = QueryLog.newBuilder();
+		queryLog.setBegin(start);
+		queryLog.setEnd(end);
+		if (user != null) {
+			queryLog.setId(user.getId());
+		}
+		m_b.setQueryLog(queryLog);
+		client.send(m_b.build());
+	}
+
+	@Override
+	public void received(Servo s, Message m,Map<Message, Unit> units) {
+		if (m.getActionCase() == ActionCase.QUERY_LOG) {
+			if (m.getResult() == Result.SUCCESS) {
+				QueryLog queryLog = m.getQueryLog();
+				List<MLog> itemsList = queryLog.getItemsList();
+
+				if (itemsList.size() > 0) {
+					// 清空表格和本地缓存log集合
+					table.removeAll();
+					list.clear();
+					if (allLog == null || allLog.size() <= 0) {
+						// System.out.println("将默认7天内所有的日志放入到allLog中");
+						for (MLog mlog : itemsList) {
+							allLog.add(mlog);// 添加进集合
+						}
+					} else {
+						// System.out.println("allLog 不为空");
+					}
+
+					for (MLog mlog : itemsList) {
+						list.add(mlog);// 添加进集合
+					}
+					sortFrist(); // 排序
+					// 虚拟化监听
+					table.addListener(SWT.SetData, new Listener() {
+						@Override
+						public void handleEvent(Event event) {
+							show(event);
+						}
+					});
+					table.setItemCount(list.size());
+
+					// 设置状态栏查询条数
+					String result = itemsList.size() + Lang.getString("FQueryLog.LabelResultNum.text");
+					lblResult.setText(result);
+					return;
+				} else {
+					table.removeAll();
+					list.clear();
+					String result = itemsList.size() + Lang.getString("FQueryLog.LabelResultNum.text");
+					lblResult.setText(result);
+					return;
+				}
+			} else {
+				lblResult.setText(Lang.getString("FQueryLog.LabelFailure.text"));
+				F.mbWaring(shell, Lang.getString("FQueryLog.MessageBoxQueryLogTitle.text"), Lang.getString("FQueryLog.MessageBoxQueryLogContent.text"));
+				return;
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		shell.close();
+	}
+}

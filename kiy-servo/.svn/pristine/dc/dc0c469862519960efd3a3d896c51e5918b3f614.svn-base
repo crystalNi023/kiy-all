@@ -1,0 +1,266 @@
+package com.kiy.servo.mqtt;
+
+import java.util.Date;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.Types.Status;
+import com.kiy.common.devices.ESDryContactES0008;
+import com.kiy.common.devices.ESGateWayES0001;
+import com.kiy.common.devices.ESGateWayES0002;
+import com.kiy.common.devices.ESPLC2RS485HumitureSensorES0007;
+import com.kiy.common.devices.ESSwitchES0004;
+import com.kiy.common.devices.ESSwitchFourES0003;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006;
+import com.kiy.common.devices.ESSwitchTwoES0005;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ReadDeviceStatus.Builder;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+
+public class MqttJsonUtil {
+	public static final void send(String msg, String gatewayKey) {
+		JsonObject jsonObject = new JsonParser().parse(msg).getAsJsonObject();
+		String deviceKey; // 设备id,没有则判断该消息没用,遗弃
+		String errorCodeString = null; // 错误码，有的消息不会回复错误码
+		JsonObject function; // 必有
+		JsonElement deviceKeyJsonElement = jsonObject.get("deviceKey");
+		JsonElement errorCodeJsonElement = jsonObject.get("errorCode");
+		function = jsonObject.getAsJsonObject("function");
+		if (deviceKeyJsonElement == null)
+			return;
+		deviceKey = deviceKeyJsonElement.getAsString();
+		if (errorCodeJsonElement != null) {
+			errorCodeString = errorCodeJsonElement.getAsString();
+		}
+
+		// 通过deviceKey 取得缓存层相应设备
+		Servo servo = Data.getServo();
+		Device device = servo.getDeviceByNumber(deviceKey);
+		Model model = device.getModel();
+		device.setTickStatus(System.currentTimeMillis());
+		// 将设备消息解析后保存到相应设备缓存中
+		switch (model) {
+			case ES_0001: {// EastSoft三相网关
+				Date date = getMqttDate(function);
+				ESGateWayES0001 esGateWayES0001 = (ESGateWayES0001) device;
+				esGateWayES0001.setDatetime(date);
+			}
+				break;
+			case ES_0002: {// EastSoft路由器网关
+				Date date = getMqttDate(function);
+				ESGateWayES0002 esGateWayES0002 = (ESGateWayES0002) device;
+				esGateWayES0002.setDatetime(date);
+			}
+				break;
+			case ES_0003: {
+				// 四路开关执行器
+				JsonArray channelCollection = function.getAsJsonArray("channel_collection");
+				String controllerAddr = function.get("controller_addr").getAsString();
+				ESSwitchFourES0003 esSwitchFourES0003 = (ESSwitchFourES0003) device;
+				if (gatewayKey.equals(controllerAddr)) { // 网关请求
+					int errorCode = Integer.parseInt(errorCodeString);
+					if (errorCode == 0) { // 请求成功
+						esSwitchFourES0003.setSwitchOne(channelCollection.get(0).getAsJsonObject().get("switch").getAsBoolean());
+						esSwitchFourES0003.setSwitchTwo(channelCollection.get(1).getAsJsonObject().get("switch").getAsBoolean());
+						esSwitchFourES0003.setSwitchThree(channelCollection.get(2).getAsJsonObject().get("switch").getAsBoolean());
+						esSwitchFourES0003.setSwitchFour(channelCollection.get(3).getAsJsonObject().get("switch").getAsBoolean());
+						esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 请求失败
+						esSwitchFourES0003.setStatus(Tool.getStatusForErrorCode(errorCode));
+					}
+				} else { // 主动上传
+					esSwitchFourES0003.setSwitchOne(channelCollection.get(0).getAsJsonObject().get("switch").getAsBoolean());
+					esSwitchFourES0003.setSwitchTwo(channelCollection.get(1).getAsJsonObject().get("switch").getAsBoolean());
+					esSwitchFourES0003.setSwitchThree(channelCollection.get(2).getAsJsonObject().get("switch").getAsBoolean());
+					esSwitchFourES0003.setSwitchFour(channelCollection.get(3).getAsJsonObject().get("switch").getAsBoolean());
+					esSwitchFourES0003.setStatus(Status.NONE);
+					sendSetStatus(esSwitchFourES0003);
+				}
+			}
+				break;
+			case ES_0004: { // EastSoft开关控制模块
+				ESSwitchES0004 esSwitchES0004 = (ESSwitchES0004) device;
+				JsonElement switch_ch1 = function.get("switch_ch1");
+				String controller_addr = function.get("controller_addr").getAsString();
+				if (gatewayKey.equals(controller_addr)) { // 网关请求
+					int errorCode = Integer.parseInt(errorCodeString);
+					if (errorCode == 0) { // 请求成功
+						esSwitchES0004.setFeed(switch_ch1.getAsBoolean());
+						esSwitchES0004.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 请求失败
+						esSwitchES0004.setStatus(Tool.getStatusForErrorCode(errorCode));
+					}
+				} else { // 主动上传
+					esSwitchES0004.setFeed(Boolean.valueOf(switch_ch1.getAsBoolean()));
+					esSwitchES0004.setStatus(Status.NONE);
+					sendSetStatus(esSwitchES0004);
+				}
+			}
+				break;
+			case ES_0005: { // EastSoft开关控制模块(两路)
+				ESSwitchTwoES0005 esSwitchTwoES0005 = (ESSwitchTwoES0005) device;
+				JsonElement switch_ch1 = function.get("switch_ch1");
+				JsonElement switch_ch2 = function.get("switch_ch2");
+				String controller_addr = function.get("controller_addr").getAsString();
+				if (gatewayKey.equals(controller_addr)) { // 网关请求
+					int errorCode = Integer.parseInt(errorCodeString);
+					if (errorCode == 0) { // 请求成功
+						esSwitchTwoES0005.setSwitchOne(switch_ch1.getAsBoolean());
+						esSwitchTwoES0005.setSwitchTwo(switch_ch2.getAsBoolean());
+						esSwitchTwoES0005.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 请求失败
+						esSwitchTwoES0005.setStatus(Tool.getStatusForErrorCode(errorCode));
+					}
+				} else { // 主动上传
+					esSwitchTwoES0005.setSwitchOne(switch_ch1.getAsBoolean());
+					esSwitchTwoES0005.setSwitchTwo(switch_ch2.getAsBoolean());
+					esSwitchTwoES0005.setStatus(Status.NONE);
+					sendSetStatus(esSwitchTwoES0005);
+				}
+			}
+				break;
+			case ES_0006: { // ES_0006 2按键开关控制模块
+				ESSwitchTouchTwoES0006 eSwitchTouchTwoES0006 = (ESSwitchTouchTwoES0006) device;
+				JsonElement switch_ch1 = function.get("switch_ch1");
+				JsonElement switch_ch2 = function.get("switch_ch2");
+				String controller_addr = function.get("controller_addr").getAsString();
+				if (gatewayKey.equals(controller_addr)) { // 网关请求
+					int errorCode = Integer.parseInt(errorCodeString);
+					if (errorCode == 0) { // 请求成功
+						eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+						eSwitchTouchTwoES0006.setSwitchTwo(switch_ch2.getAsBoolean());
+						eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+					} else { // 请求失败
+						eSwitchTouchTwoES0006.setStatus(Tool.getStatusForErrorCode(errorCode));
+					}
+				} else { // 主动上传
+					eSwitchTouchTwoES0006.setSwitchOne(switch_ch1.getAsBoolean());
+					eSwitchTouchTwoES0006.setSwitchTwo(switch_ch2.getAsBoolean());
+					eSwitchTouchTwoES0006.setStatus(Status.NONE);
+					sendSetStatus(eSwitchTouchTwoES0006);
+				}
+			}
+				break;
+			case ES_0007: { // PLC转RS485 温湿度传感器
+				ESPLC2RS485HumitureSensorES0007 dEs0007 = (ESPLC2RS485HumitureSensorES0007) device;
+				JsonElement messageString = function.get("messageString");
+				JsonElement controller_addr = function.get("controller_addr");
+
+				if (controller_addr != null) { // PLC确认报文回复 只保存设备状态数据
+					int errorCode = Integer.parseInt(errorCodeString);
+					dEs0007.setStatus(Tool.getStatusForErrorCode(errorCode));
+				} else { // 设备消息回复
+					String message = messageString.getAsString();
+					if (message.length() != 18)
+						return;
+					String str = message.substring(6, 10);
+					String str1 = message.substring(10, 14);
+					dEs0007.setTemperature(Integer.valueOf(str, 16) / 10);
+					dEs0007.setMoisture(Integer.valueOf(str1, 16) / 10);
+					sendGetStatus(dEs0007);
+				}
+			}
+				break;
+			case ES_0008: {
+				ESDryContactES0008 dEs0008 = (ESDryContactES0008) device;
+				JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+				int buttonId = alarm.get("button_id").getAsInt();
+				int state = alarm.get("state").getAsInt();
+				switch (buttonId) {
+					case 1:
+						dEs0008.setLineOne(state);
+						break;
+					case 2:
+						dEs0008.setLineTwo(state);
+						break;
+					case 3:
+						dEs0008.setLineThree(state);
+						break;
+					case 4:
+						dEs0008.setLineFour(state);
+						break;
+					default:
+						break;
+				}
+				sendGetStatus(dEs0008);
+			}
+				break;
+			default:
+				break;
+		}
+	}
+
+	/**
+	 * 获取时间
+	 * 
+	 * @param msg mqtt返回消息
+	 * @return 获取的时间
+	 */
+	public static final Date getMqttDate(JsonObject fuction) {
+		String date = fuction.get("date").getAsString();
+		String time = fuction.get("time").getAsString();
+		StringBuilder sb = new StringBuilder();
+		sb.append("20").append(date).append(" ").append(time);
+		return Tool.stringToDate(sb.toString());
+	}
+
+	/**
+	 * 发送控制设备状态消息
+	 */
+	private static void sendSetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.UNKNOWN);
+
+		Message.Builder msg = Message.newBuilder();
+		WriteDeviceStatus.Builder wrsb = msg.getWriteDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = wrsb.getItemBuilder();
+
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		wrsb.setItem(itemBuilder);
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+
+	/**
+	 * 发送读取设备状态消息
+	 */
+	private static void sendGetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.UNKNOWN);
+
+		Message.Builder msg = Message.newBuilder();
+		Builder rdsb = msg.getReadDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = rdsb.getItemBuilder();
+
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+
+}

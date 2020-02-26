@@ -1,0 +1,71 @@
+SET @ZONE = UUID();
+SET @RELAY = UUID();
+SET @DEVICE_1 = UUID();
+SET @DEVICE_2 = UUID();
+SET @DEVICE_3 = UUID();
+SET @DEVICE_4 = UUID();
+SET @DEVICE_5 = UUID();
+SET @DEVICE_6 = UUID();
+SET @TASK_1=UUID();
+SET @TASK_2=UUID();
+SET @TASK_3=UUID();
+SET @TASK_4=UUID();
+
+INSERT INTO `zones` (`id`,`name`,`created`,`updated`) VALUES (@ZONE,'安防主机',NOW(),NOW());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@RELAY,@ZONE,NULL,8,3,0,4,0,'通讯适配器','1',1,'/dev/ttyS1',9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_1,@ZONE,@RELAY,8,34,92,4,0,'温湿度监测点','1',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_2,@ZONE,@RELAY,8,24,107,4,0,'断电传感器','254',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_3,@ZONE,@RELAY,8,25,108,4,2,'门磁传感器','254',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_4,@ZONE,@RELAY,8,41,109,4,32,'电源总控','254',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_5,@ZONE,@RELAY,8,21,100,4,0,'烟雾传感器','254',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`devices` (`id`,`zone`,`relay`,`vendor`,`kind`,`model`,`link`,`use`,`name`,
+`number`,`network_port`,`serial_port`,`serial_baud_rate`,`load`,`power`,`mutual`,`delay`,`installed`,`produced`,`phase_check`,`phase_power`,`notice`,`detect`,
+`created`,`updated`) VALUES (@DEVICE_6,@ZONE,@RELAY,8,64,96,4,0,'可燃气体采集器','254',1,NULL,9600,0,0,0,0,now(),now(),1,1,1,1,now(),now());
+
+INSERT INTO `kiy-servo`.`tasks`(`id`,`name`,`start`,`stop`,`month`,`week`,`day`,`interval`,`repeat`,`read_model`,`write_model`,
+`read_feature`,`write_feature`,`limit_lower`,`limit_upper`,`feed`,`feed_lower`,`feed_upper`,`enable`,`created`,`updated`)
+VALUES (@TASK_1,'门磁检测','2017-01-15 00:00:15','2099-06-15 23:59:30',0,0,0,0,1,108,0,0,0,-1,1,0,0,0,1,now(),now());
+
+INSERT INTO `kiy-servo`.`task_devices`(`task`,`device`,`rw`)
+VALUES(@TASK_1,@DEVICE_3,0);
+
+INSERT INTO `kiy-servo`.`tasks`(`id`,`name`,`start`,`stop`,`month`,`week`,`day`,`interval`,`repeat`,`read_model`,`write_model`,
+`read_feature`,`write_feature`,`limit_lower`,`limit_upper`,`feed`,`feed_lower`,`feed_upper`,`enable`,`created`,`updated`)
+VALUES (@TASK_2,'断电检测','2017-01-15 00:00:15','2099-06-15 23:59:30',0,0,0,0,1,107,0,0,0,0,2,0,0,0,1,now(),now());
+
+INSERT INTO `kiy-servo`.`task_devices`(`task`,`device`,`rw`)
+VALUES(@TASK_2,@DEVICE_2,0);
+
+INSERT INTO `kiy-servo`.`tasks`(`id`,`name`,`start`,`stop`,`month`,`week`,`day`,`interval`,`repeat`,`read_model`,`write_model`,
+`read_feature`,`write_feature`,`limit_lower`,`limit_upper`,`feed`,`feed_lower`,`feed_upper`,`enable`,`created`,`updated`)
+VALUES (@TASK_3,'可燃气体检测','2017-01-15 00:00:15','2099-06-15 23:59:30',0,0,0,0,1,96,0,0,0,0,2,0,0,0,1,now(),now());
+
+INSERT INTO `kiy-servo`.`task_devices`(`task`,`device`,`rw`)
+VALUES(@TASK_3,@DEVICE_6,0);
+
+INSERT INTO `kiy-servo`.`tasks`(`id`,`name`,`start`,`stop`,`month`,`week`,`day`,`interval`,`repeat`,`read_model`,`write_model`,
+`read_feature`,`write_feature`,`limit_lower`,`limit_upper`,`feed`,`feed_lower`,`feed_upper`,`enable`,`created`,`updated`)
+VALUES (@TASK_4,'烟雾检测','2017-01-15 00:00:15','2099-06-15 23:59:30',0,0,0,0,1,100,0,0,0,0,2,0,0,0,1,now(),now());
+
+INSERT INTO `kiy-servo`.`task_devices`(`task`,`device`,`rw`)
+VALUES(@TASK_4,@DEVICE_5,0);
+

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="create_run_jar" name="Create Runnable Jar for Project kiy-servo">
+	<property name="dir.base" value="." />
+	<property name="dir.src" value="${dir.base}/src" />
+	<property name="dir.build" value="${dir.base}/bin" />
+	<property name="dir.jar" value="${dir.base}/kiy-servo.jar" />
+	<target name="init">
+		<mkdir dir="${dir.build}" />
+	</target>
+	<target name="common" depends="init">
+		<echo message="building kiy-common" />
+		<ant antfile="build.xml" dir="${dir.base}/../kiy-common" />
+		<copy todir="${dir.build}">
+			<fileset dir="${dir.base}/../kiy-common/bin" />
+		</copy>
+	</target>
+	<target name="compile" depends="common">
+		<echo message="building kiy-servo" />
+		<javac srcdir="${dir.src}" destdir="${dir.build}" includeAntRuntime="false" target="1.7" />
+	</target>
+	<target name="create_run_jar" depends="compile">
+		<echo message="packing kiy-servo" />
+		<jar destfile="${dir.jar}" filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Main-Class" value="com.kiy.servo.Service" />
+				<attribute name="Class-Path" value="." />
+			</manifest>
+			<fileset dir="${dir.build}" />
+			<zipgroupfileset dir="${dir.base}/lib" includes="*.jar" excludes="*javadoc.jar,*sources.jar,*.zip"/>
+		</jar>
+	</target>
+</project>

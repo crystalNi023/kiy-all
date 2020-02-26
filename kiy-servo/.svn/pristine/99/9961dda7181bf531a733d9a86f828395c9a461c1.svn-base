@@ -1,0 +1,108 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.data;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Linkage;
+import com.kiy.common.Maintain;
+import com.kiy.common.Notice;
+import com.kiy.common.Role;
+import com.kiy.common.Scene;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.ULog;
+import com.kiy.common.User;
+import com.kiy.common.Zone;
+import com.kiy.protocol.Messages.Message;
+
+/**
+ * 数据操作接口
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public interface DBOperation {
+
+	public void refresh(Servo s);
+
+	public Set<String> SelectDeletes(Date d);
+
+	public List<Device> QueryDeviceStatus(Device u, Date begin, Date end);
+
+	public List<Maintain> QueryDeviceMaintain(String id, Date begin, Date end);
+
+	public List<ULog> QueryLog(String id, Date begin, Date end);
+	
+	public String QueryUserIcon(String id);
+
+	public boolean MoveZone(Zone u);
+
+	public boolean MoveDevice(Device u);
+
+	public boolean MovePosition(Device u);
+
+	public boolean CreateUser(User u);
+
+	public boolean CreateRole(Role u);
+
+	public boolean CreateZone(Zone u);
+
+	public boolean CreateTask(Task u);
+
+	public boolean CreateDevice(Device u);
+
+	public boolean CreateDeviceStatus(Device u, Origin o);
+
+	public boolean CreateMaintain(Maintain u);
+
+	public boolean CreateLog(User u, Message req, Message rsp, long time);
+	
+	public boolean CreateNotice(Notice u);
+	
+	public boolean CreateScene(Scene s);
+	
+	public boolean CreateLinkage(Linkage l);
+	
+	public boolean UploadUserIcon(User u);
+
+	public boolean UpdateUser(User u);
+
+	public boolean UpdateRole(Role u);
+
+	public boolean UpdateZone(Zone u);
+
+	public boolean UpdateTask(Task u);
+
+	public boolean UpdateDevice(Device u);
+
+	public boolean UpdateMaintain(Maintain u);
+	
+	public boolean UpdateScene(Scene s);
+
+	public boolean UpdateLinkage(Linkage l);
+	
+	public boolean UpdateSceneStatus(String id,boolean sceneStatus);
+
+	public boolean DeleteUser(User u);
+
+	public boolean DeleteRole(Role u);
+
+	public boolean DeleteZone(Zone u);
+
+	public boolean DeleteTask(Task u);
+
+	public boolean DeleteDevice(Device u);
+
+	public boolean DeleteMaintain(String id);
+	
+	public boolean DeleteScene(Scene s);
+	
+	public boolean DeleteLinkage(Linkage l);
+
+}

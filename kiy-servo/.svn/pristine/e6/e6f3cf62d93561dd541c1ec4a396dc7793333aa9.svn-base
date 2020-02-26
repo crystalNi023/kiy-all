@@ -1,0 +1,148 @@
+package com.kiy.servo.mqtt;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.eclipse.paho.client.mqttv3.MqttSecurityException;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+
+/**
+ * MQTT server 服务器向多个客户端推送主题
+ * @author HLX Tel:18996470535 
+ * @date 2018年6月25日 
+ * Copyright:Copyright(c) 2018
+ */
+public class MQTTServer {
+
+    private MqttClient client;
+    
+    static volatile AtomicInteger count = new AtomicInteger(0);
+    
+    private String gateWayKey;
+
+    /**
+     * 构造函数
+     * @throws MqttException
+     */
+    public MQTTServer(String string) {
+    	this.gateWayKey = string;
+        // MemoryPersistence设置clientid的保存形式，默认为以内存保存
+		try {
+			client = new MqttClient(Config.MQTT_HOST, UUID.randomUUID().toString().replace("-",""), new MemoryPersistence());
+		} catch (MqttException e) {
+			Log.error(e);
+		}
+    }
+    
+    public void start() {
+    	connect(10);
+    }
+    
+    public void stop() {
+		try {
+			client.disconnect();
+			client.close();
+			client = null;
+		} catch (MqttException e) {
+			Log.error(e);
+		}
+	}
+    
+    public MqttConnectOptions getOptions(){
+    	 MqttConnectOptions options = new MqttConnectOptions();
+         options.setCleanSession(false);
+         options.setUserName(Config.MQTT_USERNAME);
+         options.setPassword(Config.MQTT_PASSWORD.toCharArray());
+         // 设置超时时间
+         options.setConnectionTimeout(10);
+         // 设置会话心跳时间
+         options.setKeepAliveInterval(20);
+		return options;
+    }
+
+    public void connect(int number) {
+        for (int i = 0; i < number||number>999; i++) {
+            try {
+                boolean connect = connect(gateWayKey);
+                if (connect)
+                	return;
+            } catch (Exception e) {
+            	Log.error(e);
+                Log.error("连接失败,正在第"+i+"次尝试");
+                continue;
+            }
+            return;
+        }
+        throw new RuntimeException("无法连接服务器");
+    }
+    
+    /**
+     *  用来连接服务器
+     * @throws MqttException 
+     * @throws MqttSecurityException 
+     */
+    private boolean connect(String gateWayKey) throws MqttSecurityException, MqttException {
+        client.setCallback(new PushCallback(MQTTServer.this,gateWayKey));
+        MqttConnectOptions options = getOptions();
+        //判断拦截状态，这里注意一下，如果没有这个判断，是非常坑的
+        if (!client.isConnected()) {
+            client.connect(options);
+            //订阅消息
+            int[] Qos  = {2};
+            String[] topic = {Config.MQTT_SUBSCRIPTION_TOPIC+gateWayKey+"/+"};
+            client.subscribe(topic, Qos);
+            return client.isConnected();
+        }else {//这里的逻辑是如果连接成功就重新连接
+            client.disconnect();
+            client.connect(options);
+            //订阅消息
+            int[] Qos  = {1};
+            String[] topic = {Config.MQTT_SUBSCRIPTION_TOPIC+gateWayKey+"/+"};
+            client.subscribe(topic, Qos);
+            return client.isConnected();
+        }
+    }
+
+    /**
+     * 获取Topic，不能包含通配符#+
+     * @return
+     */
+    public MqttTopic getTopic(String topic){
+    	return client.getTopic(topic);
+    }
+    
+    /**
+     *
+     * @param topic
+     * @param message
+     * @throws MqttPersistenceException
+     * @throws MqttException
+     */
+    public void publish(MqttTopic topic , MqttMessage message) throws MqttPersistenceException,
+            MqttException {
+    	try {
+    		MqttDeliveryToken token = topic.publish(message);
+    		token.waitForCompletion();
+    		System.err.println("发送Mqtt数量"+count.getAndIncrement());
+    		
+		} catch (Exception e) {
+			count.set(0);
+			System.err.println("报错"+e.toString());
+			Log.error(e.toString());
+		}
+    }
+
+    public boolean isActive(){
+    	return client.isConnected();
+    }
+  
+}

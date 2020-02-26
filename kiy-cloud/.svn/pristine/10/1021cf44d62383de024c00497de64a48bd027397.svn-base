@@ -1,0 +1,24 @@
+/**
+ * 2017年6月15日
+ */
+package com.kiy.cloud.http;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Converter {
+
+	public static boolean getBoolean(String value) {
+		if (value == null || value.length() == 0)
+			return false;
+		if ("1".equals(value)) {
+			return true;
+		} else if ("yes".equalsIgnoreCase(value)) {
+			return true;
+		} else if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		return false;
+	}
+}

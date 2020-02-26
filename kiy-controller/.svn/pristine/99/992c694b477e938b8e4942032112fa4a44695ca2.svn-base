@@ -1,0 +1,267 @@
+/**
+ * 2017年1月18日
+ */
+package com.kiy.controller;
+
+import java.io.File;
+import java.io.IOException;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.browser.*;
+import org.eclipse.swt.custom.CTabFolder;
+import org.eclipse.swt.custom.CTabItem;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Tree;
+import org.eclipse.swt.widgets.TreeItem;
+
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.Button;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+
+import com.kiy.resources.Lang;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class FGuide {
+
+	private Shell shell;
+	private Composite search;
+	private Browser browser;
+	private Text text;
+	private Tree treeResult;
+	private TreeItem item;
+	private SashForm formCt;
+	private CTabFolder tabTree;
+
+	/**
+	 * @wbp.parser.entryPoint
+	 */
+	public void open() {
+		Display display = Display.getDefault();
+		createContents();
+		shell.open();
+		shell.layout();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	/**
+	 * Create contents of the window.
+	 */
+	protected void createContents() {
+		shell = new Shell();
+		shell.setText(Lang.getString("FGuide.ShellTitle.text")); //$NON-NLS-1$
+		shell.setSize(690, 580);
+		shell.setLayout(new FormLayout());
+		{
+			// 定义顶部面板
+			search = new Composite(shell, SWT.NONE | SWT.BORDER);
+			FormData fd_search = new FormData();
+			fd_search.left = new FormAttachment(0, 3);
+			fd_search.right = new FormAttachment(100, -0);
+			fd_search.top = new FormAttachment(0, 3);
+			fd_search.height = 50;
+			search.setLayoutData(fd_search);
+
+			// 定义树形分隔框
+			formCt = new SashForm(shell, SWT.SMOOTH);
+			FormData fd_content = new FormData();
+			fd_content.left = new FormAttachment(0, 3);
+			fd_content.bottom = new FormAttachment(100, -0);
+			fd_content.top = new FormAttachment(search, 3, SWT.BOTTOM);
+			fd_content.right = new FormAttachment(35, -0);
+			formCt.setLayoutData(fd_content);
+			// 放上选择卡
+			tabTree = new CTabFolder(formCt, SWT.BORDER);
+			// 放置树的选项卡的内容
+			CTabItem tabTreeZone = new CTabItem(tabTree, SWT.NONE);
+			tabTreeZone.setText("tree");
+
+			Tree tree = new Tree(tabTree, SWT.MULTI | SWT.BORDER);
+			tabTreeZone.setControl(tree);
+			// 放置搜索得到的选项卡内容
+			final CTabItem tabSearch = new CTabItem(tabTree, SWT.NONE);
+			tabSearch.setText("result");
+
+			tabTree.setSelection(tabTreeZone);
+			// 读取xml文件的方法
+			try {
+				Document doc = readXml();
+				NodeList nl = doc.getElementsByTagName("helps");
+				for (int i = 0; i < nl.getLength(); i++) {
+					TreeItem treeItem = new TreeItem(tree, SWT.NONE);
+					treeItem.setText(Lang.getString("FGuide." + nl.item(i).getNodeName()));
+					list(nl.item(i), treeItem);
+				}
+			} catch (ParserConfigurationException e) {
+				// 暂无处理
+			} catch (SAXException e) {
+				// 暂无处理
+			} catch (IOException e) {
+				// 暂无处理
+			}
+			tree.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					item = (TreeItem) e.item;
+					if (item != null) {
+						String dir = System.getProperty("user.dir");
+
+						if (item.getData() != null) {
+//							System.out.println("item.getData()" + item.getData());
+							setBrowser(dir + File.separator + "help" + File.separator + item.getData());
+						}
+
+					}
+				}
+			});
+
+			// 定义浏览器
+			browser = new Browser(shell, SWT.BORDER);
+			FormData fd_page = new FormData();
+			fd_page.left = new FormAttachment(formCt, 2, SWT.RIGHT);
+			fd_page.right = new FormAttachment(100, -0);
+			fd_page.bottom = new FormAttachment(100, -0);
+			fd_page.top = new FormAttachment(search, 3, SWT.BOTTOM);
+
+			Label lblNewLabel = new Label(search, SWT.NONE);
+			lblNewLabel.setBounds(16, 16, 42, 17);
+			lblNewLabel.setText("Search:");
+
+			text = new Text(search, SWT.BORDER);
+			text.setBounds(66, 16, 158, 19);
+
+			Button go = new Button(search, SWT.NONE);
+			go.setBounds(232, 15, 23, 19);
+			go.setText("Go");
+			go.addSelectionListener(new SelectionAdapter() {
+				@Override
+				public void widgetSelected(SelectionEvent e) {
+					treeResult = new Tree(tabTree, SWT.MULTI | SWT.BORDER);
+					tabSearch.setControl(treeResult);
+
+					tabTree.setSelection(tabSearch);
+					String sear = text.getText();
+					Document doc;
+					try {
+						doc = readXml();
+
+						NodeList nl = doc.getElementsByTagName("helps");
+						for (int i = 0; i < nl.getLength(); i++) {
+
+							if (nl.item(i).getNodeName().contains(sear) && sear != null && sear != "") {
+								TreeItem treeItem = new TreeItem(treeResult, SWT.NONE);
+								treeItem.setText(nl.item(i).getAttributes().getNamedItem("title").getNodeValue());
+							}
+							searchList(nl.item(i), sear);
+						}
+
+						treeResult.addSelectionListener(new SelectionAdapter() {
+							@Override
+							public void widgetSelected(SelectionEvent e) {
+								item = (TreeItem) e.item;
+								if (item != null) {
+									String dir = System.getProperty("user.dir");
+
+									if (item.getData() != null) {
+//										System.out.println("item.getData()" + item.getData());
+										setBrowser(dir + File.separator + "help" + File.separator + item.getData());
+									}
+
+								}
+							}
+						});
+
+					} catch (ParserConfigurationException e1) {
+						e1.printStackTrace();
+					} catch (SAXException e1) {
+						e1.printStackTrace();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+			});
+			browser.setLayoutData(fd_page);
+		}
+	}
+
+	// 搜索树形列表
+	private void searchList(Node rootNode, String sear) {
+		NodeList nodes = rootNode.getChildNodes();
+		if (nodes != null) {
+			for (int i = 0; i < nodes.getLength(); i++) {
+				if (nodes.item(i).getNodeName() == "#text") {
+					continue;
+				}
+				if (nodes.item(i).getAttributes().getNamedItem("title").getNodeValue().contains(sear) && sear != null && sear != "") {
+					TreeItem subItem = new TreeItem(treeResult, SWT.None);
+					if (nodes.item(i).getAttributes().getNamedItem("url") == null) {
+
+					} else {
+						subItem.setData(nodes.item(i).getAttributes().getNamedItem("url").getNodeValue());
+					}
+
+					subItem.setText(nodes.item(i).getAttributes().getNamedItem("title").getNodeValue());
+				}
+				searchList(nodes.item(i), sear);
+			}
+		}
+	}
+
+	// 读取xml文件
+	public Document readXml() throws ParserConfigurationException, SAXException, IOException {
+		File f = new File("help/help.xml");
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+		DocumentBuilder builder = factory.newDocumentBuilder();
+		Document doc = builder.parse(f);
+		return doc;
+	}
+
+	// 递归添加树形
+	private void list(Node rootNode, TreeItem item) {
+		NodeList nodes = rootNode.getChildNodes();
+		if (nodes != null) {
+			for (int i = 0; i < nodes.getLength(); i++) {
+				if (nodes.item(i).getNodeName() == "#text") {
+					continue;
+				}
+				TreeItem subItem = new TreeItem(item, SWT.None);
+				subItem.setText(nodes.item(i).getAttributes().getNamedItem("title").getNodeValue());
+
+				if (nodes.item(i).getAttributes().getNamedItem("url") == null) {
+
+				} else {
+					subItem.setData(nodes.item(i).getAttributes().getNamedItem("url").getNodeValue());
+					// System.out.println("设置网页到树item里"+nodes.item(i).getAttributes().getNamedItem("url").getNodeValue());
+				}
+
+				list(nodes.item(i), subItem);
+			}
+		}
+	}
+
+	private void setBrowser(String url) {
+		browser.setUrl(url);
+	}
+}

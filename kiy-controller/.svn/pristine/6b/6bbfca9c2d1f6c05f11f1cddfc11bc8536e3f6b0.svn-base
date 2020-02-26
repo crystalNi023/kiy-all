@@ -1,0 +1,1207 @@
+/**
+ * 2017年1月19日
+ */
+package com.kiy.controller;
+
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Map;
+import java.util.Set;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.FocusAdapter;
+import org.eclipse.swt.events.FocusEvent;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.events.VerifyEvent;
+import org.eclipse.swt.events.VerifyListener;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.DateTime;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
+
+import com.google.protobuf.ProtocolStringList;
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Link;
+import com.kiy.common.Types.Use;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.Unit;
+import com.kiy.common.Zone;
+import com.kiy.protocol.Messages.GetServo;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * A windows of create device and update device HLX
+ *
+ */
+public class FDevice extends Dialog implements FormMessage {
+	public boolean isUpdate = false;
+	private boolean closing;
+	private Device tag;
+	private Servo servo;
+	private Shell shell;
+
+	private Button btnAccept;
+	private CCombo comboLink;
+	private Text textNumber;
+	private Text textUsername;
+	private Text textPassword;
+	private Text textNetworkIp;
+	private CCombo comboSerialPort;
+	private Text textName;
+	private Text textRemark;
+	private CCombo comboZone;
+	private CCombo comboRelay;
+	private Text textSn;
+	private Text textMutual;
+	private Spinner textDelay;
+	private Text textAddress;
+	private Spinner spinnerPower;
+	private Spinner spinnerLoad;
+	private Spinner spinnerNetworkPort;
+	private Spinner spinnerSerialBaudRate;
+	private CLabel labelInputTips;
+	private Zone zone;
+	private Label labelTipsImage;
+	private Button btnZoneParent;
+	private Button btnRelayParent;
+	private DateTime dateProduct;
+	private DateTime dateInstall;
+	private Spinner spinnerCheckPhasePosition;
+	private Spinner spinnerReadPhasePosition;
+
+	private CCombo comboUse;
+	private CCombo comboNotice;
+	private CCombo comboDetect;
+
+	private Kind kind;
+	private Vendor vendor;
+	private Device deviceRelay;
+
+	/**
+	 * Create the dialog.
+	 * 
+	 * @param parent
+	 * @param style
+	 */
+	public FDevice(Shell parent) {
+		super(parent, 0);
+		closing = false;
+	}
+
+	/**
+	 * open the device window
+	 * 
+	 * @param s
+	 *            Servo
+	 * @param d
+	 *            Device
+	 * @param z
+	 *            Zone
+	 * @param relay
+	 *            Device
+	 * @param v
+	 *            Vendor
+	 * @param k
+	 *            Kind
+	 * @return
+	 */
+	public Device open(Servo s, Device d, Zone z, Device relay, Vendor v, Kind k) {
+		zone = z;
+		tag = d;
+		kind = k;
+		vendor = v;
+		deviceRelay = relay;
+		servo = s;
+
+		createContents();
+		F.center(getParent(), shell);
+
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+		return tag;
+	}
+
+	/**
+	 * Create contents of the dialog.
+	 */
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.CLOSE | SWT.SYSTEM_MODAL);
+		shell.addShellListener(shellAdapter);
+		shell.setSize(639, 689);
+		shell.setText(Lang.getString("FDevice.device") + "-"
+				+ Lang.getString("Vendor." + vendor.name()) + "-"
+				+ Lang.getString("Kind." + kind.name()));
+		shell.setImage(Resource.getImage(FMain.class,
+				"/com/kiy/resources/controller.png"));
+
+		labelInputTips = new CLabel(shell, SWT.NONE);
+		labelInputTips.setBounds(16, 16, 545, 32);
+		labelInputTips.setImage(Resource.getImage(FDevice.class,
+				"/com/kiy/resources/verify.png"));
+		labelInputTips.setVisible(false);
+
+		labelTipsImage = new Label(shell, SWT.NONE);
+		labelTipsImage.setBounds(586, 16, 32, 32);
+		labelTipsImage.setImage(Resource.getImage(FMain.class,
+				"/com/kiy/resources/device_equipment_new_32.png"));
+
+		Label label = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
+		label.setBounds(0, 65, 636, 2);
+
+		Group groupEssentialInformation = new Group(shell, SWT.NONE);
+		groupEssentialInformation.setText(Lang
+				.getString("FDevice.basicInformation.text"));
+		groupEssentialInformation.setBounds(16, 75, 602, 217);
+
+		{
+			int baseY = 26;
+			if (FMain.THIS_IS_MAC) {
+				baseY = 16;
+			} else {
+				baseY = 26;
+			}
+
+			CLabel lblNewLabel_3 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_3.setBounds(16, baseY, 79, 23);
+			lblNewLabel_3.setText(Lang.getString("FDevice.conn"));
+
+			// 设备连接方式
+			comboLink = new CCombo(groupEssentialInformation, SWT.READ_ONLY
+					| SWT.BORDER);
+			comboLink.setBounds(101, baseY, 181, 23);
+			comboLink.addFocusListener(focusAdapter);
+
+			CLabel lblNewLabel_11 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_11.setBounds(305, baseY, 79, 23);
+			lblNewLabel_11.setText(Lang.getString("FDevice.zone"));
+
+			// 根级区域
+			comboZone = new CCombo(groupEssentialInformation, SWT.READ_ONLY
+					| SWT.BORDER);
+			comboZone.setBounds(390, baseY, 171, 23);
+			comboZone.addFocusListener(focusAdapter);
+			Set<Zone> zones = servo.getZones();
+			comboZone.add(Lang.getString("FDevice.RootZone"));
+			for (Zone zone : zones) {
+				comboZone.add(zone.getName());
+				comboZone.setData(zone.getName(), zone);
+			}
+
+			// 父级区域弹出框
+			btnZoneParent = new Button(groupEssentialInformation, SWT.NONE);
+			btnZoneParent.setBounds(567, baseY, 23, 23);
+			btnZoneParent.setText("...");
+			btnZoneParent.addSelectionListener(btnZoneParentSelectionAdapter);
+
+			// 名称
+			CLabel lblNewLabel_12 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_12.setBounds(16, baseY + (F.MARGIN + F.LABEL_HEIGHT),
+					79, 23);
+			lblNewLabel_12.setText(Lang.getString("FDevice.name"));
+
+			textName = new Text(groupEssentialInformation, SWT.BORDER);
+			textName.setBounds(101, baseY + (F.MARGIN + F.LABEL_HEIGHT), 181,
+					23);
+			textName.setTextLimit(32);
+			textName.addModifyListener(modifyListener);
+			textName.addFocusListener(focusAdapter);
+
+			CLabel label_7 = new CLabel(groupEssentialInformation, SWT.NONE);
+			label_7.setText(Lang.getString("FDevice.label_7.text"));
+			label_7.setBounds(305, 57, 79, 23);
+
+			comboUse = new CCombo(groupEssentialInformation, SWT.BORDER
+					| SWT.READ_ONLY);
+			comboUse.setBounds(390, 57, 200, 23);
+			for (Use use : Use.values()) {
+				comboUse.add(Lang.getString("Use." + use.name().toUpperCase()));
+				comboUse.setData(
+						Lang.getString("Use." + use.name().toUpperCase()), use);
+			}
+
+			// 生产时间
+			CLabel lblNewLabel_15 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_15.setBounds(16, baseY + 2
+					* (F.MARGIN + F.LABEL_HEIGHT), 76, 23);
+			lblNewLabel_15.setText(Lang.getString("FDevice.produceDate.text"));
+
+			dateProduct = new DateTime(groupEssentialInformation, SWT.BORDER
+					| SWT.DROP_DOWN);
+			dateProduct.setBounds(101, baseY + 2 * (F.MARGIN + F.LABEL_HEIGHT),
+					181, 23);
+			dateProduct.addFocusListener(focusAdapter);
+
+			// 安装时间
+			CLabel lblNewLabel_16 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_16.setBounds(305, baseY + 2
+					* (F.MARGIN + F.LABEL_HEIGHT), 76, 23);
+			lblNewLabel_16.setText(Lang.getString("FDevice.installDate.text"));
+
+			dateInstall = new DateTime(groupEssentialInformation, SWT.BORDER
+					| SWT.DROP_DOWN);
+			dateInstall.setBounds(390, baseY + 2 * (F.MARGIN + F.LABEL_HEIGHT),
+					200, 23);
+			dateInstall.addFocusListener(focusAdapter);
+
+			// 安装地址
+			CLabel label_4 = new CLabel(groupEssentialInformation, SWT.NONE);
+			label_4.setBounds(16, baseY + 3 * (F.MARGIN + F.LABEL_HEIGHT), 79,
+					23);
+			label_4.setText(Lang.getString("FDevice.address"));
+
+			textAddress = new Text(groupEssentialInformation, SWT.BORDER);
+			textAddress.setBounds(101, 119, 181, 23);
+			textAddress.addFocusListener(focusAdapter);
+			textAddress.setTextLimit(64);
+
+			// 序列号
+			CLabel lblNewLabel_4 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_4.setBounds(305, 119, 79, 23);
+			lblNewLabel_4.setText(Lang.getString("FDevice.sequence"));
+
+			textSn = new Text(groupEssentialInformation, SWT.BORDER);
+			textSn.setBounds(390, 119, 200, 23);
+			textSn.setTextLimit(64);
+			textSn.addFocusListener(focusAdapter);
+			textSn.addModifyListener(modifyListener);
+
+			// 描述
+			CLabel lblNewLabel_13 = new CLabel(groupEssentialInformation,
+					SWT.NONE);
+			lblNewLabel_13.setBounds(16, 150, 79, 23);
+			lblNewLabel_13.setText(Lang.getString("FDevice.describe"));
+
+			textRemark = new Text(groupEssentialInformation, SWT.BORDER);
+			textRemark.setBounds(101, 150, 489, 23);
+			textRemark.addFocusListener(focusAdapter);
+			textRemark.setTextLimit(128);
+
+		}
+
+		CLabel label_8 = new CLabel(groupEssentialInformation, SWT.NONE);
+		label_8.setText(Lang.getString("FDevice.label_8.text"));
+		label_8.setBounds(16, 181, 79, 23);
+
+		comboNotice = new CCombo(groupEssentialInformation, SWT.BORDER
+				| SWT.READ_ONLY);
+		comboNotice.setBounds(101, 181, 181, 23);
+		comboNotice.add(Lang.getString("FDevice.label_9.text"));
+		comboNotice.add(Lang.getString("FDevice.label_10.text"));
+		comboNotice.select(0);
+
+		CLabel label_9 = new CLabel(groupEssentialInformation, SWT.NONE);
+		label_9.setText(Lang.getString("FDevice.label_9.text_1"));
+		label_9.setBounds(305, 181, 79, 23);
+
+		comboDetect = new CCombo(groupEssentialInformation, SWT.BORDER
+				| SWT.READ_ONLY);
+		comboDetect.setBounds(390, 181, 200, 23);
+		comboDetect.add(Lang.getString("FDevice.label_9.text"));
+		comboDetect.add(Lang.getString("FDevice.label_10.text"));
+		comboDetect.select(0);
+
+		Group groupCommunication = new Group(shell, SWT.NONE);
+		groupCommunication.setBounds(14, 300, 604, 162);
+		groupCommunication.setText(Lang
+				.getString("FDevice.commnunication.text"));
+
+		{
+			int baseY = 26;
+			if (FMain.THIS_IS_MAC) {
+				baseY = 16;
+			} else {
+				baseY = 26;
+			}
+			// 中继
+			CLabel lblNewLabel_14 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_14.setBounds(16, baseY, 76, 23);
+			lblNewLabel_14.setText(Lang.getString("FDevice.relay"));
+
+			comboRelay = new CCombo(groupCommunication, SWT.BORDER
+					| SWT.READ_ONLY);
+			comboRelay.setBounds(98, baseY, 152, 23);
+			comboRelay.add(Lang.getString("FDevice.rootRelay"));
+			comboRelay.addFocusListener(focusAdapter);
+
+			// 父级中继弹出框
+			btnRelayParent = (new Button(groupCommunication, SWT.NONE));
+			btnRelayParent.setBounds(256, baseY, 23, 23);
+			btnRelayParent.addSelectionListener(btnRelayParentSelectionAdapter);
+			btnRelayParent.setText("...");
+			btnRelayParent.addFocusListener(focusAdapter);
+
+			// 设备编号
+			CLabel label_1 = new CLabel(groupCommunication, SWT.NONE);
+			label_1.setBounds(309, baseY, 79, 23);
+			label_1.setText(Lang.getString("FDevice.deviceNum"));
+
+			// 只能输入正整数
+			textNumber = new Text(groupCommunication, SWT.BORDER);
+			textNumber.setBounds(394, baseY, 198, 23);
+			textNumber.setTextLimit(32);
+			textNumber.addVerifyListener(new VerifyListener() {
+				@Override
+				public void verifyText(VerifyEvent e) {
+					F.intNumberCheck(e, textNumber);
+				}
+			});
+
+			// 以太网ip
+			CLabel lblNewLabel_7 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_7.setBounds(16, baseY + (F.MARGIN + F.LABEL_HEIGHT),
+					76, 23);
+			lblNewLabel_7.setText(Lang.getString("FDevice.netIp"));
+
+			textNetworkIp = new Text(groupCommunication, SWT.BORDER);
+			textNetworkIp.setBounds(98, baseY + (F.MARGIN + F.LABEL_HEIGHT),
+					181, 23);
+			textNetworkIp.setEditable(true);
+			textNetworkIp.setTextLimit(32);
+			// 只能输入数字，字母，小数点
+			textNetworkIp.addVerifyListener(new VerifyListener() {
+
+				@Override
+				public void verifyText(VerifyEvent arg0) {
+					F.checkNet(arg0, textNetworkIp);
+					verify();
+				}
+			});
+			;
+
+			// 端口号
+			CLabel lblNewLabel_8 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_8.setBounds(309, baseY + (F.MARGIN + F.LABEL_HEIGHT),
+					79, 23);
+			lblNewLabel_8.setText(Lang.getString("FDevice.netPort"));
+
+			spinnerNetworkPort = new Spinner(groupCommunication, SWT.BORDER);
+			spinnerNetworkPort.setBounds(394, baseY
+					+ (F.MARGIN + F.LABEL_HEIGHT), 198, 23);
+			spinnerNetworkPort.setMaximum(65535);
+			spinnerNetworkPort.setMinimum(1);
+			spinnerNetworkPort.setPageIncrement(100);
+			spinnerNetworkPort.setTextLimit(5);
+			spinnerNetworkPort.addFocusListener(focusAdapter);
+
+			// 串口号
+			CLabel lblNewLabel_9 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_9.setBounds(16,
+					baseY + 2 * (F.MARGIN + F.LABEL_HEIGHT), 76, 23);
+			lblNewLabel_9.setText(Lang.getString("FDevice.serialNum"));
+
+			comboSerialPort = new CCombo(groupCommunication, SWT.BORDER);
+			comboSerialPort.setBounds(98, baseY + 2
+					* (F.MARGIN + F.LABEL_HEIGHT), 181, 23);
+			comboSerialPort.addFocusListener(focusAdapter);
+			comboSerialPort.setTextLimit(32);
+
+			// 串口波特率
+			CLabel lblNewLabel_10 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_10.setBounds(309, baseY + 2
+					* (F.MARGIN + F.LABEL_HEIGHT), 79, 23);
+			lblNewLabel_10.setText(Lang.getString("FDevice.serialBautRate"));
+
+			spinnerSerialBaudRate = new Spinner(groupCommunication, SWT.BORDER);
+			spinnerSerialBaudRate.setBounds(394, baseY + 2
+					* (F.MARGIN + F.LABEL_HEIGHT), 198, 23);
+			spinnerSerialBaudRate.setMaximum(921600);
+			spinnerSerialBaudRate.setTextLimit(6);
+			spinnerSerialBaudRate.setMinimum(300);
+			spinnerSerialBaudRate.addFocusListener(focusAdapter);
+
+			// 设备用户名
+			CLabel lblNewLabel_7_2 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_7_2.setBounds(16, baseY + 3
+					* (F.MARGIN + F.LABEL_HEIGHT), 76, 23);
+			lblNewLabel_7_2.setText(Lang.getString("FDevice.deviceun"));
+
+			textUsername = new Text(groupCommunication, SWT.BORDER);
+			textUsername.setBounds(98, baseY + 3 * (F.MARGIN + F.LABEL_HEIGHT),
+					181, 23);
+			textUsername.setTextLimit(128);
+			textUsername.setEnabled(false);
+
+			// 设备密码
+			CLabel lblNewLabel_7_1 = new CLabel(groupCommunication, SWT.NONE);
+			lblNewLabel_7_1.setBounds(309, baseY + 3
+					* (F.MARGIN + F.LABEL_HEIGHT), 76, 23);
+			lblNewLabel_7_1.setText(Lang.getString("FDevice.devicepwd"));
+
+			textPassword = new Text(groupCommunication, SWT.BORDER
+					| SWT.PASSWORD);
+			textPassword.setBounds(394,
+					baseY + 3 * (F.MARGIN + F.LABEL_HEIGHT), 198, 23);
+			textPassword.setTextLimit(32);
+			textPassword.setEnabled(false);
+		}
+
+		Group groupOther = new Group(shell, SWT.NONE);
+		groupOther.setText(Lang.getString("FDevice.other.text"));
+		groupOther.setBounds(16, 470, 604, 133);
+
+		{
+			int baseY = 26;
+			if (FMain.THIS_IS_MAC) {
+				baseY = 16;
+			} else {
+				baseY = 26;
+			}
+
+			// 互感比
+			CLabel label_2 = new CLabel(groupOther, SWT.NONE);
+			label_2.setBounds(16, baseY, 75, 23);
+			label_2.setText(Lang.getString("FDevice.deviceMutual"));
+
+			textMutual = new Text(groupOther, SWT.BORDER);
+			textMutual.setBounds(97, baseY, 182, 23);
+			textMutual.setTextLimit(5);
+			textMutual.setText("0");
+			textMutual.addVerifyListener(new VerifyListener() {
+				@Override
+				public void verifyText(VerifyEvent arg0) {
+					F.numberCheck(arg0, textMutual);
+					verify();
+				}
+			});
+
+			textMutual.addModifyListener(new ModifyListener() {
+
+				@Override
+				public void modifyText(ModifyEvent arg0) {
+					verify();
+				}
+			});
+
+			// 延迟时间
+			CLabel label_3 = new CLabel(groupOther, SWT.NONE);
+			label_3.setBounds(310, baseY, 76, 23);
+			label_3.setText(Lang.getString("FDevice.delayTime"));
+
+			textDelay = new Spinner(groupOther, SWT.BORDER);
+			textDelay.setPageIncrement(1);
+			textDelay.setMaximum(50000);
+			textDelay.setTextLimit(5);
+			textDelay.setBounds(392, baseY, 177, 23);
+			textDelay.addFocusListener(focusAdapter);
+
+			CLabel label_5 = new CLabel(groupOther, SWT.NONE);
+			label_5.setText("s");
+			label_5.setBounds(580, baseY, 15, 23);
+
+			// 自身功率
+			CLabel lblNewLabel_6 = new CLabel(groupOther, SWT.NONE);
+			lblNewLabel_6.setBounds(16, baseY + (F.LABEL_HEIGHT + F.MARGIN),
+					75, 23);
+			lblNewLabel_6.setText(Lang.getString("FDevice.ownpower"));
+
+			spinnerLoad = new Spinner(groupOther, SWT.BORDER);
+			spinnerLoad.setPageIncrement(1);
+			spinnerLoad.setBounds(97, baseY + (F.LABEL_HEIGHT + F.MARGIN), 159,
+					23);
+			spinnerLoad.setMaximum(10000);
+			spinnerLoad.setTextLimit(5);
+			spinnerLoad.addFocusListener(focusAdapter);
+
+			CLabel label_6 = new CLabel(groupOther, SWT.NONE);
+			label_6.setText("w");
+			label_6.setBounds(264, baseY + (F.LABEL_HEIGHT + F.MARGIN), 15, 23);
+
+			// 负载功率
+			CLabel lblNewLabel_5 = new CLabel(groupOther, SWT.NONE);
+			lblNewLabel_5.setBounds(310, baseY + (F.LABEL_HEIGHT + F.MARGIN),
+					75, 23);
+			lblNewLabel_5.setText(Lang.getString("FDevice.loadpower"));
+
+			spinnerPower = new Spinner(groupOther, SWT.BORDER);
+			spinnerPower.setPageIncrement(1);
+			spinnerPower.setBounds(392, baseY + (F.LABEL_HEIGHT + F.MARGIN),
+					177, 23);
+			spinnerPower.setMaximum(10000);
+			spinnerPower.setTextLimit(11);
+			spinnerPower.addFocusListener(focusAdapter);
+
+			CLabel label_4 = new CLabel(groupOther, SWT.NONE);
+			label_4.setText("w");
+			label_4.setBounds(580, baseY + (F.LABEL_HEIGHT + F.MARGIN), 15, 23);
+
+			// 检测相位
+			CLabel lblNewLabel_17 = new CLabel(groupOther, SWT.NONE);
+			lblNewLabel_17.setBounds(15, baseY + 2
+					* (F.LABEL_HEIGHT + F.MARGIN), 76, 23);
+			lblNewLabel_17.setText(Lang
+					.getString("FDevice.CheckPhasePosition.text"));
+
+			spinnerCheckPhasePosition = new Spinner(groupOther, SWT.BORDER);
+			spinnerCheckPhasePosition.setPageIncrement(1);
+			spinnerCheckPhasePosition.setMaximum(4);
+			spinnerCheckPhasePosition.setMinimum(1);
+			spinnerCheckPhasePosition.setBounds(97, baseY + 2
+					* (F.LABEL_HEIGHT + F.MARGIN), 182, 23);
+			spinnerCheckPhasePosition.setTextLimit(1);
+			spinnerCheckPhasePosition.addModifyListener(modifyListener);
+			spinnerCheckPhasePosition.addFocusListener(focusAdapter);
+
+			CLabel lblNewLabel_18 = new CLabel(groupOther, SWT.NONE);
+			lblNewLabel_18.setBounds(310, baseY + 2
+					* (F.LABEL_HEIGHT + F.MARGIN), 76, 23);
+			lblNewLabel_18.setText(Lang
+					.getString("FDevice.ReadPhasePosition.text"));
+
+			spinnerReadPhasePosition = new Spinner(groupOther, SWT.BORDER);
+			spinnerReadPhasePosition.setPageIncrement(1);
+			spinnerReadPhasePosition.setMaximum(4);
+			spinnerReadPhasePosition.setMinimum(1);
+			spinnerReadPhasePosition.setBounds(392, baseY + 2
+					* (F.LABEL_HEIGHT + F.MARGIN), 200, 23);
+			spinnerReadPhasePosition.setTextLimit(1);
+
+			spinnerReadPhasePosition.addModifyListener(modifyListener);
+			spinnerReadPhasePosition.addFocusListener(focusAdapter);
+
+			textNumber.addModifyListener(modifyListener);
+
+		}
+
+		Label lblNewLabel = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
+		lblNewLabel.setBounds(0, 611, 636, 7);
+
+		btnAccept = new Button(shell, SWT.NONE);
+		btnAccept.addSelectionListener(btnAcceptSelectionAdapter);
+		btnAccept.setBounds(450, 626, 80, 27);
+		btnAccept.setText(Lang.getString("Ensure.text"));
+
+		Button btnCancel = new Button(shell, SWT.NONE);
+		btnCancel.addSelectionListener(btnCancelSelectionAdapter);
+		btnCancel.setBounds(538, 626, 80, 27);
+		btnCancel.setText(Lang.getString("Cancel.text"));
+
+		setView(vendor, kind);
+
+		getSerialPort();
+
+		if (deviceRelay != null) {
+			Object data = comboRelay.getData(deviceRelay.getName());
+			if (data != null) {
+				comboRelay.setText(deviceRelay.getName());
+			}
+		}
+
+		make();
+	}
+
+	private void cancel() {
+		tag = null;
+		close();
+	}
+
+	private void accept() {
+		if (tag == null) {
+			tag = Device.instance(vendor, kind);
+			tag.newId();
+		}
+
+		String text = comboZone.getText();
+		Zone zone = (Zone) comboZone.getData(text);
+		String zoneId = zone == null ? "" : zone.getId();
+
+		String text2 = comboRelay.getText();
+		Device rDevice = (Device) comboRelay.getData(text2);
+		String relayId = rDevice == null ? "" : rDevice.getId();
+
+		String mutual = textMutual.getText().trim();
+		mutual = Tool.isEmpty(mutual) ? "0" : mutual;
+
+		String text4 = comboUse.getText();
+		if (!Tool.isEmpty(text4)) {
+			Use use = (Use) comboUse.getData(text4);
+			tag.setUse(use);
+		}
+
+		tag.setLink((Link) comboLink.getData(comboLink.getText()));
+
+		tag.setName(textName.getText());
+		tag.setNumber(textNumber.getText());
+		tag.setSn(textSn.getText());
+		tag.setZoneId(zoneId);
+		tag.setRelayId(relayId);
+		tag.setNetworkIp(textNetworkIp.getText());
+		tag.setNetworkPort(spinnerNetworkPort.getSelection());
+		tag.setLoad(spinnerLoad.getSelection());
+		tag.setPower(spinnerPower.getSelection());
+		tag.setUsername(textUsername.getText());
+		tag.setPassword(textPassword.getText());
+		/**
+		 * 去掉后面（）
+		 */
+		String text3 = comboSerialPort.getText();
+		if (text3.contains("(")) {
+			int indexOf = text3.indexOf('(');
+			String substring = text3.substring(0, indexOf);
+			tag.setSerialPort(substring);
+		} else {
+			tag.setSerialPort(text3);
+		}
+
+		tag.setSerialBaudRate(spinnerSerialBaudRate.getSelection());
+		tag.setRemark(textRemark.getText());
+		tag.setMutual(Float.valueOf(mutual));
+		tag.setDelay(textDelay.getSelection());
+		tag.setAddress(textAddress.getText());
+
+		Calendar c = Calendar.getInstance();
+		c.set(dateProduct.getYear(), dateProduct.getMonth(),
+				dateProduct.getDay());
+		Date productTime = c.getTime();
+
+		tag.setProduced(productTime);
+
+		c.set(dateInstall.getYear(), dateInstall.getMonth(),
+				dateInstall.getDay());
+		Date installTime = c.getTime();
+		tag.setInstalled(installTime);
+
+		tag.setPhaseCheck(spinnerCheckPhasePosition.getSelection());
+		tag.setPhasePower(spinnerReadPhasePosition.getSelection());
+		if(comboNotice.getSelectionIndex()==0){
+			tag.setNotice(false);
+		}else {
+			tag.setNotice(true);
+		}
+		if(comboDetect.getSelectionIndex()==0){
+			tag.setDetect(false);
+		}else {
+			tag.setDetect(true);
+		}
+		
+		close();
+	}
+
+	private void make() {
+		if (vendor == null) {
+			throw new NullPointerException("vendor is null");
+		}
+
+		if (kind == null) {
+			throw new NullPointerException("kind is null");
+		}
+
+		if (zone != null) {
+			comboZone.setText(zone.getName());
+		} else {
+			comboZone.setText(Lang.getString("FDevice.RootZone"));
+		}
+
+		if (tag != null) {
+			labelTipsImage.setImage(Resource.getImage(
+					FMain.class,
+					String.format("/com/kiy/resources/device_%s_32.png",
+							Tool.toLowerCase(tag.getKind()))));
+			comboLink.setText(Lang.getString("Link." + tag.getLink().name()));
+			textSn.setText(tag.getSn());
+			textMutual.setText(String.valueOf(tag.getMutual()));
+			textDelay.setSelection(tag.getDelay());
+			textAddress.setText(tag.getAddress());
+			textNumber.setText(tag.getNumber());
+			spinnerLoad.setSelection((tag.getLoad()));
+			textUsername.setText(tag.getUsername());
+			textPassword.setText(tag.getPassword());
+			textNetworkIp.setText(tag.getNetworkIp());
+			spinnerNetworkPort.setSelection(tag.getNetworkPort());
+			comboSerialPort.setText(tag.getSerialPort());
+			spinnerSerialBaudRate.setSelection(tag.getSerialBaudRate());
+			spinnerPower.setSelection(tag.getPower());
+			textName.setText(tag.getName());
+			textRemark.setText(tag.getRemark() == null ? "" : tag.getRemark());
+			comboZone.setText(tag.getZone() == null ? "" : tag.getZone()
+					.getName());
+			comboRelay.setText(tag.getRelay() == null ? "" : tag.getRelay()
+					.getName());
+			comboUse.setText(tag.getUse() != null ? Lang.getString("Use."
+					+ tag.getUse().name().toUpperCase()) : "");
+			Calendar c = Calendar.getInstance();
+			
+			if(tag.getDetect()){
+				comboDetect.select(1);
+			}else{
+				comboDetect.select(0);
+			}
+			
+			if(tag.getNotice()){
+				comboNotice.select(1);
+			}else{
+				comboNotice.select(0);
+			}
+
+			if (tag.getProduced() != null) {
+				c.setTime(tag.getProduced());
+				dateProduct.setYear(c.get(Calendar.YEAR));
+				dateProduct.setMonth(c.get(Calendar.MONTH));
+				dateProduct.setDay(c.get(Calendar.DAY_OF_MONTH));
+			}
+
+			if (tag.getInstalled() != null) {
+				c.setTime(tag.getInstalled());
+				dateInstall.setYear(c.get(Calendar.YEAR));
+				dateInstall.setMonth(c.get(Calendar.MONTH));
+				dateInstall.setDay(c.get(Calendar.DAY_OF_MONTH));
+			}
+
+			spinnerCheckPhasePosition.setSelection(tag.getPhaseCheck());
+			spinnerReadPhasePosition.setSelection(tag.getPhasePower());
+
+		}
+	}
+
+	/**
+	 * verify user input
+	 */
+	private void verify() {
+		btnAccept.setEnabled(false);
+		labelInputTips.setVisible(true);
+
+		if (Tool.isEmpty(comboLink.getText())) {
+			labelInputTips.setText(Lang
+					.getString("FDevice.deviceLink.notEmpty"));
+			return;
+		}
+
+		if (Tool.isEmpty(textName.getText())) {
+			labelInputTips.setText(Lang
+					.getString("FDevice.deviceName.notEmpty"));
+			return;
+		}
+
+		if (Tool.isEmpty(textNumber.getText())) {
+			labelInputTips
+					.setText(Lang.getString("FDevice.deviceNum.notEmpty"));
+			return;
+		}
+
+		if (textMutual.getText().equals("-")) {
+			labelInputTips.setText(Lang.getString("FDevice.checkMantual"));
+			return;
+		}
+
+		if (spinnerCheckPhasePosition.getSelection() > 4
+				|| spinnerCheckPhasePosition.getSelection() < -1) {
+			labelInputTips
+					.setText(Lang.getString("FDevice.chackPhasePosition"));
+			return;
+		}
+
+		if (spinnerReadPhasePosition.getSelection() > 4
+				|| spinnerReadPhasePosition.getSelection() < -1) {
+			labelInputTips.setText(Lang.getString("FDevice.readPhasePosition"));
+			return;
+		}
+
+		labelInputTips.setText(Tool.EMPTY);
+		labelInputTips.setVisible(false);
+		btnAccept.setEnabled(true);
+	}
+
+	/**
+	 * ModifyListener, Used to listen for widget to verify user input
+	 */
+	private ModifyListener modifyListener = new ModifyListener() {
+		@Override
+		public void modifyText(ModifyEvent arg0) {
+			verify();
+		}
+	};
+
+	/**
+	 * FocusAdapter, Used to Listen for widget to verify user input
+	 */
+	private FocusAdapter focusAdapter = new FocusAdapter() {
+
+		@Override
+		public void focusGained(FocusEvent arg0) {
+			verify();
+		}
+
+	};
+
+	/**
+	 * btnZoneParent SelectionAdapter
+	 */
+	private SelectionAdapter btnZoneParentSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FZoneParent dialog = new FZoneParent(shell);
+			dialog.open(servo, null);
+			if (dialog.combValue != null) {
+				comboZone.setText(dialog.combValue);
+			}
+		}
+
+	};
+
+	/**
+	 * btnRelayParent SelectionAdapter
+	 */
+	private SelectionAdapter btnRelayParentSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FDeviceParent dialog = new FDeviceParent(shell);
+			dialog.open(shell, servo);
+			if (dialog.combValue != null) {
+				comboRelay.setText(dialog.combValue);
+			}
+		}
+
+	};
+
+	/**
+	 * shell ShellAdapter
+	 */
+	private ShellAdapter shellAdapter = new ShellAdapter() {
+
+		@Override
+		public void shellClosed(ShellEvent e) {
+			closing = true;
+			close();
+		}
+	};
+
+	/**
+	 * Accept Button SelectionAdapter
+	 */
+	private SelectionAdapter btnAcceptSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent e) {
+			isUpdate = true;
+			accept();
+		}
+	};
+
+	/**
+	 * Cancel Button SelectionAdapter
+	 */
+	private SelectionAdapter btnCancelSelectionAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent e) {
+			isUpdate = false;
+			cancel();
+		}
+	};
+
+	private void setView(Vendor v, Kind k) {
+		if (v == Vendor.KAISTAR) {
+			if (kind == Kind.CONCENTRATOR) {
+				// 凯星 集中器 连接方式 以太网 串口
+				comboLink.add(Lang.getString("Link." + Link.ETHERNET));
+				comboLink.setData(Lang.getString("Link." + Link.ETHERNET),
+						Link.ETHERNET);
+				comboLink.add(Lang.getString("Link." + Link.SERIAL_PORT));
+				comboLink.setData(Lang.getString("Link." + Link.SERIAL_PORT),
+						Link.SERIAL_PORT);
+				comboLink.select(0);
+
+				textNetworkIp.setEnabled(true); // 以太网ip
+				spinnerNetworkPort.setEnabled(true); // 以太网端口
+				comboSerialPort.setEnabled(true); // 串口
+				spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+				spinnerSerialBaudRate.setSelection(19200);
+
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getVendor() == Vendor.KAISTAR) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+				comboRelay.select(0);
+			} else if (k == Kind.REPEATER) {
+				// 凯星 中继 连接方式 以太网 电力线
+				comboLink.add(Lang.getString("Link." + Link.ETHERNET));
+				comboLink.setData(Lang.getString("Link." + Link.ETHERNET),
+						Link.ETHERNET);
+				comboLink.add(Lang.getString("Link." + Link.ELECTRIC_LINE));
+				comboLink.setData(Lang.getString("Link." + Link.ELECTRIC_LINE),
+						Link.ELECTRIC_LINE);
+				comboLink.select(0);
+
+				textNetworkIp.setEnabled(true); // 以太网ip
+				spinnerNetworkPort.setEnabled(true); // 以太网端口
+				comboSerialPort.setEnabled(false); // 串口
+				spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+				spinnerSerialBaudRate.setSelection(19200);
+
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getVendor() == Vendor.KAISTAR) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+				comboRelay.select(0);
+			}else if(k == Kind.AIR_CONDITIONER){
+				comboLink.add(Lang.getString("Link." + Link.ELECTRIC_LINE));
+				comboLink.setData(Lang.getString("Link." + Link.ELECTRIC_LINE),
+						Link.ELECTRIC_LINE);
+				comboLink.select(0);
+
+				textNetworkIp.setEnabled(false); // 以太网ip
+				spinnerNetworkPort.setEnabled(false); // 以太网端口
+				comboSerialPort.setEnabled(false); // 串口
+				spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+				spinnerSerialBaudRate.setSelection(9600);
+				
+				textUsername.setEnabled(true);
+				textUsername.setEditable(true);
+
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getVendor() == Vendor.KAISTAR) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+				comboRelay.select(0);
+			}else {
+				comboLink.add(Lang.getString("Link." + Link.ELECTRIC_LINE));
+				comboLink.setData(Lang.getString("Link." + Link.ELECTRIC_LINE),
+						Link.ELECTRIC_LINE);
+				comboLink.select(0);
+
+				textNetworkIp.setEnabled(false); // 以太网ip
+				spinnerNetworkPort.setEnabled(false); // 以太网端口
+				comboSerialPort.setEnabled(false); // 串口
+				spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+				spinnerSerialBaudRate.setSelection(9600);
+
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getVendor() == Vendor.KAISTAR) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+				comboRelay.select(0);
+			}
+		} else if (v == Vendor.LINGRUI) {
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(false); // 以太网ip
+			spinnerNetworkPort.setEnabled(false); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(9600);
+
+			// 中继只能为灵瑞适配器
+			if (k == Kind.TRANSFORMER_TEMPERATURE_CONTROLLER) {
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getKind() == Kind.ADAPTER
+							&& device.getVendor() == Vendor.LINGRUI) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+			}
+			comboRelay.select(0);
+		} else if (v == Vendor.ELECALL) {
+			// 伊莱克 电能表 通讯适配器 灵瑞 连接方式只有485 通讯方式为串口 默认波特率 9600 除了凯星集中器和中继都是9600
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(false); // 以太网ip
+			spinnerNetworkPort.setEnabled(false); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(9600);
+
+			if (k == Kind.POWER_METER) {
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getKind() == Kind.ADAPTER
+							&& device.getVendor() == Vendor.ELECALL) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+			}
+			comboRelay.select(0);
+		} else if (v == Vendor.YIYOU) {
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(false); // 以太网ip
+			spinnerNetworkPort.setEnabled(false); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(4800);
+
+			if (k != Kind.ADAPTER) {
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getKind() == Kind.ADAPTER
+							&& device.getVendor() == Vendor.YIYOU) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+			}
+		}else if (v == Vendor.MUDBUS) {
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(false); // 以太网ip
+			spinnerNetworkPort.setEnabled(false); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(4800);
+
+			if (k != Kind.ADAPTER) {
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getKind() == Kind.ADAPTER
+							&& device.getVendor() == Vendor.MUDBUS) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+			}
+		}else if (v == Vendor.RFIN) {
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(false); // 以太网ip
+			spinnerNetworkPort.setEnabled(false); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(38400);
+
+			if (k != Kind.ADAPTER) {
+				Set<Device> devices = servo.getDevices();
+				for (Device device : devices) {
+					if (device.getKind() == Kind.ADAPTER
+							&& device.getVendor() == Vendor.RFIN) {
+						comboRelay.add(device.getName());
+						comboRelay.setData(device.getName(), device);
+					}
+				}
+			}
+		} else if (v == Vendor.HIKVISION) {
+			comboLink.add(Lang.getString("Link." + Link.ETHERNET));
+			comboLink.setData(Lang.getString("Link." + Link.ETHERNET),
+					Link.ETHERNET);
+			comboLink.select(0);
+			textNetworkIp.setEnabled(true); // 以太网ip
+			spinnerNetworkPort.setEnabled(true); // 以太网端口
+			spinnerNetworkPort.setSelection(8000);
+			comboSerialPort.setEnabled(false); // 串口
+			spinnerSerialBaudRate.setEnabled(false); // 串口波特率
+			textPassword.setEnabled(true);
+			textUsername.setEnabled(true);
+		} else if (v == Vendor.OTHER) {
+			comboLink.add(Lang.getString("Link." + Link.ELECTRIC_LINE));
+			comboLink.setData(Lang.getString("Link." + Link.ELECTRIC_LINE),
+					Link.ELECTRIC_LINE);
+			comboLink.add(Lang.getString("Link." + Link.ETHERNET));
+			comboLink.setData(Lang.getString("Link." + Link.ETHERNET),
+					Link.ETHERNET);
+			comboLink.add(Lang.getString("Link." + Link.SERIAL_PORT));
+			comboLink.setData(Lang.getString("Link." + Link.SERIAL_PORT),
+					Link.SERIAL_PORT);
+			comboLink.add(Lang.getString("Link." + Link.RS485));
+			comboLink.setData(Lang.getString("Link." + Link.RS485), Link.RS485);
+			comboLink.select(0);
+
+			textNetworkIp.setEnabled(true); // 以太网ip
+			spinnerNetworkPort.setEnabled(true); // 以太网端口
+			comboSerialPort.setEnabled(true); // 串口
+			spinnerSerialBaudRate.setEnabled(true); // 串口波特率
+			spinnerSerialBaudRate.setSelection(9600);
+
+			Set<Device> devices = servo.getDevices();
+			for (Device device : devices) {
+				comboRelay.add(device.getName());
+				comboRelay.setData(device.getName(), device);
+			}
+			comboRelay.select(0);
+		}
+
+	}
+
+	private void getSerialPort() {
+		CtrClient client = servo.getClient();
+		boolean judgeClientActive = F.judgeClientActive(shell, client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		Message.Builder b_m = Message.newBuilder();
+		b_m.setKey(CtrClient.getKey());
+		b_m.setUserId(servo.getUser().getId());
+		GetServo.Builder gb = GetServo.newBuilder();
+		b_m.setGetServo(gb);
+		client.send(b_m.build());
+
+	}
+
+	@Override
+	public void received(Servo s, Message m, Map<Message, Unit> units) {
+		Result status = m.getResult();
+		ActionCase actionCase = m.getActionCase();
+		if (status == Result.SUCCESS && actionCase == ActionCase.GET_SERVO) {
+			GetServo getServo = m.getGetServo();
+			ProtocolStringList comList = getServo.getComList();
+			for (String string : comList) {
+				if (!comboSerialPort.isDisposed()) {
+					comboSerialPort.add(string);
+				}
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		if (closing) {
+
+		} else {
+			shell.close();
+		}
+	}
+}

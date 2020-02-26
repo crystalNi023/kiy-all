@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<helps>
+	<item title="开始使用" url="begin.html"/>
+	<item title="界面介绍" url="parameterList.html"/>
+	<item title="软件操作">
+		<item title="创建伺服器" url="createServo.html"/>
+		<item title="创建用户" url="createUser.html"/>
+		<item title="创建角色" url="createRole.html"/>
+		<item title="创建设备" url="createDevice.html"/>
+		<item title="创建区域" url="createZone.html"/>
+		<item title="创建设备维护" url="createDeviceMaintain.html"/>
+		<item title="创建计划策略" url="createPlan.html"/>
+		<item title="查询日志" url="queryLog.html"/>
+		<item title="获取设备状态" url="getDeviceStatus.html"/>
+		<item title="查看设备维护记录" url="queryDeviceMaintain.html"/>
+		<item title="查看设备历史状态" url="queryDeviceHistoryStatus.html"/>
+		<item title="设置设备状态" url="setDeviceStatus.html"/>
+		<item title="修改伺服器配置" url="modifyServoConfig.html"/>
+		<item title="修改区域，设备" url="modifyZoneOrDevice.html"/>
+	</item>
+</helps>

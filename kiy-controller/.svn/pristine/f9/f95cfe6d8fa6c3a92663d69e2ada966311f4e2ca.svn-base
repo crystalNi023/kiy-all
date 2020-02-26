@@ -1,0 +1,1 @@
+start %CD%\java\bin\javaw -jar kiy-controller.jar

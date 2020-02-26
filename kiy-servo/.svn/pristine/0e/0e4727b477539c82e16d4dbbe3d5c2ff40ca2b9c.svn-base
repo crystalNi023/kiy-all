@@ -1,0 +1,174 @@
+package com.kiy.servo.job;
+
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.Linkage;
+import com.kiy.common.LinkageDevice;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.Types.Status;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.driver.DriverAdpater;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+import com.kiy.servo.messageque.MessageDevice;
+import com.kiy.servo.messageque.MessageDeviceDeque;
+
+/**
+ * 联动触发类
+ * 
+ * @author Administrator
+ *
+ */
+public class Linkager {
+	
+	 private volatile static int count = 0;
+
+	/**
+	 * 判断是否为联动型主设备
+	 * 
+	 * @return
+	 */
+	public static boolean isLinkageDevice(Device device) {
+		if (getLinkageByDevice(device) != null) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * 获取联动主设备
+	 */
+	private static Linkage getLinkageByDevice(Device device) {
+		Set<Linkage> linkages = Data.getServo().getLinkages();
+		for (Linkage linkage : linkages) {
+			for (LinkageDevice linkageDevice : linkage.getLinkageDevice()) {
+				System.out.println("device id:"+device.getId());
+				System.out.println("linkageDevice id:"+linkageDevice.getDeviceId());
+				if (device.getId().equals(linkageDevice.getDeviceId()) && linkageDevice.getPriority() == 1&&linkageDevice.getFeatureValue()==device.getFeature(linkageDevice.getFeatureIndex()).getValue()) {
+					return linkage;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * 执行设备联动操作
+	 * 
+	 * @param device
+	 * @return
+	 */
+	public static boolean executeLinkage(Device device) {
+
+		// 判断是否为联动设备
+		if (!isLinkageDevice(device)) {
+			return false;
+		}
+		// 触发联动
+		// 获取联动实体
+		Linkage linkage = getLinkageByDevice(device);
+		if (linkage == null) {
+			return false;
+		}
+		//创建一个单独执行联动的线程(控制联动并发线程不能超过10个)
+		
+			while(true){
+				if(count<10){
+					break;	
+				}else{
+					try {
+						Thread.sleep(200);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+			Thread thread = new Thread(){
+				public void run() {
+					count++;
+					for (LinkageDevice linkageDevice : linkage.getLinkageDevice()) {
+						if(linkageDevice.getPriority() == 1) {//第一个设备已执行过不用再执行
+							continue;
+						}else {
+							if(linkageDevice.getSecs()>0) {//延时加载
+								try {
+									Thread.sleep(linkageDevice.getSecs()*1000);
+								} catch (InterruptedException e) {
+									// TODO Auto-generated catch block
+									e.printStackTrace();
+								}
+							}
+							executeLinkageDevice(linkageDevice);	
+						}
+						
+					}
+					count--;
+				}
+			};
+			thread.start();
+			return true;
+	}
+
+	/**
+	 * 执行设备联动
+	 * 
+	 * @param device
+	 */
+	private static void executeLinkageDevice(LinkageDevice linkageDevice) {
+		Device device = Data.getServo().getDevice(linkageDevice.getDeviceId());
+		Message.Builder response = Message.newBuilder();
+		WriteDeviceStatus.Builder wds_b = WriteDeviceStatus.newBuilder();
+		MDeviceStatus.Builder builder = MDeviceStatus.newBuilder();
+		if (device == null) {
+			builder.setStatus(Status.C_DRIVER.getValue());/* 设备不存在 */
+		} else {
+			builder.setCreated(device.getTickStatus());
+			builder.setDeviceId(device.getId());
+			DriverAdpater adpater = Driver.getAdpater(device);
+			if (adpater == null) {
+				/*
+				 * 通讯适配器( 数据集中器不存在)
+				 */
+				builder.setStatus(Status.C_RELAY.getValue());
+			} else {
+				if (!adpater.isActive()) {
+					builder.setStatus(Status.OFFLINE.getValue());/* 通讯适配器离线 */
+				} else {
+					if (!device.getDetect()) {
+						builder.setStatus(Status.OFFLINE.getValue());/* 设备已关闭检测功能 */
+					} else {
+						Tool.setCombinedEquipment(device);
+						for (Feature feature : device.getFeatures()) {
+							if (linkageDevice.getFeatureIndex() == feature.INDEX) {
+								device.getFeature(feature.INDEX).setValue(linkageDevice.getFeatureValue());
+							}
+						}
+						MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, true, true));
+						builder.setStatus(device.getStatus().getValue());
+						for (int index = 0; index < device.getFeatureCount(); index++) {
+							builder.putItems(index, device.getFeature(index).getValue());
+						}
+					}
+				}
+			}
+		}
+		wds_b.setItem(builder.build());
+		Data.CreateDeviceStatus(device, Origin.LINKAGE);
+		System.out.println("---------------------------------");
+		System.out.println(wds_b.build());
+		System.out.println("---------------------------------");
+		response.setWriteDeviceStatus(wds_b);
+		response.setResult(Result.SUCCESS);
+		Master.getGroup().writeAndFlush(response.build(), MatcherLogon.Logon);
+	}
+}
+

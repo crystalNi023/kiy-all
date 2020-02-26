@@ -1,0 +1,94 @@
+package com.kiy.servo.notice;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+
+import com.google.gson.Gson;
+import com.kiy.common.Servo;
+import com.kiy.common.Weather;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+
+public class WeatherManager {
+	
+	private WeatherManager(){
+		
+	}
+	
+	public static WeatherManager weatherManager;
+	
+	public final static WeatherManager getInstance(){
+		if (weatherManager == null) {
+			weatherManager = new WeatherManager();
+		}
+		return weatherManager;
+	}
+	
+	/**
+	 * 获取天气信息
+	 * @return
+	 */
+	public Weather getWeather(){
+		Servo servo = Data.getServo();
+		Weather weather = servo.getWeather();
+		if (weather == null) {
+			/*请求*/
+			weather = weatherRequest(servo);
+			return weather;
+		}else {
+			long updated = weather.getUpdated();
+			if (System.currentTimeMillis()-updated>=60000) {
+				/*缓存超过10分钟则更新*/
+				weather = weatherRequest(servo);
+				return weather;
+			}else {
+				return weather;
+			}
+		}
+		
+	}
+	
+	/**
+	 * 请求接口获取天气
+	 * @return
+	 */
+	private Weather weatherRequest(Servo servo){
+		try {
+			URL u = new URL("http://api.k780.com/?app=weather.today&weaid="+Config.WEATHER_WEAID+"&appkey=32106&sign=af54d39737870ec1d35de9edb1c4b2b0&format=json");
+			InputStream in = u.openStream();
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			
+			byte[] b ;
+			try {
+				byte buf[] = new byte[1024];
+				int read = 0;
+				while ((read = in.read(buf)) > 0) {
+					out.write(buf, 0, read);
+				}
+				b = out.toByteArray();
+			} finally {
+				if (in != null) {
+					in.close();
+				}
+				if (out!=null) {
+					out.flush();
+					out.close();
+				}
+			}
+			String string = new String(b, "utf-8");
+			System.err.println("请求");
+			
+			Gson gson = new Gson();
+			Weather weather = gson.fromJson(string, Weather.class);
+			weather.setUpdated(System.currentTimeMillis());
+			servo.setWeather(weather);
+			return weather;
+		} catch (IOException e) {
+			Log.debug(e);
+		}
+		return null;
+	}
+}

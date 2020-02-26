@@ -1,0 +1,17 @@
+package com.kiy.servo.test;
+
+import com.google.gson.JsonObject;
+
+public class Test1 {
+	public static void main(String[] args) {
+		JsonObject jsonObject = new JsonObject();
+		jsonObject.addProperty("deviceKey", "1122");
+		jsonObject.addProperty("cmd", "addDevice");
+		jsonObject.addProperty("channel", "plc");
+		JsonObject jsonObject2 = new JsonObject();
+		jsonObject2.addProperty("aid", "21321");
+		jsonObject2.addProperty("password", "23213");
+		jsonObject.add("data", jsonObject2);
+		System.err.println(jsonObject.toString());
+	}
+}

@@ -1,0 +1,118 @@
+package com.kiy.servo.mqtt;
+
+import java.util.concurrent.TimeUnit;
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+
+import com.kiy.common.Device;
+import com.kiy.servo.Config;
+import com.kiy.servo.Executor;
+import com.kiy.servo.Log;
+import com.kiy.servo.driver.DriverAdpater;
+
+/**
+ * MQTT服务管理客户端
+ * @author HLX Tel:18996470535 
+ * @date 2018年7月23日 
+ * Copyright:Copyright(c) 2018
+ */
+public class MQTTDriver extends DriverAdpater{
+	
+	private static MQTTServer mqttServer;
+	private MQTTCoder coder;
+
+	public MQTTDriver(Device d) {
+		super(d);
+		coder = new MQTTCoder();
+	}
+
+	@Override
+	public void getStatus(Device d) {
+		try {
+			coder.encode(device.getNumber(),d, mqttServer,MQTTCoder.READ);
+		} catch (MqttException e) {
+			Log.error(e);
+		}
+	}
+
+	@Override
+	public void setStatus(Device d) {
+		try {
+			coder.encode(device.getNumber(),d, mqttServer,MQTTCoder.WRITE);
+		} catch (MqttException e) {
+			Log.error(e);
+		}
+	}
+	
+	@Override
+	public void getConfig(Device d) {
+		
+	}
+
+	@Override
+	public void setConfig(Device d) {
+		
+	}
+
+
+	@Override
+	public void start() {
+		if (coder == null) {
+			return;
+		}
+		if (!Config.MQTT) {
+			return;
+		}
+		
+		// 不使用
+		Log.info("MQTT "+device.getNumber()+" initialize ...");
+		mqttServer = new MQTTServer(device.getNumber());
+		Log.info("MQTT "+device.getNumber()+" initialized");
+		Log.info("MQTT "+device.getNumber()+" start ...");
+		mqttServer.start();
+		Log.info("MQTT "+device.getNumber()+" started ...");
+	}
+
+	@Deprecated
+	@Override
+	public void send(Device device, byte code, int tag) {
+		// 不使用
+	}
+
+	@Override
+	public void reset() {
+		stop();
+		Executor.getScheduledExecutorService().schedule(new Runnable() {
+			@Override
+			public void run() {
+				start();
+			}
+		}, Config.DRIVER_RESTART, TimeUnit.SECONDS);
+	}
+
+	@Override
+	public void stop() {
+		Log.info("MQTT "+device.getNumber()+" stopart ...");
+		mqttServer.stop();
+		Log.info("MQTT "+device.getNumber()+" stoped ...");
+	}
+
+	@Override
+	public void destroy() {
+		// 不使用
+	}
+	
+	@Override
+	public void initialize() {
+		
+	}
+
+	@Override
+	public boolean isActive() {
+		if (mqttServer!=null) {
+			return mqttServer.isActive();
+		}
+		return false;
+	}
+
+}

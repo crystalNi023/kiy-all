@@ -1,0 +1,198 @@
+package com.kiy.servo.recognize;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Tool;
+import com.kiy.servo.Config;
+import com.kiy.servo.data.Data;
+
+/**
+ * 语音识别
+ * @author HLX Tel:18996470535 
+ * @date 2018年5月22日 
+ * Copyright:Copyright(c) 2018
+ */
+public class Recognize {
+	
+	public static void main(String[] args) {
+		Config.load();
+		Data.initialize();
+		String recognize2 = Recognize.getInstance().recognize("你大声道");
+		System.err.println(recognize2);
+	}
+	
+	/**
+	 *  打开
+	 */
+	private static final int OPEN = 1;
+	/**
+	 * 关闭
+	 */
+	private static final int OFF = 2;
+	/**
+	 * 查询
+	 */
+	private static final int QUERY = 3; 
+	
+	/**
+	 * 动词
+	 */
+	private Map<String, Integer> keyWord;
+	
+	/**
+	 * 名词(设备名称)
+	 */
+	private Map<String,Device> deviceWord;
+	
+	/**
+	 * 名词(设备类型)
+	 */
+	private Set<String> targetWord;
+	
+	private Recognize(){
+		/**
+		 * 动词
+		 */
+		keyWord = new HashMap<>();
+		keyWord.put("打开", OPEN);
+		keyWord.put("开", OPEN);
+		keyWord.put("开启", OPEN);
+		keyWord.put("启动", OPEN);
+		keyWord.put("拉开", OPEN);
+		
+		keyWord.put("关闭", OFF);
+		keyWord.put("关", OFF);
+		keyWord.put("关上", OFF);
+		keyWord.put("合上", OFF);
+		
+		keyWord.put("读取", QUERY);
+		keyWord.put("查询", QUERY);
+		keyWord.put("查看", QUERY);
+		keyWord.put("显示", QUERY);
+		/**
+		 * 名词 (设备名字)
+		 */
+		Set<Device> devices = Data.getServo().getDevices();
+		deviceWord = new HashMap<>();
+		for (Device device : devices) {
+			deviceWord.put(device.getName(), device);
+		}
+		/**
+		 * 名词 (设备类型)
+		 */
+		targetWord = new HashSet<>();
+		targetWord.add("灯");
+		targetWord.add("窗");
+		targetWord.add("门");
+		targetWord.add("光照");
+		targetWord.add("PM2.5");
+		targetWord.add("PM10");
+		targetWord.add("温度");
+		targetWord.add("湿度");
+		targetWord.add("甲烷");
+	}
+
+	public static volatile  Recognize recognize;
+
+	public static Recognize getInstance() {
+		if (recognize == null) {
+			synchronized (Recognize.class){
+				if (recognize == null) {
+					recognize = new Recognize();
+				}
+			}
+		}
+		return recognize;
+		
+	}
+	
+	public String recognize(String string){
+		String verb = "";
+		String noun = "";
+		String deviceType = "";
+		/**
+		 * 1.匹配动词
+		 */
+		Set<String> keySet = keyWord.keySet();
+		for (String str : keySet) {
+			if (string.contains(str)) {
+				verb = str;
+				break;
+			}
+		}
+		Set<String> keySet2 = deviceWord.keySet();
+		/**
+		 * 2.匹配名称
+		 */
+		for (String str : keySet2) {
+			if (string.contains(str)) {
+				noun = str;
+				break;
+			}
+		}
+		/**
+		 * 3.匹配设备类型
+		 */
+		for (String str : targetWord) {
+			if (string.contains(str)) {
+				deviceType = str;
+				break;
+			}
+		}
+		/**
+		 * 4.具体判断操作指令
+		 */
+		if (!Tool.isEmpty(verb)&&!Tool.isEmpty(noun)) {
+			Integer integer = keyWord.get(verb);
+			Device device = deviceWord.get(noun);
+			switch (integer) {
+				case OPEN:
+					/**
+					 * 打开设备
+					 */
+					return "正在为您打开"+device.getName();
+				case OFF:
+					/**
+					 * 关闭设备
+					 */
+					return "正在为您关闭"+device.getName();
+				case QUERY:
+					/**
+					 * 读取设备状态
+					 */
+					return device.getName()+"当前状态为:";
+				default:
+					break;
+			}
+		}
+		
+		if (!Tool.isEmpty(verb)&&!Tool.isEmpty(deviceType)) {
+			Integer integer = keyWord.get(verb);
+			switch (integer) {
+				case OPEN:
+					/**
+					 * 打开设备
+					 */
+					return "请说明您具体要打开哪个设备,例如打开客厅照明灯";
+				case OFF:
+					/**
+					 * 关闭设备
+					 */
+					return "请说明您具体要关闭哪个设备,例如关闭客厅照明灯";
+				case QUERY:
+					/**
+					 * 读取设备状态
+					 */
+					return "请说明您具体要读取哪个设备状态,例如查看室内温湿度";
+				default:
+					break;
+			}
+		}
+		
+		return "有趣的问题，但是我听不懂";
+	}
+}

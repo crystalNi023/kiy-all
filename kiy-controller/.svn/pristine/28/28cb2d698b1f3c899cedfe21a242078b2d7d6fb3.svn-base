@@ -1,0 +1,411 @@
+package com.kiy.controller;
+
+import java.util.Comparator;
+import java.util.HashMap;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Sence;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.controller.view.VTable;
+import com.kiy.protocol.Messages.DeleteSence;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * 
+ * 查询场景列表
+ *
+ */
+public class FSenceRecord extends Dialog implements FormMessage {
+
+	private Shell shell;
+	private FVTable vt;
+
+	private Servo servo;
+	private Sence sence;
+	private CtrClient client;
+	
+	private Table tableSence;
+
+	public FSenceRecord(Shell parent) {
+		super(parent, 0);
+	}
+
+	public void open(Servo s) {
+		System.out.println(s.getSences().size());
+		System.out.println(s.getTasks().size());
+		servo = s;
+		createContents();
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FSenceRecord.ShellName.text") + servo.toString());
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		client = servo.getClient();
+		
+		FillLayout fillLayout = new FillLayout();
+		fillLayout.marginHeight = 10;
+		fillLayout.marginWidth = 10;
+		fillLayout.spacing = 10;
+		shell.setLayout(fillLayout);
+
+		tableSence = new Table(shell, SWT.VIRTUAL|SWT.BORDER | SWT.FULL_SELECTION);
+		tableSence.setHeaderVisible(true);
+		tableSence.setLinesVisible(true);
+		{
+			// 场景名称
+			TableColumn tblTaskrNameColumn = new TableColumn(tableSence, SWT.NONE);
+			tblTaskrNameColumn.setText(Lang.getString("FSenceRecord.tblPlanName.text"));
+			tblTaskrNameColumn.setWidth(120);
+			// 状态
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text"));
+			tblTaskrNameColumn.setWidth(100);
+			// 备注
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserRemarkNameColumn.text"));
+			tblTaskrNameColumn.setWidth(200);
+			// 创建时间
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text1"));
+			tblTaskrNameColumn.setWidth(200);
+			// 更新时间
+			tblTaskrNameColumn = new TableColumn(tableSence, SWT.LEFT);
+			tblTaskrNameColumn.setText(Lang.getString("FUserAndRole.tblUserStatusColumn.text2"));
+			tblTaskrNameColumn.setWidth(200);
+		}
+		vt = new FVTable(tableSence);
+		
+		// 顶部菜单
+		Menu menu = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menu);
+		// 新建顶部菜单
+		MenuItem createItem = new MenuItem(menu, SWT.CASCADE);
+		createItem.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 打开新建计划任务窗口
+				new ASenceCreate().sendMessage(servo,client, getParent());
+			}
+		});
+		createItem.setData(new ActionCase[] { ActionCase.CREATE_SENCE });
+		
+		// 编辑顶部菜单
+		MenuItem editItem = new MenuItem(menu, SWT.CASCADE);
+		editItem.setText(Lang.getString("FSenceRecord.MenuEdit.text"));
+		editItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 编辑场景
+				editSence();
+			}
+		});
+		editItem.setData(new ActionCase[] { ActionCase.UPDATE_SENCE });
+		
+		// 删除顶部菜单
+		MenuItem deleteItem = new MenuItem(menu, SWT.CASCADE);
+		deleteItem.setText(Lang.getString("FSence.delete"));
+		deleteItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 删除任务
+				deleteSence();
+			}
+		});
+		deleteItem.setData(new ActionCase[] { ActionCase.DELETE_SENCE });
+		
+		// 右键菜单
+		Menu taskMenu = new Menu(shell, SWT.POP_UP);
+		//右键新建菜单
+		MenuItem createSence = new MenuItem(taskMenu, SWT.PUSH);
+		createSence.setText(Lang.getString("FUserAndRole.createItem.text"));
+		createSence.setData(new ActionCase[] { ActionCase.CREATE_SENCE });
+		createSence.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 打开新建计划任务窗口
+				new ASenceCreate().sendMessage(servo, client , getParent());
+			}
+		});
+		
+		//右键编辑菜单
+		MenuItem editSence = new MenuItem(taskMenu, SWT.PUSH);
+		editSence.setText(Lang.getString("FSenceRecord.MenuEdit.text"));
+		editSence.setData(new ActionCase[] { ActionCase.UPDATE_SENCE });
+		editSence.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 编辑场景
+				editSence();
+			}
+		});
+		//右键删除菜单
+		MenuItem deleSence = new MenuItem(taskMenu, SWT.PUSH);
+		deleSence.setText(Lang.getString("FSence.delete"));
+		deleSence.setData(new ActionCase[] { ActionCase.DELETE_SENCE });
+		deleSence.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// 删除任务
+				deleteSence();
+			}
+		});
+		
+		tableSence.setMenu(taskMenu);
+		vt.beginUpdate();
+		vt.add(servo.getSences());
+		vt.endUpdate();
+
+	}
+	
+	@Override
+	public void received(Servo s, Message m, HashMap<Message, Unit> units) {
+		// 返回状态
+				Result status = m.getResult();
+				// 返回指令
+				ActionCase command = m.getActionCase();
+				// 刷新表格处理
+				if (command == ActionCase.CREATE_SENCE) {
+					if (status == Result.SUCCESS) {
+						senceAdd();
+					} else if (status == Result.ERROR) {
+						MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+						mb.setText(Lang.getString("FSenceRecord.MessageBoxCreateTaskTitle.text"));
+						mb.setMessage(String.format(Lang.getString("FSenceRecord.MessageBoxCreateTaskContent.text"), servo));
+						mb.open();
+					} else {
+						// 无处理
+					}
+				}
+				// 删除场景
+				if (command == ActionCase.DELETE_TASK) {
+					if (status == Result.SUCCESS) {
+						senceDelete();
+					} else if (status == Result.ERROR) {
+						MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+						mb.setText(Lang.getString("FTaskRecord.MessageBoxDeleteTaskTitle.text"));
+						mb.setMessage(String.format(Lang.getString("FTaskRecord.MessageBoxDeleteTaskContent.text"), servo));
+						mb.open();
+					} else {
+						// 无处理
+					}
+				}
+//				// 修改计划
+//				if (command == ActionCase.UPDATE_TASK) {
+//					if (status == Result.SUCCESS) {
+//						taskUpdate();
+//					} else if (status == Result.ERROR) {
+//						MessageBox mb = new MessageBox(shell, SWT.ICON_WARNING | SWT.CANCEL | SWT.OK);
+//						mb.setText(Lang.getString("FTaskRecord.MessageBoxModifyTaskTitle.text"));
+//						mb.setMessage(String.format(Lang.getString("FTaskRecord.MessageBoxModifyTaskContent.text"), servo));
+//						mb.open();
+//					} else {
+//						// 无处理
+//					}
+//				}
+			}
+
+	// 删除场景排序
+		private void senceDelete() {
+			senceSelect();
+		}
+		// 查询场景排序
+		private void senceSelect() {
+			vt.clear();
+			for (TableItem tableItem : tableSence.getItems()) {
+				tableItem.dispose();
+			}
+			for (Sence sence : servo.getSences()) {
+				vt.add(sence);
+			}
+//			defaultSortUser();
+		}
+		
+		// 新增场景排序
+		private void senceAdd() {
+			senceSelect();
+		}
+		
+//		// 排序器
+//		private void defaultSortUser() {
+//			Collections.sort(servo., new Comparator<Task>() {
+//				public int compare(Task a, Task b) {
+//					return Long.compare(a.getStart().getTime(), b.getStart().getTime());
+//				}
+//			});
+//		}
+	@Override
+	public void close() {
+		// 无处理
+	}
+	
+	private class FVTable extends VTable<Sence> {
+
+		public FVTable(Table t) {
+			super(t);
+		}
+
+		@Override
+		public void row(TableItem tableItem, Sence sence) {
+			tableItem.setText(0, sence.getName());
+			if (sence.getSwitchStatu()) {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_able.png")));
+				tableItem.setText(1, Lang.getString("FSenceRecord.open.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 0, 0, 0));
+			} else {
+				tableItem.setImage(1, Resource.getImage(FMain.class, String.format("/com/kiy/resources/user_unable.png")));
+				tableItem.setText(1, Lang.getString("FSenceRecord.off.text"));
+				tableItem.setForeground(new Color(Display.getCurrent(), 160, 160, 160));
+			}
+			tableItem.setText(2, sence.getRemark());
+			tableItem.setText(3, F.format(sence.getCreated()));
+			tableItem.setText(4, F.format(sence.getUpdated()));
+		}
+		
+		@Override
+		public void column(TableColumn column, int direction) {
+			switch (vt.getColumnIndex(column)) {
+				case 0:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getName() == null ? "" : a.getName(), b.getName() == null ? "" : b.getName());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getName() == null ? "" : b.getName(), a.getName() == null ? "" : a.getName());
+						}
+					});
+					break;
+				case 1:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return String.CASE_INSENSITIVE_ORDER.compare(a.getRemark() == null ? "" : a.getRemark(), b.getRemark() == null ? "" : b.getRemark());
+							else
+								return String.CASE_INSENSITIVE_ORDER.compare(b.getRemark() == null ? "" : b.getRemark(), a.getRemark() == null ? "" : a.getRemark());
+						}
+					});
+					break;
+				case 2:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getCreated().getTime(), b.getCreated().getTime());
+							else
+								return Long.compare(b.getCreated().getTime(), a.getCreated().getTime());
+						}
+					});
+					break;
+				case 3:
+					vt.sort(new Comparator<Sence>() {
+						@Override
+						public int compare(Sence a, Sence b) {
+							if (SWT.UP == direction)
+								return Long.compare(a.getUpdated().getTime(), b.getUpdated().getTime());
+							else
+								return Long.compare(b.getUpdated().getTime(), a.getUpdated().getTime());
+						}
+					});
+					break;
+			}
+
+		}
+
+	}
+	
+	// 编辑场景
+	private void editSence() {
+		Sence sence1 = vt.getSelection();
+		int selectionIndex = tableSence.getSelectionIndex();
+		if (selectionIndex == -1) {
+			F.mbInformation(shell, Lang.getString("FSenceRecord.edit"), Lang.getString("FSenceRecord.edit.tip"));
+			return;
+		}
+			AUpdateSence a = new AUpdateSence(this, servo, sence1);
+			a.sendMessage();
+	}
+	
+	//删除场景
+	private void deleteSence(){
+			boolean judgeClientActive = F.judgeClientActive(shell, client);
+			if (judgeClientActive) {
+				return;
+			}
+
+			TableItem[] item = tableSence.getSelection();
+			if (item.length <= 0) {
+				F.mbInformation(shell, Lang.getString("FSenceRecord.delete"), Lang.getString("FSenceRecord.delete.tip"));
+				return;
+			}
+			for (int i = 0; i < item.length; i++) {
+				Object data = vt.getSelections().get(i);
+				if (data instanceof Sence) {
+					sence = (Sence) data;
+					int open = F.mbQuestionCancel(shell, Lang.getString("FSenceRecord.MessageBoxDeleteTaskTitle.text"),
+							String.format(Lang.getString("ADeleteUnit.deleteQuesion.text"), sence.getName()));
+					if (open == SWT.OK) {
+						Message.Builder b_m = Message.newBuilder();
+						b_m.setKey(CtrClient.getKey());
+						b_m.setUserId(servo.getUser().getId());
+						DeleteSence.Builder deleteSence = DeleteSence.newBuilder();
+						deleteSence.setId(sence.getId());
+						b_m.setDeleteSence(deleteSence);
+						client.send(b_m.build());
+					} else {
+						// 删除提示框选择取消，不删除
+				}
+			}
+		}
+			refresh();
+			vt.refresh();
+	}
+	
+	private void refresh() {
+		tableSence.removeAll();
+		vt.clear();
+		vt.refresh();
+
+		vt.beginUpdate();
+		vt.add(servo.getSences());
+		vt.endUpdate();
+	}
+
+
+	public Shell getShell() {
+		return shell;
+	}
+
+}

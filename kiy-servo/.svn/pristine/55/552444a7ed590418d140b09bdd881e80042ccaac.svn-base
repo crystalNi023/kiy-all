@@ -1,0 +1,78 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.driver;
+
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
+
+import com.kiy.common.Device;
+import com.kiy.servo.driver.ks.KSEthernet;
+import com.kiy.servo.driver.ks.KSSerialPort;
+import com.kiy.servo.driver.rs485.ELCSerialPort;
+import com.kiy.servo.driver.rs485.FYSerialPort;
+import com.kiy.servo.driver.rs485.LRSerialPort;
+import com.kiy.servo.driver.rs485.MudbusSerialPort;
+import com.kiy.servo.driver.rs485.RFSerialPort;
+import com.kiy.servo.driver.rs485.VolexSerialPort;
+import com.kiy.servo.mqtt.MQTTDriver;
+
+/**
+ * 设备客户端对象创建工厂
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class DriverAdpaterFactory {
+	
+	private DriverAdpaterFactory(){}
+
+	public static DriverAdpater create(Device d) {
+		switch (d.getVendor()) {
+			case KAISTAR:
+				switch (d.getLink()) {
+					case ETHERNET:
+						return new KSEthernet(d);
+					case SERIAL_PORT:
+						return new KSSerialPort(d);
+					default:
+						return null;
+				}
+			case LINGRUI:
+				return new LRSerialPort(d);
+			case ELECALL:
+				return new ELCSerialPort(d);
+			case RFIN:
+				return new RFSerialPort(d);
+			case MUDBUS:
+				return new MudbusSerialPort(d);
+			case EASTSOFT:
+				return new MQTTDriver(d);
+			case FLYING:
+				return new FYSerialPort(d);
+			case VOLEX:
+				return new VolexSerialPort(d);
+			default:
+				return null;
+		}
+	}
+
+	/**
+	 * 从文件加载类
+	 * 
+	 * @param file "file:D:/jarload/test.jar"
+	 * @param name "com.java.jarloader.TestAction"
+	 * @return
+	 * @throws ClassNotFoundException 
+	 * @throws IOException 
+	 * @throws Exception
+	 */
+	public static Class<?> load(String file, String name) throws ClassNotFoundException, IOException {
+		URL url = new URL(file);
+		URLClassLoader classLoader = new URLClassLoader(new URL[] { url }, Thread.currentThread().getContextClassLoader());
+		Class<?> closs = classLoader.loadClass(name);
+		classLoader.close();
+		return closs;
+	}
+}

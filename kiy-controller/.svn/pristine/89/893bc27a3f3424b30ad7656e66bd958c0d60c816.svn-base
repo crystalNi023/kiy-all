@@ -1,0 +1,100 @@
+package com.kiy.controller;
+
+import java.util.Date;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.UpdateTask;
+import com.kiy.protocol.Units.MTask.Builder;
+
+/**
+ * 更新计划任务
+ * 
+ * @author HLX
+ *
+ */
+public class AUpdateTask extends A<FTaskRecord> {
+
+	private Servo servo;
+	private Task task;
+
+	/**
+	 * 
+	 * @param s Shell
+	 * @param servo1 Servo
+	 * @param t Task
+	 */
+	public AUpdateTask(FTaskRecord m, Servo servo1, Task t) {
+		super(m);
+		servo = servo1;
+		task = t;
+	}
+
+	@Override
+	protected void run() {
+		sendMessage();
+	}
+
+	public void sendMessage() {
+		CtrClient client = servo.getClient();
+
+		boolean judgeClientActive = F.judgeClientActive(main.getShell(), client);
+		if (judgeClientActive) {
+			return;
+		}
+
+		FTask f = new FTask(main.getShell());
+		Task taskUpdate = f.open(servo, task);
+
+		if (f.isUpdate) {
+			Message.Builder b_m = Message.newBuilder();
+			b_m.setKey(CtrClient.getKey());
+			b_m.setUserId(servo.getUser().getId());
+			UpdateTask.Builder updateTask = UpdateTask.newBuilder();
+			Builder builder = updateTask.getItemBuilder();
+			
+			builder.setId(taskUpdate.getId());
+			builder.setName(taskUpdate.getName());
+			builder.setStart(taskUpdate.getStart().getTime());
+			builder.setStop(taskUpdate.getStop().getTime());
+			builder.setMonth(taskUpdate.getMonth());
+			builder.setWeek(taskUpdate.getWeek());
+			builder.setDay(taskUpdate.getDay());
+			builder.setInterval(taskUpdate.getInterval());
+			builder.setRepeat(taskUpdate.getRepeat());
+			builder.setReadModel(taskUpdate.getReadModel().getValue());
+			builder.setWriteModel(taskUpdate.getWriteModel().getValue());
+			builder.setReadFeature(taskUpdate.getReadFeature());
+			builder.setWriteFeature(taskUpdate.getWriteFeature());
+			builder.setLimitLower(taskUpdate.getLimitLower());
+			builder.setLimitUpper(taskUpdate.getLimitUpper());
+			builder.setFeed(taskUpdate.getFeed());
+			builder.setFeedUpper(taskUpdate.getFeedUpper());
+			builder.setFeedLower(taskUpdate.getFeedLower());
+			if (!Tool.isEmpty(taskUpdate.getRoleId())) {
+				builder.setRoleId(taskUpdate.getRoleId());
+			}
+			builder.setRemark(taskUpdate.getRemark());
+			builder.setUpdated(taskUpdate.getUpdated().getTime());
+			if(taskUpdate.getReadDeviceIds()!=null) {
+				for (String deviceId : taskUpdate.getReadDeviceIds()) {
+					builder.addReads(deviceId);
+				}
+			}
+			
+			if(taskUpdate.getWriteDeviceIds()!=null) {
+				for (String deviceId : taskUpdate.getWriteDeviceIds()) {
+					builder.addWrites(deviceId);
+				}
+			}
+			builder.setEnable(taskUpdate.getEnable());
+			builder.setUpdated(new Date().getTime());
+			b_m.setUpdateTask(updateTask);
+			client.send(b_m.build());
+		}
+
+	}
+}

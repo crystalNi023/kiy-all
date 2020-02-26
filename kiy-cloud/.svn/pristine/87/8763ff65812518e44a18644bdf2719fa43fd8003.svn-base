@@ -1,0 +1,170 @@
+package com.kiy.cloud.http;
+
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http.multipart.HttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.common.Tool;
+
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+
+	private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE); // Disk
+
+	private HttpPostRequestDecoder decoder;
+	
+	private String filePath;
+
+	public HttpProcess() {
+
+	}
+
+	public void process(int type, String path, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) {
+		switch (path) {
+			case "test": {
+				try {
+					/**
+					 * 1.创建解码器
+					 */
+					decoder = new HttpPostRequestDecoder(factory, request);
+					/**
+					 * 2.读取上传参数
+					 */
+					String test = parameters.getValue("test");
+					if (Tool.isEmpty(test)) {
+						System.err.println("sh");
+						return;
+					}
+					/**
+					 * 读取上传文件
+					 */
+					getUploadFile(request);
+
+					System.err.println(filePath);
+					reset();
+				} catch (IOException e) {
+					Log.error(e);
+					// TODO 创建失败，返回消息
+					reset();  
+				}
+			}
+			default:
+				break;
+		}
+	}
+	
+	private void getUploadFile(FullHttpRequest request){
+		/**
+		 * 3.读取上传文件
+		 */
+		HttpContent chunk = (HttpContent) request;
+		try {
+			decoder.offer(chunk);
+		} catch (ErrorDataDecoderException e1) {
+			Log.error(e1);
+			// TODO 创建失败，返回消息
+			reset();  
+		}
+		readHttpDataChunkByChunk(); // 从解码器decoder中读出数据
+		if (chunk instanceof LastHttpContent) {
+			System.out.println("a");
+			//TODO 创建成功，添加数据到数据库
+			//TODO 创建成功，返回消息
+		}
+	}
+
+	private void writeHttpData(InterfaceHttpData data) throws IOException {
+		if (data.getHttpDataType() == HttpDataType.Attribute) {
+			// Attribute就是form表单里带的各种 name= 的属性
+		} else if (data.getHttpDataType() == HttpDataType.InternalAttribute) {
+
+		} else {
+			String uploadFileName = getUploadFileName(data);
+			if (Tool.isEmpty(uploadFileName)) {
+				return;
+			}
+			FileUpload fileUpload = (FileUpload) data;
+			if (fileUpload.isCompleted()) {
+				File dir = new File(Config.getWorkPath() + File.separatorChar + "data" + File.separator +"feedback"+File.separator);
+				if (!dir.exists()) {
+					dir.mkdir();
+				}
+				File dest = new File(dir, uploadFileName);
+				
+				fileUpload.renameTo(dest);
+				
+				filePath = dest.getAbsolutePath();
+				String path = dest.getPath();
+				System.err.println("A"+path);
+				//http://127.0.0.1:8090/data/feedback/timg.jpg
+				
+				String name = dest.getName();
+				
+				path = "http://127.0.0.1:8090/data/feedback/"+name;
+				
+				
+			}
+		}
+	}
+
+	/**
+	 * chunk 从decoder中读出数据，写入临时对象，然后写入文件， 这个封装主要是为了释放临时对象
+	 */
+	private void readHttpDataChunkByChunk() {
+		try {
+			while (decoder.hasNext()) {
+				InterfaceHttpData data = decoder.next();
+				if (data != null) {
+					try {
+						writeHttpData(data);
+					} catch (IOException e) {
+						reset();
+						Log.error(e);
+					}finally {
+						data.release();
+					}
+				}
+			}
+		} catch (EndOfDataDecoderException e1) {
+		}
+	}
+
+	private void reset() {
+		filePath = null;
+		if (decoder!=null) {
+			decoder.destroy();
+			decoder = null;
+		}
+		
+	}
+
+	
+	/**
+	 * 在InterfaceHttpData中读取上传的文件名称
+	 * @param data
+	 * @return
+	 */
+	private String getUploadFileName(InterfaceHttpData data) {
+		String content = data.toString();
+		String temp = content.substring(0, content.indexOf("\n"));
+		content = temp.substring(temp.lastIndexOf("=") + 2, temp.lastIndexOf("\""));
+		return content;
+	}
+
+}

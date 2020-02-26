@@ -1,0 +1,66 @@
+package com.kiy.servo;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+public class Shell {
+	private  static final String ITEM_TIME="2000-01-01";
+	private  static final DateFormat DF = new SimpleDateFormat("yyyy-MM-dd");
+	 public static String exec(String command) throws InterruptedException {
+	        String returnString = "";
+	        Process pro = null;
+	        Runtime runTime = Runtime.getRuntime();
+	        System.err.println("restart linux..."); 
+	        if (runTime == null) {
+	            System.err.println("Create runtime false!");
+	        }
+	        try {
+	            pro = runTime.exec(command);
+	            BufferedReader input = new BufferedReader(new InputStreamReader(pro.getInputStream()));
+	            PrintWriter output = new PrintWriter(new OutputStreamWriter(pro.getOutputStream()));
+	            String line;
+	            while ((line = input.readLine()) != null) {
+	                returnString = returnString + line + "\n";
+	            }
+	            input.close();
+	            output.close();
+	            pro.destroy();
+	        } catch (IOException ex) {
+	           Log.error(ex.getMessage());
+	        }
+	        return returnString;
+	    }
+	 /**
+	  * 判断当前时间戳    和指定时间对比（小重启linux系统，大则正常返回）
+	  * @param timestamp
+	  * @return
+	 * @throws InterruptedException 
+	  */
+	 public static long  checkCurrentTime(long timestamp){
+	    	java.util.Date date;
+			try {
+				date = DF.parse(ITEM_TIME);
+				Calendar cal = Calendar.getInstance();
+		    	cal.setTime(date);
+		    	long itemTimestamp = cal.getTimeInMillis();
+		    	if (timestamp < itemTimestamp) {
+		    		exec("reboot");
+				}
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.err.println("重启系统异常"+e.getMessage());
+			}
+	    	
+	    	return timestamp;
+	 }
+	public static void main(String[] args) {
+		System.out.println(checkCurrentTime(System.currentTimeMillis()));
+	}
+}

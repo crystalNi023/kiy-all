@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div>
+	<h1>修改伺服器配置</h1>
+	<hr>
+	<p>首先在<a href="parameterList.html">结构视图</a>中选择你要修改配置的伺服器。选择[伺服器]->[伺服器配置]或者在<a href="parameterList.html">结构视图</a>中点击右键选择[伺服器配置]打开伺服器配置窗口。如下图所示</p>
+	<img src="setServoConfig_1.png" />
+	<p>修改配置信息，点击[确定]提交修改信息</p>
+    <p><a href="setDeviceStatus.html">上一页</a>  <a href="modifyZoneOrDevice.html">下一页</a></p>
+</div>
+</body>
+</html>

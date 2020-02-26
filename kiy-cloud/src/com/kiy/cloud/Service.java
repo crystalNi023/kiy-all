@@ -1,0 +1,177 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.cloud;
+
+import org.apache.commons.daemon.Daemon;
+import org.apache.commons.daemon.DaemonContext;
+import org.apache.commons.daemon.DaemonInitException;
+
+import com.kiy.cloud.data.Data;
+import com.kiy.cloud.http.Http;
+import com.kiy.cloud.master.Master;
+
+/**
+ * 服务主类（启动入口）
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Service implements Daemon {
+
+	private static Service instance = null;
+
+	/**
+	 * 主函数入口， 直接启动程序运行在命令行控制台时调用此方法； 通过Apache
+	 * Aaemon启动服务为JAVA程序模式时调用此方法，要求必须传递参数；
+	 * 
+	 * @param args
+	 * @throws Exception
+	 * @throws DaemonInitException
+	 */
+	public static void main(String[] args) throws Exception {
+		instance();
+
+		if (args == null || args.length == 0) {
+			Log.info("CLOUD BOOT WITH \"main and no arguments\"");
+
+			Runtime.getRuntime().addShutdownHook(new Thread() {
+				@Override
+				public void run() {
+					Log.info("CLOUD SHUTDOWN WITH \"main and no arguments\"");
+
+					if (instance != null) {
+						instance.stop();
+						instance.destroy();
+						synchronized (instance) {
+							instance.notifyAll();
+						}
+					}
+					// Runtime.getRuntime().removeShutdownHook(this);
+				}
+			});
+
+			instance.init(null);
+			instance.start();
+			synchronized (instance) {
+				instance.wait();
+			}
+		} else {
+			String param = args[0];
+			if ("START".equalsIgnoreCase(param)) {
+				Log.info("CLOUD BOOT WITH \"main and has arguments\"");
+
+				instance.init(null);
+				instance.start();
+				synchronized (instance) {
+					instance.wait();
+				}
+			}
+			if ("STOP".equalsIgnoreCase(param)) {
+				Log.info("CLOUD SHUTDOWN WITH \"main and has arguments\"");
+
+				if (instance != null) {
+					instance.stop();
+					instance.destroy();
+					synchronized (instance) {
+						instance.notifyAll();
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * 服务启动入口 通过Apache Aaemon启动服务为JVM模式时调用
+	 * 
+	 * @param args
+	 * @throws Exception
+	 */
+	public static void start(String[] args) throws Exception {
+		Log.info("CLOUD BOOT WITH \"start\"");
+
+		instance();
+		instance.init(null);
+		instance.start();
+		synchronized (instance) {
+			instance.wait();
+		}
+		instance = null;
+	}
+
+	/**
+	 * 服务停止入口 通过Apache Aaemon停止服务为JVM模式时调用
+	 * 
+	 * @param args
+	 */
+	public static void stop(String[] args) {
+		Log.info("CLOUD SHUTDOWN WITH \"stop\"");
+
+		if (instance != null) {
+			instance.stop();
+			instance.destroy();
+			synchronized (instance) {
+				instance.notifyAll();
+			}
+		}
+	}
+
+	private synchronized static Service instance() {
+		if (instance == null)
+			instance = new Service();
+		return instance;
+	}
+
+	////////////////////////////////////////////////////////
+
+	@Override
+	public void init(DaemonContext arg0) {
+		Log.info("CLOUD INITIALIZE ...");
+
+		Config.load();
+		Config.check();
+
+		Executor.initialize();
+		Data.initialize();
+		Master.initialize();
+		//...
+		Http.initialize();
+
+		Log.info("CLOUD INITIALIZED");
+	}
+
+	@Override
+	public void start() {
+		Log.info("CLOUD START ...");
+
+		Master.start();
+		Http.start();
+
+		Log.info("CLOUD STARTED");
+	}
+
+	@Override
+	public void stop() {
+		Log.info("CLOUD STOP ...");
+		
+		Master.stop();
+		Data.stop();
+		
+		Log.info("CLOUD STOPPED");
+	}
+
+	@Override
+	public void destroy() {
+		Log.info("CLOUD DESTROY ...");
+
+		try {
+			Master.destroy();
+			Executor.destroy();
+
+		} catch (Exception ex) {
+			Log.error(ex);
+		}
+
+		Log.info("CLOUD DESTROYED");
+	}
+}

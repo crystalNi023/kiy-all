@@ -1,0 +1,157 @@
+package com.kiy.servo.mqtt;
+
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+
+import com.google.gson.JsonObject;
+import com.kiy.common.Device;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.devices.ESSwitchES0004;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006;
+import com.kiy.common.devices.ESSwitchTwoES0005;
+import com.kiy.servo.Config;
+
+/**
+ * MQTT数据处理
+ * 
+ * @author HLX Tel:18996470535
+ * @date 2018年6月25日 Copyright:Copyright(c) 2018
+ */
+public class MQTTCoder {
+	/**
+	 * 读取数据
+	 */
+	public static final int READ = 1;
+	/**
+	 * 解析数据
+	 */
+	public static final int WRITE = 2;
+	
+
+	public static final String BIAS = "/";
+	/**
+	 * 编辑发布数据
+	 * 
+	 * @param device
+	 * @param action
+	 * @throws MqttException 
+	 * @throws MqttPersistenceException 
+	 */
+	public void encode(String GatewayKey,Device device, MQTTServer client, int action) throws MqttPersistenceException, MqttException {
+		Vendor vendor = device.getVendor();
+		Model model = device.getModel();
+		String number = device.getNumber();
+		MqttMessage message = new MqttMessage();
+		message.setQos(1);
+	    message.setRetained(true);
+		switch (action) {
+			case READ:
+				if (vendor==Vendor.EASTSOFT ) {
+					StringBuilder sb = new StringBuilder();
+					switch (model) {
+						case ES_0001:
+						case ES_0002:
+							StringBuilder topic = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							String string = "{\"cmd\":\"read\"}"; 
+					        message.setPayload(string.getBytes());
+							client.publish(client.getTopic(topic.toString()), message);
+							break;
+						case ES_0003:
+							//TODO
+							break;
+						case ES_0004:
+							StringBuilder topic1 = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							JsonObject jsonObject = new JsonObject();
+							jsonObject.addProperty("deviceKey", number);
+							jsonObject.addProperty("cmd", "read");
+							JsonObject jsonObject2 = new JsonObject();
+							jsonObject2.addProperty("switch_ch1", true);
+							jsonObject.add("function", jsonObject2);
+							message.setPayload(jsonObject.toString().getBytes());
+							client.publish(client.getTopic(topic1.toString()), message);
+							break;
+						case ES_0005:
+						case ES_0006:	
+							StringBuilder topicEc0005 = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							JsonObject jsonObjectEc0005 = new JsonObject();
+							jsonObjectEc0005.addProperty("deviceKey", number);
+							jsonObjectEc0005.addProperty("cmd", "read");
+							JsonObject jsonObjectEc00052 = new JsonObject();
+							jsonObjectEc00052.addProperty("switch_ch1", true);
+							jsonObjectEc00052.addProperty("switch_ch2", true);
+							jsonObjectEc0005.add("function", jsonObjectEc00052);
+							message.setPayload(jsonObjectEc0005.toString().getBytes());
+							client.publish(client.getTopic(topicEc0005.toString()), message);
+							break;
+						default:
+							break;
+					}
+				}
+				break;
+			case WRITE:
+				if (vendor==Vendor.EASTSOFT ) {
+					StringBuilder sb = new StringBuilder();
+					switch (model) {
+						case ES_0001:
+						case ES_0002:
+							break;
+						case ES_0003:
+							//TODO
+							break;
+						case ES_0004:
+							ESSwitchES0004 dEs0004 = (ESSwitchES0004)device;
+							boolean feed = dEs0004.isFeed();
+							StringBuilder topic1 = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							JsonObject jsonObject = new JsonObject();
+							jsonObject.addProperty("deviceKey", number);
+							jsonObject.addProperty("cmd", "write");
+							JsonObject jsonObject2 = new JsonObject();
+							jsonObject2.addProperty("switch_ch1", feed);
+							jsonObject.add("function", jsonObject2);
+							message.setPayload(jsonObject.toString().getBytes());
+							client.publish(client.getTopic(topic1.toString()), message);
+							break;
+						case ES_0005:
+							ESSwitchTwoES0005 dEs0005 = (ESSwitchTwoES0005)device;
+							boolean switchOne = dEs0005.isSwitchOne();
+							boolean switchTwo = dEs0005.isSwitchTwo();
+							StringBuilder topicdEs0005 = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							JsonObject jsonObjectEs0005 = new JsonObject();
+							jsonObjectEs0005.addProperty("deviceKey", number);
+							jsonObjectEs0005.addProperty("cmd", "write");
+							JsonObject jsonObjectEs00052 = new JsonObject();
+							jsonObjectEs00052.addProperty("switch_ch1", switchOne);
+							jsonObjectEs00052.addProperty("switch_ch2", switchTwo);
+							jsonObjectEs0005.add("function",jsonObjectEs00052 );
+							message.setPayload(jsonObjectEs0005.toString().getBytes());
+							client.publish(client.getTopic(topicdEs0005.toString()), message);
+							break;
+						case ES_0006:
+							ESSwitchTouchTwoES0006 dEs0006 = (ESSwitchTouchTwoES0006)device;
+							boolean switchOne1 = dEs0006.isSwitchOne();
+							boolean switchTwo1 = dEs0006.isSwitchTwo();
+							StringBuilder topicdEs0006 = sb.append(Config.MQTT_SUBSCRIPTION_TOPIC).append(GatewayKey).append(BIAS).append(number).append(BIAS).append("command");
+							JsonObject jsonObjectEs0006 = new JsonObject();
+							jsonObjectEs0006.addProperty("deviceKey", number);
+							jsonObjectEs0006.addProperty("cmd", "write");
+							JsonObject jsonObjectEs00056 = new JsonObject();
+							jsonObjectEs00056.addProperty("switch_ch1", switchOne1);
+							jsonObjectEs00056.addProperty("switch_ch2", switchTwo1);
+							jsonObjectEs0006.add("function",jsonObjectEs00056 );
+							message.setPayload(jsonObjectEs0006.toString().getBytes());
+							client.publish(client.getTopic(topicdEs0006.toString()), message);
+							break;
+						default:
+							break;
+					}
+				}
+
+				break;
+			default:
+				break;
+		}
+	}
+		
+}

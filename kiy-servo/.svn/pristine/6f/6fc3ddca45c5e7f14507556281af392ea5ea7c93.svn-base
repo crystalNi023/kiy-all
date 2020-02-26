@@ -1,0 +1,1654 @@
+/**
+ * 2017年8月6日
+ */
+package com.kiy.servo;
+
+import io.netty.channel.Channel;
+import io.netty.util.AttributeKey;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.google.protobuf.ByteString;
+import com.kiy.common.Device;
+import com.kiy.common.Maintain;
+import com.kiy.common.Notice;
+import com.kiy.common.Role;
+import com.kiy.common.Scene;
+import com.kiy.common.SceneDevice;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Link;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.Types.Repair;
+import com.kiy.common.Types.Status;
+import com.kiy.common.Types.Use;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.ULog;
+import com.kiy.common.User;
+import com.kiy.common.Weather;
+import com.kiy.common.Zone;
+import com.kiy.protocol.Messages.CreateDevice;
+import com.kiy.protocol.Messages.CreateMaintain;
+import com.kiy.protocol.Messages.CreateRole;
+import com.kiy.protocol.Messages.CreateScene;
+import com.kiy.protocol.Messages.CreateTask;
+import com.kiy.protocol.Messages.CreateUser;
+import com.kiy.protocol.Messages.CreateZone;
+import com.kiy.protocol.Messages.DeleteDevice;
+import com.kiy.protocol.Messages.DeleteMaintain;
+import com.kiy.protocol.Messages.DeleteRole;
+import com.kiy.protocol.Messages.DeleteScene;
+import com.kiy.protocol.Messages.DeleteTask;
+import com.kiy.protocol.Messages.DeleteUser;
+import com.kiy.protocol.Messages.DeleteZone;
+import com.kiy.protocol.Messages.EnsureMessage;
+import com.kiy.protocol.Messages.FileDownload;
+import com.kiy.protocol.Messages.FileList;
+import com.kiy.protocol.Messages.FileList_File;
+import com.kiy.protocol.Messages.FileUpload;
+import com.kiy.protocol.Messages.GetMessage;
+import com.kiy.protocol.Messages.GetServoConfig;
+import com.kiy.protocol.Messages.GetWeatherData;
+import com.kiy.protocol.Messages.Login;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ModifyPassword;
+import com.kiy.protocol.Messages.MoveDevice;
+import com.kiy.protocol.Messages.MovePosition;
+import com.kiy.protocol.Messages.MoveZone;
+import com.kiy.protocol.Messages.QueryDeviceMaintain;
+import com.kiy.protocol.Messages.QueryDeviceStatus;
+import com.kiy.protocol.Messages.QueryLog;
+import com.kiy.protocol.Messages.ReadDeviceStatus;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Messages.SelectDeletes;
+import com.kiy.protocol.Messages.SelectDevices;
+import com.kiy.protocol.Messages.SelectRoles;
+import com.kiy.protocol.Messages.SelectScenes;
+import com.kiy.protocol.Messages.SelectTasks;
+import com.kiy.protocol.Messages.SelectUsers;
+import com.kiy.protocol.Messages.SelectZones;
+import com.kiy.protocol.Messages.SetServoConfig;
+import com.kiy.protocol.Messages.SpeechRecognition;
+import com.kiy.protocol.Messages.SyncUserIcon;
+import com.kiy.protocol.Messages.UpdateDevice;
+import com.kiy.protocol.Messages.UpdateMaintain;
+import com.kiy.protocol.Messages.UpdateRole;
+import com.kiy.protocol.Messages.UpdateScene;
+import com.kiy.protocol.Messages.UpdateSceneStatus;
+import com.kiy.protocol.Messages.UpdateTask;
+import com.kiy.protocol.Messages.UpdateUser;
+import com.kiy.protocol.Messages.UpdateZone;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDevice;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.protocol.Units.MLog;
+import com.kiy.protocol.Units.MMaintain;
+import com.kiy.protocol.Units.MNotice.Builder;
+import com.kiy.protocol.Units.MRole;
+import com.kiy.protocol.Units.MScene;
+import com.kiy.protocol.Units.MSceneDevice;
+import com.kiy.protocol.Units.MTask;
+import com.kiy.protocol.Units.MUser;
+import com.kiy.protocol.Units.MZone;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.cruise.MessageDevice;
+import com.kiy.servo.cruise.MessageDeviceDeque;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.driver.DriverAdpater;
+import com.kiy.servo.driver.SerialPortAdpater;
+import com.kiy.servo.job.Strategy;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+import com.kiy.servo.notice.SMS;
+import com.kiy.servo.notice.WeatherManager;
+import com.kiy.servo.recognize.Recognize;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Processer {
+
+	public static final AttributeKey<User> USER = AttributeKey.valueOf("USER");
+	/**
+	 * 0 无反馈消息
+	 */
+	public static final int NONE = 0;
+	/**
+	 * 1 有反馈消息仅当前用户
+	 */
+	public static final int SINGLE = 1;
+	/**
+	 * 2 有反馈消息所有登录用户
+	 */
+	public static final int MULTIPLE = 2;
+	/**
+	 * 3稍后重试消息
+	 */
+	public static final int RETRY = 3;
+
+	/**
+	 * 是否服务器模式
+	 */
+	private final boolean isServer;
+
+	public Processer(boolean m) {
+		isServer = m;
+	}
+
+	/**
+	 * 处理Message消息
+	 * 
+	 * @param user
+	 * @param request
+	 * @param response
+	 * @return int 0无反馈消息,1有反馈消息仅当前用户,2有反馈消息所有登录用户
+	 */
+	public int handler(Channel channel, User user, Message request, Message.Builder response) {
+
+		switch (request.getActionCase()) {
+			case CONNECT: 
+			{
+				if (request.getResult() == Result.SUCCESS) {
+					return NONE;
+				}
+				return RETRY;
+			}
+			case DISCONNECT: {
+				channel.disconnect();
+				channel.close();
+				return NONE;
+			}
+			case HEARTBEAT: {
+				return isServer ? SINGLE : NONE;
+			}
+			case LOGIN: {
+				Login a = request.getLogin();
+				String username = a.getUsername();
+				String password = a.getPassword();
+
+				if (Tool.isEmpty(username) || Tool.isEmpty(password)) {
+					response.setResult(Result.ILLEGAL_ARGUMENT);
+					return SINGLE;
+				}
+				user = Data.Login(username, password);
+				if (user == null) {
+					response.setResult(Result.DENIED);
+					return SINGLE;
+				}
+				if (user.getEnable()) {
+					Login.Builder b = response.getLoginBuilder();
+					b.setId(user.getId());
+					if (!Tool.isEmpty(user.getZoneId()))
+						b.setZoneId(user.getZoneId());
+					b.setUsername(user.getName());
+					b.setPassword(user.getPassword());
+					b.setEnable(user.getEnable());
+					b.setRealname(user.getRealname());
+					b.setNickname(user.getNickname());
+					b.setMobile(user.getMobile());
+					b.setPhone(user.getPhone());
+					b.setEmail(user.getEmail());
+					if (!Tool.isEmpty(user.getIconUrl())) {
+						b.setUserIcon(user.getIconUrl());
+					}
+					b.setRemark(user.getRemark());
+					b.setCreated(user.getCreated().getTime());
+					b.setUpdated(user.getUpdated().getTime());
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				} else {
+					response.setResult(Result.DENIED);
+					response.setError("DISABLED");
+				}
+				return SINGLE;
+			}
+			case LOGOUT: {
+				if (channel.hasAttr(USER))
+					channel.attr(USER).set(null);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+
+			case SELECT_ZONES: {
+				SelectZones a = request.getSelectZones();
+				Set<Zone> set = Data.SelectZones(a.getTick());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectZones.Builder b = response.getSelectZonesBuilder();
+					for (Zone z : set) {
+						MZone.Builder mb = MZone.newBuilder();
+						mb.setId(z.getId());
+						mb.setName(z.getName());
+						if (!Tool.isEmpty(z.getParentId()))
+							mb.setParent(z.getParentId());
+						mb.setRemark(z.getRemark());
+						mb.setCreated(z.getCreated().getTime());
+						mb.setUpdated(z.getUpdated().getTime());
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_DEVICES: {
+				SelectDevices a = request.getSelectDevices();
+				Set<Device> set = Data.SelectDevices(a.getTick());
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectDevices.Builder b = response.getSelectDevicesBuilder();
+					for (Device d : set) {
+						MDevice.Builder mb = MDevice.newBuilder();
+						mb.setId(d.getId());
+						if (!Tool.isEmpty(d.getZoneId()))
+							mb.setZoneId(d.getZoneId());
+						if (!Tool.isEmpty(d.getRelayId()))
+							mb.setRelayId(d.getRelayId());
+						if (!Tool.isEmpty(d.getOwnerId()))
+							mb.setOwnerId(d.getOwnerId());
+						mb.setVendor(d.getVendor().getValue());
+						mb.setKind(d.getKind().getValue());
+						mb.setLink(d.getLink().getValue());
+						mb.setModel(d.getModel().getValue());
+						mb.setUse(d.getUse().getValue());
+						mb.setSn(d.getSn());
+						mb.setName(d.getName());
+						mb.setNumber(d.getNumber());
+						if (d.getUsername() != null)
+							mb.setUsername(d.getUsername());
+						mb.setPassword(d.getPassword());
+						mb.setNetworkIp(d.getNetworkIp());
+						mb.setNetworkPort(d.getNetworkPort());
+						mb.setSerialPort(d.getSerialPort());
+						mb.setSerialBaudRate(d.getSerialBaudRate());
+						mb.setLoad(d.getLoad());
+						mb.setPower(d.getPower());
+						mb.setMutual(d.getMutual());
+						mb.setDelay(d.getDelay());
+						mb.setAddress(d.getAddress());
+						if (d.getInstalled() != null)
+							mb.setInstalled(d.getInstalled().getTime());
+						if (d.getProduced() != null)
+							mb.setProduced(d.getProduced().getTime());
+						mb.setLongitude(d.getLongitude());
+						mb.setLatitude(d.getLatitude());
+						mb.setAltitude(d.getAltitude());
+						mb.setPhaseCheck(d.getPhaseCheck());
+						mb.setPhasePower(d.getPhasePower());
+						mb.setNotice(d.getNotice());
+						mb.setDetect(d.getDetect());
+						mb.setRemark(d.getRemark());
+						mb.setCreated(d.getCreated().getTime());
+						mb.setUpdated(d.getUpdated().getTime());
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_TASKS: {
+				SelectTasks a = request.getSelectTasks();
+				Set<Task> set = Data.SelectTasks(a.getTick());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectTasks.Builder b = response.getSelectTasksBuilder();
+					for (Task t : set) {
+						MTask.Builder mb = MTask.newBuilder();
+						mb.setId(t.getId());
+						mb.setName(t.getName());
+						mb.setStart(t.getStart().getTime());
+						mb.setStop(t.getStop().getTime());
+						mb.setMonth(t.getMonth());
+						mb.setWeek(t.getWeek());
+						mb.setDay(t.getDay());
+						mb.setInterval(t.getInterval());
+						mb.setRepeat(t.getRepeat());
+						mb.setReadModel(t.getReadModel().getValue());
+						mb.setWriteModel(t.getWriteModel().getValue());
+						if (!Tool.isEmpty(t.getRoleId()))
+							mb.setRoleId(t.getRoleId());
+						mb.setRemark(t.getRemark());
+						mb.setCreated(t.getCreated().getTime());
+						mb.setUpdated(t.getUpdated().getTime());
+						mb.setReadFeature(t.getReadFeature());
+						mb.setWriteFeature(t.getWriteFeature());
+						mb.setLimitLower(t.getLimitLower());
+						mb.setLimitUpper(t.getLimitUpper());
+						mb.setFeed(t.getFeed());
+						mb.setFeedLower(t.getFeedLower());
+						mb.setFeedUpper(t.getFeedUpper());
+						if (t.getReadDeviceIds() != null) {
+							for (String deviceId : t.getReadDeviceIds()) {
+								mb.addReads(deviceId);
+							}
+						}
+						if (t.getWriteDeviceIds() != null) {
+							for (String deviceId : t.getWriteDeviceIds()) {
+								mb.addWrites(deviceId);
+							}
+						}
+						mb.setEnable(t.getEnable());
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_USERS: {
+				SelectUsers a = request.getSelectUsers();
+				Set<User> set = Data.SelectUsers(a.getTick());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectUsers.Builder b = response.getSelectUsersBuilder();
+					for (User u : set) {
+						MUser.Builder mb = MUser.newBuilder();
+						mb.setId(u.getId());
+						if (!Tool.isEmpty(u.getZoneId()))
+							mb.setZoneId(u.getZoneId());
+						mb.setName(u.getName());
+						mb.setEnable(u.getEnable());
+						mb.setPassword(u.getPassword());
+						mb.setRealname(u.getRealname());
+						mb.setNickname(u.getNickname());
+						mb.setMobile(u.getMobile());
+						mb.setPhone(u.getPhone());
+						mb.setEmail(u.getEmail());
+						mb.setRemark(u.getRemark());
+						mb.setCreated(u.getCreated().getTime());
+						mb.setUpdated(u.getUpdated().getTime());
+						for (String r : u.getRoleId())
+							mb.addRoles(r);
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_ROLES: {
+				SelectRoles a = request.getSelectRoles();
+				Set<Role> set = Data.SelectRoles(a.getTick());
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectRoles.Builder b = response.getSelectRolesBuilder();
+					for (Role r : set) {
+						MRole.Builder mb = MRole.newBuilder();
+						mb.setId(r.getId());
+						mb.setName(r.getName());
+						mb.setRemark(r.getRemark());
+						mb.setCreated(r.getCreated().getTime());
+						mb.setUpdated(r.getUpdated().getTime());
+						for (Integer c : r.getCommands()) {
+							if (c != null)
+								mb.addCommands(c);
+						}
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_SCENES: {
+				SelectScenes a = request.getSelectScenes();
+				Set<Scene> set = Data.SelectScenes(a.getTick());
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectScenes.Builder b = response.getSelectScenesBuilder();
+					for (Scene scene : set) {
+						MScene.Builder mb = MScene.newBuilder();
+						mb.setId(scene.getId());
+						mb.setName(scene.getName());
+						mb.setRemark(scene.getRemark());
+						mb.setUpdated(scene.getUpdated().getTime());
+						mb.setCreated(scene.getCreated().getTime());
+						mb.setSwitch(scene.getSwitchStatu());
+						List<SceneDevice> openDevices = scene.getOpenDevices();
+						for (SceneDevice openDevice : openDevices) {
+							MSceneDevice.Builder mSceneDevice = MSceneDevice.newBuilder();
+							mSceneDevice.setDeviceId(openDevice.getDeviceId());
+							mSceneDevice.setFeatureIndex(openDevice.getFeatureIndex());
+							mSceneDevice.setFeatureValue(openDevice.getFeatureValue());
+							mSceneDevice.setSwitch(openDevice.getSwitchStatus());
+							mb.addOpenDevices(mSceneDevice.build());
+						}
+						List<SceneDevice> offDevices = scene.getOffDevices();
+						for (SceneDevice offDevice : offDevices) {
+							MSceneDevice.Builder mSceneDevice = MSceneDevice.newBuilder();
+							mSceneDevice.setDeviceId(offDevice.getDeviceId());
+							mSceneDevice.setFeatureIndex(offDevice.getFeatureIndex());
+							mSceneDevice.setFeatureValue(offDevice.getFeatureValue());
+							mSceneDevice.setSwitch(offDevice.getSwitchStatus());
+							mb.addOffDevices(mSceneDevice.build());
+						}
+						mb.build();
+						b.addItems(mb);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case SELECT_DELETES: {
+				SelectDeletes a = request.getSelectDeletes();
+				Set<String> set = Data.SelectDeletes(a.getTick());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					SelectDeletes.Builder b = response.getSelectDeletesBuilder();
+					for (String id : set) {
+						b.addItems(id);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case QUERY_DEVICE_STATUS: {
+				QueryDeviceStatus a = request.getQueryDeviceStatus();
+				Device d = Data.getServo().getDevice(a.getId());
+				List<Device> set = Data.QueryDeviceStatus(d, a.getBegin(), a.getEnd());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					QueryDeviceStatus.Builder b = response.getQueryDeviceStatusBuilder();
+					for (Device status : set) {
+
+						MDeviceStatus.Builder s = MDeviceStatus.newBuilder();
+						s.setId(status.getId());
+						s.setStatus(status.getStatus().getValue());
+						s.setOrigin(status.getDelay());
+						s.setIndicate(status.getIndicate());
+						for (int index = 0; index < status.getFeatureCount(); index++) {
+							s.putItems(index, status.getFeature(index).getValue());
+						}
+						s.setCreated(status.getCreated().getTime());
+						b.addItems(s);
+					}
+					channel.attr(USER).set(user);
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case QUERY_DEVICE_MAINTAIN: {
+				QueryDeviceMaintain a = request.getQueryDeviceMaintain();
+				List<Maintain> set = Data.QueryDeviceMaintain(a.getId(), a.getBegin(), a.getEnd());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					QueryDeviceMaintain.Builder b = response.getQueryDeviceMaintainBuilder();
+					for (Maintain t : set) {
+						MMaintain.Builder m = MMaintain.newBuilder();
+						m.setId(t.getId());
+						m.setDeviceId(t.getDeviceId());
+						m.setRepair(t.getRepair().getValue());
+						m.setName(t.getName());
+						m.setSn(t.getSn());
+						m.setLoad(t.getLoad());
+						m.setPower(t.getPower());
+						m.setMutual(t.getMutual());
+						m.setRadix(t.getRadix());
+						m.setEnergyBalance(t.getEnergyBalance());
+						m.setRemark(t.getRemark());
+						m.setUpdated(t.getUpdated().getTime());
+						b.addItems(m);
+					}
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case QUERY_LOG: {
+				QueryLog a = request.getQueryLog();
+				List<ULog> set = Data.QueryLog(a.getId(), a.getBegin(), a.getEnd());
+
+				if (set == null) {
+					response.setResult(Result.ERROR);
+				} else {
+					QueryLog.Builder b = response.getQueryLogBuilder();
+					for (ULog l : set) {
+						MLog.Builder m = MLog.newBuilder();
+						m.setId(l.getId());
+						if (!Tool.isEmpty(l.getUserId()))
+							m.setUserId(l.getUserId());
+						m.setCommand(l.getCommand());
+						m.setResult(l.getStatus());
+						m.setParameter(l.getParameter());
+						m.setTime(l.getTime());
+						m.setRemark(l.getRemark());
+						m.setCreated(l.getCreated().getTime());
+						b.addItems(m);
+					}
+					response.setResult(Result.SUCCESS);
+				}
+				return SINGLE;
+			}
+			case READ_DEVICE_STATUS: /* 读取设备状态 */{
+				ReadDeviceStatus readDeviceStatus = request.getReadDeviceStatus();
+				MDeviceStatus mDeviceStatus = readDeviceStatus.getItem();
+				Device device = Data.getServo().getDevice(mDeviceStatus.getDeviceId());
+				ReadDeviceStatus.Builder rds_b = ReadDeviceStatus.newBuilder();
+				MDeviceStatus.Builder builder = MDeviceStatus.newBuilder();
+
+				if (device == null) {
+					builder.setStatus(Status.C_DRIVER.getValue());/* 设备不存在 */
+				} else {
+					builder.setDeviceId(device.getId());
+					builder.setCreated(device.getTickStatus());
+					DriverAdpater adpater = Driver.getAdpater(device);
+					if (adpater == null) {
+						/*
+						 * 通讯适配器( 数据集中器不存在)
+						 */
+						builder.setStatus(Status.C_RELAY.getValue());
+					} else {
+						if (!adpater.isActive()) {
+							builder.setStatus(Status.OFFLINE.getValue());/* 通讯适配器离线 */
+						} else {
+							// 直接访问设备 获取设备状态
+							if (!device.getDetect()) {
+								builder.setStatus(Status.OFFLINE.getValue());/* 设备已关闭检测功能 */
+							} else {
+								if (device.getKind() == Kind.AIR_CONDITIONER) {
+									builder.setStatus(Status.NONE.getValue());/* 设备已关闭检测功能 */
+									builder.setStatus(device.getStatus().getValue());
+									for (int index = 0; index < device.getFeatureCount(); index++) {
+										builder.putItems(index, device.getFeature(index).getValue());
+									}
+								} else {
+									/* 访问设备取到设备状态 */
+									MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, true, false));
+									// adpater.getStatus(device);
+									builder.setStatus(device.getStatus().getValue());
+									for (int index = 0; index < device.getFeatureCount(); index++) {
+										builder.putItems(index, device.getFeature(index).getValue());
+									}
+								}
+							}
+						}
+					}
+				}
+				rds_b.setItem(builder.build());
+				response.setReadDeviceStatus(rds_b);
+				response.setResult(Result.SUCCESS);
+				Data.CreateDeviceStatus(device, Origin.USER);/* 记录设备状态记录 */
+				return MULTIPLE;
+			}
+			case WRITE_DEVICE_STATUS: /* 控制设备 */{
+				WriteDeviceStatus writeDeviceStatus = request.getWriteDeviceStatus();
+				MDeviceStatus mDeviceStatus = writeDeviceStatus.getItem();
+				Device device = Data.getServo().getDevice(mDeviceStatus.getDeviceId());
+				WriteDeviceStatus.Builder wds_b = WriteDeviceStatus.newBuilder();
+				MDeviceStatus.Builder builder = MDeviceStatus.newBuilder();
+				if (device == null) {
+					builder.setStatus(Status.C_DRIVER.getValue());/* 设备不存在 */
+				} else {
+					builder.setCreated(device.getTickStatus());
+					builder.setDeviceId(device.getId());
+					DriverAdpater adpater = Driver.getAdpater(device);
+					if (adpater == null) {
+						/*
+						 * 通讯适配器( 数据集中器不存在)
+						 */
+						builder.setStatus(Status.C_RELAY.getValue());
+					} else {
+						if (!adpater.isActive()) {
+							builder.setStatus(Status.OFFLINE.getValue());/* 通讯适配器离线 */
+						} else {
+							if (!device.getDetect()) {
+								builder.setStatus(Status.OFFLINE.getValue());/* 设备已关闭检测功能 */
+							} else {
+								Map<Integer, Integer> map = mDeviceStatus.getItemsMap();
+								for (Integer index : map.keySet()) {
+									device.getFeature(index).setValue(map.get(index));
+								}
+								MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, true, true));
+								// adpater.setStatus(device);/*发送控制指令给设备*/
+								builder.setStatus(device.getStatus().getValue());
+								for (int index = 0; index < device.getFeatureCount(); index++) {
+									builder.putItems(index, device.getFeature(index).getValue());
+								}
+								/* 电源总控属于安防设备如果被控制需要发送通知给用户 */
+								if (device.getNotice()) {
+									if (device.getKind() == Kind.SWITCH && device.getUse() == Use.PWOER) {
+										Message.Builder msg = Message.newBuilder();
+										Builder noticeBuilder = msg.getNoticeBuilder();
+										noticeBuilder.setDeviceId(device.getId());
+
+										noticeBuilder.setContent(Data.getServo().getUser(request.getUserId()).getName() + "控制了您的电源总控开关");
+										Message m = msg.build();
+										Cloud.send(m);
+										Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+
+										Notice n = new Notice();
+										n.setDeviceId(device.getId());
+										n.setContent("Control");
+										n.setUserId(request.getUserId());
+										Data.CreateNotice(n);
+									}
+								}
+							}
+						}
+					}
+				}
+				wds_b.setItem(builder.build());
+				response.setWriteDeviceStatus(wds_b);
+				response.setResult(Result.SUCCESS);
+				Data.CreateDeviceStatus(device, Origin.USER);
+				return MULTIPLE;
+			}
+			case READ_DEVICE_CONFIG: {
+				response.setResult(Result.ERROR);
+				response.setError("UNSUPPORT");
+				return SINGLE;
+			}
+			case WRITE_DEVICE_CONFIG: {
+				response.setResult(Result.ERROR);
+				response.setError("UNSUPPORT");
+				return SINGLE;
+			}
+			case CREATE_USER: {
+				CreateUser createUser = request.getCreateUser();
+				MUser a = createUser.getItem();
+				User u = new User();
+				u.setId(a.getId());
+				if (!Tool.isEmpty(a.getZoneId()))
+					u.setZoneId(a.getZoneId());
+				u.setName(a.getName());
+				u.setPassword(a.getPassword());
+				u.setEnable(a.getEnable());
+				u.setRealname(a.getRealname());
+				u.setNickname(a.getNickname());
+				u.setMobile(a.getMobile());
+				u.setPhone(a.getPhone());
+				u.setEmail(a.getEmail());
+				u.setRemark(a.getRemark());
+				u.setCreated(new Date());
+				u.setUpdated(u.getCreated());
+				for (String id : a.getRolesList()) {
+					u.addRole(id);
+				}
+				u = Data.CreateUser(u);
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateUser.Builder b = response.getCreateUserBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case CREATE_ROLE: {
+				CreateRole createRole = request.getCreateRole();
+				MRole a = createRole.getItem();
+				Role r = new Role();
+				r.setId(a.getId());
+				r.setName(a.getName());
+				r.setRemark(a.getRemark());
+				r.setCreated(new Date());
+				r.setUpdated(r.getCreated());
+				for (Integer c : a.getCommandsList()) {
+					if (c != null)
+						r.addCommand(c);
+				}
+
+				r = Data.CreateRole(r);
+
+				if (r == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateRole.Builder b = response.getCreateRoleBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case CREATE_ZONE: {
+				CreateZone createZone = request.getCreateZone();
+				MZone a = createZone.getItem();
+				Zone z = new Zone();
+				z.setId(a.getId());
+				if (!Tool.isEmpty(a.getParent()))
+					z.setParentId(a.getParent());
+				z.setName(a.getName());
+				z.setRemark(a.getRemark());
+				z.setCreated(new Date());
+				z.setUpdated(z.getCreated());
+				z = Data.CreateZone(z);
+				if (z == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateZone.Builder b = response.getCreateZoneBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case CREATE_TASK: {
+				CreateTask createTask = request.getCreateTask();
+				MTask a = createTask.getItem();
+
+				Task t = new Task();
+				t.setId(a.getId());
+				t.setName(a.getName());
+				t.setStart(new Date(a.getStart()));
+				t.setStop(new Date(a.getStop()));
+				t.setMonth(a.getMonth());
+				t.setWeek(a.getWeek());
+				t.setDay(a.getDay());
+				t.setInterval(a.getInterval());
+				t.setRepeat(a.getRepeat());
+				t.setReadModel(Model.valueOf(a.getReadModel()));
+				t.setWriteModel(Model.valueOf(a.getWriteModel()));
+				t.setReadFeature(a.getReadFeature());
+				t.setWriteFeature(a.getWriteFeature());
+				t.setLimitUpper(a.getLimitUpper());
+				t.setLimitLower(a.getLimitLower());
+				t.setFeed(a.getFeed());
+				t.setFeedUpper(a.getFeedUpper());
+				t.setFeedLower(a.getFeedLower());
+				for (String deviceId : a.getReadsList()) {
+					t.addReadDeviceById(deviceId);
+				}
+				for (String deviceId : a.getWritesList()) {
+					t.addWriteDeviceById(deviceId);
+				}
+				if (!Tool.isEmpty(a.getRoleId()))
+					t.setRoleId(a.getRoleId());
+				t.setEnable(a.getEnable());
+				t.setRemark(a.getRemark());
+				t.setCreated(new Date());
+				t.setUpdated(t.getCreated());
+				t = Data.CreateTask(t);
+				if (t == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateTask.Builder b = response.getCreateTaskBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					Strategy.create(t, true);
+					return MULTIPLE;
+				}
+			}
+			case CREATE_DEVICE: {
+				CreateDevice createDevice = request.getCreateDevice();
+				MDevice a = createDevice.getItem();
+				Device device = Device.instance(Vendor.valueOf(a.getVendor()), Kind.valueOf(a.getKind()),Model.valueOf(a.getModel()));
+				device.setId(a.getId());
+				device.setName(a.getName());
+				if (!Tool.isEmpty(a.getRelayId()))
+					device.setRelayId(a.getRelayId());
+				if (!Tool.isEmpty(a.getZoneId()))
+					device.setZoneId(a.getZoneId());
+				if (!Tool.isEmpty(a.getOwnerId()))
+					device.setOwnerId(a.getOwnerId());
+				device.setVendor(Vendor.valueOf(a.getVendor()));
+				device.setKind(Kind.valueOf(a.getKind()));
+				device.setModel(Model.valueOf(a.getModel()));
+				device.setLink(Link.valueOf(a.getLink()));
+				device.setUse(Use.valueOf(a.getUse()));
+				device.setNumber(a.getNumber());
+				device.setSn(a.getSn());
+				device.setLoad(a.getLoad());
+				device.setPower(a.getPower());
+				device.setMutual(a.getMutual());
+				device.setDelay(a.getDelay());
+				device.setUsername(a.getUsername());
+				device.setPassword(a.getPassword());
+				device.setNetworkIp(a.getNetworkIp());
+				device.setNetworkPort(a.getNetworkPort());
+				device.setSerialPort(a.getSerialPort());
+				device.setSerialBaudRate(a.getSerialBaudRate());
+				device.setAddress(a.getAddress());
+				device.setInstalled(new Date(a.getInstalled()));
+				device.setProduced(new Date(a.getProduced()));
+				device.setLongitude(a.getLongitude());
+				device.setLatitude(a.getLatitude());
+				device.setAltitude(a.getAltitude());
+				device.setPhaseCheck(a.getPhaseCheck());
+				device.setNotice(a.getNotice());
+				device.setDetect(a.getDetect());
+				device.setPhasePower(a.getPhasePower());
+				device.setRemark(a.getRemark());
+				device.setCreated(new Date());
+				device.setUpdated(device.getCreated());
+				device = Data.CreateDevice(device);
+				if (device == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateDevice.Builder b = response.getCreateDeviceBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					Driver.create(device, true);
+					return MULTIPLE;
+				}
+			}
+			case CREATE_MAINTAIN: {
+				CreateMaintain createMaintain = request.getCreateMaintain();
+				MMaintain a = createMaintain.getItem();
+				Maintain m = new Maintain();
+				m.setId(a.getId());
+				m.setDeviceId(a.getDeviceId());
+				m.setRepair(Repair.valueOf(a.getRepair()));
+				m.setSn(a.getSn());
+				m.setLoad(a.getLoad());
+				m.setPower(a.getPower());
+				m.setMutual(a.getMutual());
+				m.setRadix(a.getRadix());
+				m.setEnergyBalance(a.getEnergyBalance());
+				m.setName(a.getName());
+				m.setRemark(a.getRemark());
+				m.setCreated(new Date(a.getCreated()));
+				m.setUpdated(m.getCreated());
+
+				m = Data.CreateMaintain(m);
+				if (m == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateMaintain.Builder b = response.getCreateMaintainBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case MOVE_ZONE: {
+				MoveZone a = request.getMoveZone();
+				Zone z = Data.MoveZone(a.getId(), a.getParent());
+				if (z == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					MoveZone.Builder b = response.getMoveZoneBuilder();
+					b.setUpdated(z.getUpdated().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case MOVE_DEVICE: {
+				MoveDevice a = request.getMoveDevice();
+				Device d = Data.MoveDevice(a.getId(), a.getZone(), a.getRelay());
+				if (d == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					MoveDevice.Builder b = response.getMoveDeviceBuilder();
+					b.setUpdated(d.getCreated().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case MOVE_POSITION: {
+				MovePosition a = request.getMovePosition();
+				Device d = Data.MovePosition(a.getId(), a.getLongitude(), a.getLatitude(), a.getAltitude());
+				if (d == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					MovePosition.Builder b = response.getMovePositionBuilder();
+					b.setUpdated(d.getCreated().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_USER: {
+				UpdateUser updateUser = request.getUpdateUser();
+				MUser a = updateUser.getItem();
+				User u = new User();
+				u.setId(a.getId());
+				if (Tool.isEmpty(a.getZoneId()))
+					u.setZoneId(null);
+				else
+					u.setZoneId(a.getZoneId());
+				u.setName(a.getName());
+				u.setPassword(a.getPassword());
+				u.setEnable(a.getEnable());
+				u.setRealname(a.getRealname());
+				u.setNickname(a.getNickname());
+				u.setMobile(a.getMobile());
+				u.setPhone(a.getPhone());
+				u.setEmail(a.getEmail());
+				u.setRemark(a.getRemark());
+				for (String id : a.getRolesList()) {
+					u.addRole(id);
+				}
+				u = Data.UpdateUser(u);
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateUser.Builder b = response.getUpdateUserBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_ROLE: {
+				UpdateRole updateRole = request.getUpdateRole();
+				MRole a = updateRole.getItem();
+				Role r = new Role();
+				r.setId(a.getId());
+				r.setName(a.getName());
+				r.setRemark(a.getRemark());
+
+				for (Integer c : a.getCommandsList()) {
+					if (c != null)
+						r.addCommand(c);
+				}
+				r = Data.UpdateRole(r);
+				if (r == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateRole.Builder b = response.getUpdateRoleBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_ZONE: {
+				UpdateZone updateZone = request.getUpdateZone();
+				MZone a = updateZone.getItem();
+				Zone z = new Zone();
+				z.setId(a.getId());
+				if (Tool.isEmpty(a.getParent()))
+					z.setParentId(null);
+				else
+					z.setParentId(a.getParent());
+				z.setName(a.getName());
+				z.setRemark(a.getRemark());
+				z = Data.UpdateZone(z);
+				if (z == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateZone.Builder b = response.getUpdateZoneBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_TASK: {
+				UpdateTask updateTask = request.getUpdateTask();
+				MTask a = updateTask.getItem();
+				Task t = new Task();
+				t.setId(a.getId());
+				t.setName(a.getName());
+				t.setStart(new Date(a.getStart()));
+				t.setStop(new Date(a.getStop()));
+				t.setMonth(a.getMonth());
+				t.setWeek(a.getWeek());
+				t.setDay(a.getDay());
+				t.setInterval(a.getInterval());
+				t.setRepeat(a.getRepeat());
+				t.setReadModel(Model.valueOf(a.getReadModel()));
+				t.setWriteModel(Model.valueOf(a.getWriteModel()));
+				t.setFeed(a.getFeed());
+				t.setFeedLower(a.getFeedLower());
+				t.setFeedUpper(a.getFeedUpper());
+				t.setLimitLower(a.getLimitLower());
+				t.setLimitUpper(a.getLimitUpper());
+				t.setReadFeature(a.getReadFeature());
+				t.setWriteFeature(a.getWriteFeature());
+				if (Tool.isEmpty(a.getRoleId()))
+					t.setRoleId(null);
+				else
+					t.setRoleId(a.getRoleId());
+				t.removeAllReadDevices();
+				for (String deviceId : a.getReadsList()) {
+					t.addReadDeviceById(deviceId);
+				}
+				t.removeAllWriteDevices();
+				for (String deviceId : a.getWritesList()) {
+					t.addWriteDeviceById(deviceId);
+				}
+				t.setEnable(a.getEnable());
+				t.setRemark(a.getRemark());
+				t.setUpdated(new Date(a.getUpdated()));
+				t = Data.UpdateTask(t);
+				if (t == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateTask.Builder b = response.getUpdateTaskBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					Strategy.update(t);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_DEVICE: {
+				UpdateDevice updateDevice = request.getUpdateDevice();
+				MDevice a = updateDevice.getItem();
+				Device d = Device.instance(Vendor.valueOf(a.getVendor()), Kind.valueOf(a.getKind()),Model.valueOf(a.getModel()));
+				d.setId(a.getId());
+				if (Tool.isEmpty(a.getRelayId()))
+					d.setRelayId(null);
+				else
+					d.setRelayId(a.getRelayId());
+				if (Tool.isEmpty(a.getZoneId()))
+					d.setZoneId(null);
+				else
+					d.setZoneId(a.getZoneId());
+				if (Tool.isEmpty(a.getOwnerId()))
+					d.setOwnerId(null);
+				else
+					d.setOwnerId(a.getOwnerId());
+				d.setName(a.getName());
+				d.setVendor(Vendor.valueOf(a.getVendor()));
+				d.setKind(Kind.valueOf(a.getKind()));
+				d.setModel(Model.valueOf(a.getModel()));
+				d.setLink(Link.valueOf(a.getLink()));
+				d.setUse(Use.valueOf(a.getUse()));
+				d.setNumber(a.getNumber());
+				d.setSn(a.getSn());
+				d.setLoad(a.getLoad());
+				d.setPower(a.getPower());
+				d.setMutual(a.getMutual());
+				d.setDelay(a.getDelay());
+				d.setUsername(a.getUsername());
+				d.setPassword(a.getPassword());
+				d.setNetworkIp(a.getNetworkIp());
+				d.setNetworkPort(a.getNetworkPort());
+				d.setSerialPort(a.getSerialPort());
+				d.setSerialBaudRate(a.getSerialBaudRate());
+				d.setAddress(a.getAddress());
+				d.setInstalled(new Date(a.getInstalled()));
+				d.setProduced(new Date(a.getProduced()));
+				d.setLongitude(a.getLongitude());
+				d.setLatitude(a.getLatitude());
+				d.setAltitude(a.getAltitude());
+				d.setPhaseCheck(a.getPhaseCheck());
+				d.setPhasePower(a.getPhasePower());
+				d.setDetect(a.getDetect());
+				d.setNotice(a.getNotice());
+				d.setRemark(a.getRemark());
+				d = Data.UpdateDevice(d);
+				if (d == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateDevice.Builder b = response.getUpdateDeviceBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					Driver.update(d);
+					Recognize.getInstance().refresh();
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_MAINTAIN: {
+				UpdateMaintain updateMaintain = request.getUpdateMaintain();
+				MMaintain a = updateMaintain.getItem();
+				Maintain m = new Maintain();
+				m.setId(a.getId());
+				m.setDeviceId(a.getDeviceId());
+				m.setRepair(Repair.valueOf(a.getRepair()));
+				m.setSn(a.getSn());
+				m.setLoad(a.getLoad());
+				m.setPower(a.getPower());
+				m.setMutual(a.getMutual());
+				m.setRadix(a.getRadix());
+				m.setEnergyBalance(a.getEnergyBalance());
+				m.setName(a.getName());
+				m.setRemark(a.getRemark());
+				m.setUpdated(new Date(a.getUpdated()));
+				m = Data.UpdateMaintain(m);
+				if (m == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateMaintain.Builder b = response.getUpdateMaintainBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_SCENE: {
+				UpdateScene updateScene = request.getUpdateScene();
+				MScene a = updateScene.getItem();
+				Scene scene = new Scene();
+				scene.setId(a.getId());
+				scene.setName(a.getName());
+				scene.setRemark(a.getRemark());
+				scene.setSwitchStatu(a.getSwitch());
+				scene.setCreated(new Date(a.getCreated()));
+				scene.setUpdated(new Date(a.getUpdated()));
+				List<MSceneDevice> offDevicesList = a.getOffDevicesList();
+				for (MSceneDevice offDevice : offDevicesList) {
+					SceneDevice sceneDevice = new SceneDevice();
+					sceneDevice.setDeviceId(offDevice.getDeviceId());
+					sceneDevice.setSwitchStatus(offDevice.getSwitch());
+					sceneDevice.setFeatureIndex(offDevice.getFeatureIndex());
+					sceneDevice.setFeatureValue(offDevice.getFeatureValue());
+					scene.addOffSceneDevice(sceneDevice);
+				}
+				List<MSceneDevice> openDevicesList = a.getOpenDevicesList();
+				for (MSceneDevice openDevice : openDevicesList) {
+					SceneDevice sceneDevice = new SceneDevice();
+					sceneDevice.setDeviceId(openDevice.getDeviceId());
+					sceneDevice.setSwitchStatus(openDevice.getSwitch());
+					sceneDevice.setFeatureIndex(openDevice.getFeatureIndex());
+					sceneDevice.setFeatureValue(openDevice.getFeatureValue());
+					scene.addOpenSceneDevice(sceneDevice);
+				}
+				scene = Data.UpdateScene(scene);
+				if (scene == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					UpdateScene.Builder b = response.getUpdateSceneBuilder();
+					b.getItemBuilder().setUpdated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case UPDATE_SCENE_STATUS: {
+				UpdateSceneStatus updateSceneStatus = request.getUpdateSceneStatus();
+				String id = updateSceneStatus.getId();
+				boolean switchStatus = updateSceneStatus.getSwitchStatus();
+				Scene scene = Data.UpdateSceneStatusScenes(id, switchStatus);
+				if (scene == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					if (switchStatus) {
+						/* 开启场景 */
+						List<SceneDevice> openDevice = scene.getOpenDevices();
+						for (SceneDevice sceneDevice : openDevice) {
+							controlSceneDevice(sceneDevice, request);
+						}
+					} else {
+						/* 关闭场景 */
+						List<SceneDevice> offDevice = scene.getOffDevices();
+						for (SceneDevice sceneDevice : offDevice) {
+							controlSceneDevice(sceneDevice, request);
+						}
+					}
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_USER: {
+				DeleteUser a = request.getDeleteUser();
+				User u = Data.DeleteUser(a.getId());
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_ROLE: {
+				DeleteRole a = request.getDeleteRole();
+				Role u = Data.DeleteRole(a.getId());
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_ZONE: {
+				DeleteZone a = request.getDeleteZone();
+				Zone u = Data.DeleteZone(a.getId());
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_TASK: {
+				DeleteTask a = request.getDeleteTask();
+				Task t = Data.DeleteTask(a.getId());
+				if (t == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					Strategy.delete(t);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_SCENE: {
+				DeleteScene a = request.getDeleteScene();
+				Scene scene = Data.DeleteScene(a.getId());
+				if (scene == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_DEVICE: {
+				DeleteDevice a = request.getDeleteDevice();
+				Device d = Data.DeleteDevice(a.getId());
+				if (d == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					response.setResult(Result.SUCCESS);
+					Driver.delete(d);
+					return MULTIPLE;
+				}
+			}
+			case DELETE_MAINTAIN: {
+				DeleteMaintain a = request.getDeleteMaintain();
+				if (Data.DeleteMaintain(a.getId())) {
+					response.setResult(Result.SUCCESS);
+				} else {
+					response.setResult(Result.ERROR);
+				}
+				return SINGLE;
+			}
+			case FILE_LIST: {
+				File dir = new File(Config.getWorkPath() + File.separatorChar + Config.FILE_DIRECTORY + File.separatorChar + Config.FILE_DIRECTORY_MAP);
+				if (dir.exists() && dir.isDirectory()) {
+					FileList.Builder b = response.getFileListBuilder();
+					File[] children = dir.listFiles();
+					for (int index = 0; index < children.length; index++) {
+						if (children[index].getName().endsWith(".temp"))
+							continue;
+						FileList_File.Builder fBuilder = FileList_File.newBuilder();
+						fBuilder.setName(children[index].getName());
+						fBuilder.setDate(children[index].lastModified());
+						fBuilder.setLength(children[index].length());
+						b.addFile(fBuilder);
+					}
+					response.setResult(Result.SUCCESS);
+				} else {
+					response.setResult(Result.ERROR);
+				}
+				return SINGLE;
+			}
+			case FILE_UPLOAD: {
+				FileUpload a = request.getFileUpload();
+				File file = new File(Config.getWorkPath() + File.separatorChar + Config.FILE_DIRECTORY + File.separatorChar + a.getName() + ".temp");
+
+				ByteString bytes = a.getData();
+				if (bytes != null && !bytes.isEmpty()) {
+					try {
+						if (!file.exists()) {
+							file.createNewFile();
+						}
+						FileOutputStream out = new FileOutputStream(file, true);
+						bytes.writeTo(out);
+						out.flush();
+						out.close();
+						// 判断剩余待传字节
+						if (a.getLength() == 0) {
+							File dest = new File(Config.getWorkPath() + File.separatorChar + Config.FILE_DIRECTORY + File.separatorChar + Config.FILE_DIRECTORY_MAP + File.separatorChar + a.getName());
+							if (dest.exists())
+								dest.delete();
+							file.renameTo(dest);
+							file = dest;
+						}
+					} catch (IOException ex) {
+						response.setResult(Result.ERROR);
+					}
+				}
+				response.getFileUploadBuilder().clearData().setLength(file.length());
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case FILE_DOWNLOAD: {
+				FileDownload a = request.getFileDownload();
+				File file = new File(Config.getWorkPath() + File.separatorChar + Config.FILE_DIRECTORY + File.separatorChar + Config.FILE_DIRECTORY_MAP + File.separatorChar + a.getName());
+				// 已收字节
+				long length = a.getLength();
+				if (file.exists() && file.isFile()) {
+					try {
+						FileInputStream in = new FileInputStream(file);
+						in.skip(length);
+						length = 1024L * 2;
+						ByteString.Output out = ByteString.newOutput((int) length);
+						int value = 0;
+						while (length > 0 && (value = in.read()) >= 0) {
+							out.write(value);
+							length--;
+						}
+						in.close();
+						length = file.length() - a.getLength() - out.size();
+						// 剩余字节
+						response.getFileDownloadBuilder().setData(out.toByteString()).setLength(length);
+						response.setResult(Result.SUCCESS);
+					} catch (IOException ex) {
+						response.setResult(Result.ERROR);
+					}
+				} else {
+					response.setResult(Result.ERROR);
+				}
+				return SINGLE;
+			}
+			case GET_SERVO: {
+				response.getGetServoBuilder().setName(Config.NAME).addAllCom(SerialPortAdpater.getAllPort());
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case GET_SERVO_CONFIG: {
+				GetServoConfig.Builder a = response.getGetServoConfigBuilder();
+				a.setName(Config.NAME);
+				a.setThread(Config.THREAD);
+				a.setDriver(Config.DRIVER);
+				a.setDriverRestart(Config.DRIVER_RESTART);
+				a.setDriverHeartbeat(Config.DRIVER_HEARTBEAT);
+				a.setMaster(Config.MASTER);
+				a.setMasterIp(Config.MASTER_IP);
+				a.setMasterPort(Config.MASTER_PORT);
+				a.setDb(Config.DB);
+				a.setDbMax(Config.DB_MAX);
+				a.setDbType(Config.DB_TYPE);
+				a.setDbUrl(Config.DB_URL);
+				a.setDbUser(Config.DB_USER);
+				a.setDbPassword(Config.DB_PASSWORD);
+				a.setNotice(Config.NOTICE);
+				a.setMailHost(Config.MAIL_HOST);
+				a.setMailHostPort(Config.MAIL_PORT);
+				a.setMailUser(Config.MAIL_USER);
+				a.setMailPassword(Config.MAIL_PASSWORD);
+
+				response.setGetServoConfig(a);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case SET_SERVO_CONFIG: {
+				SetServoConfig a = request.getSetServoConfig();
+				Config.NAME = a.getName();
+				Config.THREAD = a.getThread();
+				Config.DRIVER = a.getDriver();
+				Config.DRIVER_RESTART = a.getDriverRestart();
+				Config.DRIVER_HEARTBEAT = a.getDriverHeartbeat();
+				Config.MASTER = a.getMaster();
+				Config.MASTER_IP = a.getMasterIp();
+				Config.MASTER_PORT = a.getMasterPort();
+				Config.DB = a.getDb();
+				Config.DB_MAX = a.getDbMax();
+				Config.DB_TYPE = a.getDbType();
+				Config.DB_URL = a.getDbUrl();
+				Config.DB_USER = a.getDbUser();
+				Config.DB_PASSWORD = a.getDbPassword();
+				Config.NOTICE = a.getNotice();
+				Config.MAIL_HOST = a.getMailHost();
+				Config.MAIL_PORT = a.getMailHostPort();
+				Config.MAIL_USER = a.getMailUser();
+				Config.MAIL_PASSWORD = a.getMailPassword();
+				Config.MAIL_USER = a.getMailUser();
+				Config.MAIL_PASSWORD = a.getMailPassword();
+				try {
+					Config.save();
+				} catch (IOException ex) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+
+				response.getSetServoConfigBuilder().clear();
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case CREATE_SCENE: {
+				CreateScene createScene = request.getCreateScene();
+				MScene a = createScene.getItem();
+
+				Scene scene = new Scene();
+				scene.setId(a.getId());
+				scene.setName(a.getName());
+				scene.setSwitchStatu(a.getSwitch());
+				scene.setRemark(a.getRemark());
+				scene.setCreated(new Date());
+				scene.setUpdated(new Date());
+				List<MSceneDevice> openDevicesList = a.getOpenDevicesList();
+				for (MSceneDevice openDevice : openDevicesList) {
+					SceneDevice sceneDevice = new SceneDevice();
+					sceneDevice.setDeviceId(openDevice.getDeviceId());
+					sceneDevice.setSwitchStatus(openDevice.getSwitch());
+					sceneDevice.setFeatureIndex(openDevice.getFeatureIndex());
+					sceneDevice.setFeatureValue(openDevice.getFeatureValue());
+					scene.addOpenSceneDevice(sceneDevice);
+				}
+				List<MSceneDevice> offDevicesList = a.getOffDevicesList();
+				for (MSceneDevice offDevice : offDevicesList) {
+					SceneDevice sceneDevice = new SceneDevice();
+					sceneDevice.setDeviceId(offDevice.getDeviceId());
+					sceneDevice.setSwitchStatus(offDevice.getSwitch());
+					sceneDevice.setFeatureIndex(offDevice.getFeatureIndex());
+					sceneDevice.setFeatureValue(offDevice.getFeatureValue());
+					scene.addOffSceneDevice(sceneDevice);
+				}
+				scene = Data.CreateScene(scene);
+
+				if (scene == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					CreateScene.Builder b = response.getCreateSceneBuilder();
+					b.getItemBuilder().setCreated(new Date().getTime());
+					response.setResult(Result.SUCCESS);
+					return MULTIPLE;
+				}
+			}
+			case GET_WEATHER_DATA: {
+				Weather weather = WeatherManager.getWeather();
+				GetWeatherData.Builder builder = response.getGetWeatherDataBuilder();
+				if ("0".equals(weather.getResult())) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				} else {
+					builder.setWeaid(weather.getResult().getWeaid());
+					builder.setDays(weather.getResult().getDays());
+					builder.setWeek(weather.getResult().getWeek());
+					builder.setCityno(weather.getResult().getCityno());
+					builder.setCitynm(weather.getResult().getCitynm());
+					builder.setCityid(weather.getResult().getCityid());
+					builder.setTemperature(weather.getResult().getTemperature());
+					builder.setTemperatureCurr(weather.getResult().getTemperature_curr());
+					builder.setHumidity(weather.getResult().getHumidity());
+					builder.setAqi(weather.getResult().getAqi());
+					builder.setAqiText(weather.getResult().getAQIString());
+					builder.setWeather(weather.getResult().getWeather());
+					builder.setWeatherIcon(weather.getResult().getWeather_icon());
+					builder.setWeatherIcon1(weather.getResult().getWeather_icon1());
+					builder.setWind(weather.getResult().getWind());
+					builder.setWinp(weather.getResult().getWinp());
+					builder.setTempHigh(weather.getResult().getTemp_high());
+					builder.setTempLow(weather.getResult().getTemp_low());
+					builder.setHumiHigh(weather.getResult().getHumi_high());
+					builder.setHumiLow(weather.getResult().getHumi_low());
+					builder.setWeatid(weather.getResult().getWeatid());
+					builder.setWeatid1(weather.getResult().getWeatid1());
+					builder.setWindid(weather.getResult().getWindid());
+					builder.setWinpid(weather.getResult().getWinpid());
+					builder.setWeatherIconid(weather.getResult().getWeather_iconid());
+				}
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case GET_MESSAGE: {
+				GetMessage getMessage = request.getGetMessage();
+				String phone = getMessage.getPhone();
+				SMS.sendSMSVerify(phone);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+
+			case MODIFY_PASSWORD: {
+				ModifyPassword modifyPassword = request.getModifyPassword();
+				String phone = modifyPassword.getPhone();
+				String password = modifyPassword.getPassword();
+				if (Tool.isEmpty(phone)) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				if (Tool.isEmpty(password)) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				User u = Data.getServo().getUserForName(phone);
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				u.setPassword(password);
+				Data.UpdateUser(u);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case SYNC_USER_ICON:{
+				SyncUserIcon syncUserIcon = request.getSyncUserIcon();
+				String iconUrl = syncUserIcon.getIconUrl();
+				String userId = syncUserIcon.getUserId();
+				User u = Data.getServo().getUser(userId);
+				if (u == null) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				u.setIconUrl(iconUrl);
+				Data.UploadUserIcon(u);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case ENSURE_MESSAGE: {
+				EnsureMessage ensureMessage = request.getEnsureMessage();
+				String phone = ensureMessage.getPhone();
+				String passCode = ensureMessage.getPassCode();
+				if (Tool.isEmpty(passCode)) {
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				if (SMS.ensureVerificationCode(phone, passCode)) {
+					response.setResult(Result.SUCCESS);
+					return SINGLE;
+				}
+				response.setResult(Result.ERROR);
+				return SINGLE;
+			}
+			case SPEECH_RECOGNITION: {
+				SpeechRecognition speechRecognition = request.getSpeechRecognition();
+				String speech = speechRecognition.getSpeech();
+				SpeechRecognition.Builder builder = response.getSpeechRecognitionBuilder();
+				if (Tool.isEmpty(speech)) {
+					builder.setResult("未识别到语音");
+					response.setResult(Result.ERROR);
+					return SINGLE;
+				}
+				// TODO 语音匹配
+				String recognizeString = Recognize.getInstance().recognizeString(speech);
+				builder.setResult(recognizeString);
+				response.setResult(Result.SUCCESS);
+				return SINGLE;
+			}
+			case ACTION_NOT_SET:
+			default:
+				response.setResult(Result.UNSUPPORTED);
+				return SINGLE;
+		}
+	}
+
+	private void sendSetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.SCENE);
+
+		Message.Builder msg = Message.newBuilder();
+		WriteDeviceStatus.Builder wrsb = msg.getWriteDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = wrsb.getItemBuilder();
+
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		wrsb.setItem(itemBuilder);
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+
+	private void sendControlNotice(Device device, Message request) {
+		/* 电源总控属于安防设备如果被控制需要发送通知给用户 */
+		if (device.getNotice()) {
+			if (device.getKind() == Kind.SWITCH && device.getUse() == Use.PWOER) {
+				Message.Builder msg = Message.newBuilder();
+				Builder noticeBuilder = msg.getNoticeBuilder();
+				noticeBuilder.setDeviceId(device.getId());
+
+				noticeBuilder.setContent(Data.getServo().getUser(request.getUserId()).getName() + "关闭了您的电源总控开关");
+				Message m = msg.build();
+				Cloud.send(m);
+				Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+
+				Notice n = new Notice();
+				n.setDeviceId(device.getId());
+				n.setContent("Control");
+				n.setUserId(request.getUserId());
+				Data.CreateNotice(n);
+			}
+		}
+	}
+
+	/**
+	 * 发送场景设备控制指令
+	 * 
+	 * @param sceneDevice
+	 */
+	private void controlSceneDevice(SceneDevice sceneDevice, Message request) {
+		Device device = Data.getServo().getDevice(sceneDevice.getDeviceId());
+		if (device == null) {
+			/* 设备不存在 */
+		} else {
+			DriverAdpater adpater = Driver.getAdpater(device);
+			if (adpater == null) {
+				device.setStatus(Status.C_RELAY);
+			} else {
+				if (!adpater.isActive()) {
+					device.setStatus(Status.OFFLINE);
+				} else {
+					if (!device.getDetect()) {
+						device.setStatus(Status.OFFLINE);
+					} else {
+
+						device.getFeature(sceneDevice.getFeatureIndex()).setValue(sceneDevice.getFeatureValue());
+						MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, true, true));
+						sendSetStatus(device);
+
+						sendControlNotice(device, request);
+					}
+				}
+			}
+		}
+	}
+
+}

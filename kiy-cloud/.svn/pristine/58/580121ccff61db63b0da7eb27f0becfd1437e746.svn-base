@@ -1,0 +1,11 @@
+package com.kiy.cloud.data.dao;
+
+import com.kiy.cloud.data.bean.ServoBean;
+
+
+// 接口
+public interface ServoDao {  
+    public String findCustomerIdById(String string) throws Exception ;
+    
+    public ServoBean findServoById(String string) throws Exception ;
+}

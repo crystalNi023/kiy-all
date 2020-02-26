@@ -1,0 +1,72 @@
+/**
+ * 2017年3月28日
+ */
+package com.kiy.servo.cruise;
+
+
+
+
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.master.MessageDevice;
+import com.kiy.servo.master.MessageDeviceDeque;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Cruise {
+
+	private static boolean start = true;
+	
+	private Cruise() {
+	}
+
+	public static void initialize() {
+		if (!Config.CRUISE) {
+			Log.info("Strategy disabled");
+			return;
+		}
+
+		Log.info("Cruise initialize ...");
+
+
+		Servo servo = Data.getServo();
+
+		Log.info("Cruise initialized device count " + servo.getDeviceCount());
+	}
+
+	public static void start(){
+		Thread thread = new Thread(runnable,"crusie");
+		thread.start();
+	}
+	
+	public static void stop(){
+		
+	}
+	
+	private static Runnable runnable = new Runnable() {
+		
+		@Override
+		public void run() {
+			while (start) {
+				try {
+					Thread.sleep(30000);
+					Set<Device> devices = Data.getServo().getDevices();
+					for (Device device : devices) {
+						MessageDeviceDeque.getInstance().add(new MessageDevice(adpater, device, isClient, isWriteDevice));
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+			
+		}
+	};
+
+}

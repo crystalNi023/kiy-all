@@ -1,0 +1,197 @@
+package com.kiy.controller.view;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Scale;
+
+import com.kiy.common.Feature;
+import com.kiy.common.Types.Status;
+import com.kiy.resources.Lang;
+
+/**
+ * 自定义Feature开关类显示组合控件
+ * @author 35210
+ *
+ */
+public class CustomSwitchView {
+	private int baseY;
+	// Label Key
+	private final int labelX = 16;
+	private final int labelWidth = 92;
+	private final int labelHeight = 20;
+
+	// Label Value
+	private final int labelValueX = 116;
+	private final int labelValueWidth = 76;
+	private final int labelValueHeight = 20;
+
+	// Label Off
+	private final int labelOffX = 200;
+	private final int labelOffWidth = 20;
+	private final int labelOffHeight = 20;
+
+	// Scale Value
+	
+	private final int scaleValueX = 228;
+	private final int scaleValueWidth = 108;
+	private final int scaleValueHeigth = 48;
+
+	// Label Open
+	private final int labelOpenX = 344;
+	private final int labelOpenWidth = 20;
+	private final int labelOpenHeight = 20;
+
+	private Feature feature;
+	private Composite composite;
+	
+	private Scale scale;
+	private Label labelValue;
+	
+	private boolean isInfraredLearner;
+
+	public CustomSwitchView(Feature feature,Composite c,int y,boolean isInfraredLearner) {
+		this.baseY = y;
+		this.feature = feature;
+		this.composite = c;
+		this.isInfraredLearner = isInfraredLearner;
+	}
+
+	/**
+	 * 自定义控件布局
+	 */
+	public void layout() {
+		if(feature == null){
+			return;
+		}
+		if(isInfraredLearner){
+			if (feature.INDEX == 0) {
+				CLabel labelKey = new CLabel(composite, SWT.NONE);
+				labelKey.setText(feature.getName());
+				labelKey.setBounds(labelX, baseY + 16, labelWidth, labelHeight);
+				
+				labelValue = new Label(composite,SWT.NONE);
+				labelValue.setText(feature.getText());
+				labelValue.setBounds(labelValueX, baseY+16, labelValueWidth, labelValueHeight);
+
+				Label LabelOff = new Label(composite, SWT.NONE);
+				LabelOff.setText(Lang.getString("FDetectWrite.off"));
+				LabelOff.setBounds(labelOffX, baseY + 16, labelOffWidth, labelOffHeight);
+
+				scale = new Scale(composite, SWT.NONE);
+				scale.setBounds(scaleValueX, baseY, scaleValueWidth, scaleValueHeigth);
+				scale.setSelection(feature.getValue());
+				//TODO 根据范围设置开关范围
+				scale.setMaximum(feature.MAXIMUM);
+				scale.setMinimum(feature.MINIMUM);
+				scale.setPageIncrement(feature.STEP);
+				scale.addSelectionListener(scaleSelectionAdapter);
+
+				Label LabelOpen = new Label(composite, SWT.NONE);
+				LabelOpen.setText(Lang.getString("FDetectWrite.open"));
+				LabelOpen.setBounds(labelOpenX, baseY + 16, labelOpenWidth, labelOpenHeight);
+			}else {
+				// TODO 设置feature图片
+				CLabel labelKey1 = new CLabel(composite, SWT.NONE);
+				labelKey1.setText(feature.getName());
+				labelKey1.setBounds(labelX, baseY , labelWidth, labelHeight);
+
+				Button labelValue1 = new Button(composite, SWT.NONE);
+				labelValue1.setText("执行");
+				labelValue1.setBounds(labelValueX, baseY, labelValueWidth, labelValueHeight);
+				if (feature.getAlarm()==Status.OFFLINE) 
+					labelValue1.setEnabled(false);
+				labelValue1.addSelectionListener(btnSelectionAdapter);
+			}
+			
+		}else if(feature.READ_ONLY){
+			// TODO 设置feature图片
+			CLabel labelKey1 = new CLabel(composite, SWT.NONE);
+			labelKey1.setText(feature.getName());
+			labelKey1.setBounds(labelX, baseY , labelWidth, labelHeight);
+
+			Label labelValue1 = new Label(composite, SWT.NONE);
+			labelValue1.setText(feature.getText());
+			labelValue1.setBounds(labelValueX, baseY, labelValueWidth+200, labelValueHeight);
+		}else{
+			//TODO 设置feature图片
+			CLabel labelKey = new CLabel(composite, SWT.NONE);
+			labelKey.setText(feature.getName());
+			labelKey.setBounds(labelX, baseY + 16, labelWidth, labelHeight);
+			
+			labelValue = new Label(composite,SWT.NONE);
+			labelValue.setText(feature.getText());
+			labelValue.setBounds(labelValueX, baseY+16, labelValueWidth, labelValueHeight);
+
+			Label LabelOff = new Label(composite, SWT.NONE);
+			LabelOff.setText(Lang.getString("FDetectWrite.off"));
+			LabelOff.setBounds(labelOffX, baseY + 16, labelOffWidth, labelOffHeight);
+
+			scale = new Scale(composite, SWT.NONE);
+			scale.setBounds(scaleValueX, baseY, scaleValueWidth, scaleValueHeigth);
+			scale.setSelection(feature.getValue());
+			//TODO 根据范围设置开关范围
+			scale.setMaximum(feature.MAXIMUM);
+			scale.setMinimum(feature.MINIMUM);
+			scale.setPageIncrement(feature.STEP);
+			scale.addSelectionListener(scaleSelectionAdapter);
+
+			Label LabelOpen = new Label(composite, SWT.NONE);
+			LabelOpen.setText(Lang.getString("FDetectWrite.open"));
+			LabelOpen.setBounds(labelOpenX, baseY + 16, labelOpenWidth, labelOpenHeight);
+		}
+		
+	}
+	
+	
+	/**
+	 * 开关点击监听
+	 */
+	private SelectionAdapter scaleSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			//根据当前选中开关量设置到feature中
+			feature.setValue(scale.getSelection()); 
+			//设置选中的状态
+			labelValue.setText(feature.getText());
+		}
+		
+	};
+	
+	/**
+	 * 空调按钮点击监听
+	 */
+	private SelectionAdapter btnSelectionAdapter = new SelectionAdapter() {
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			onClickListener.onClick(feature);
+		}
+		
+	};
+
+	
+
+	/**
+	 * 获取Feature
+	 * @return
+	 */
+	public Feature getFeature() {
+		return feature;
+	}
+	
+	public interface OnClickListener {
+		public void onClick(Feature feature);
+	}
+	
+	private OnClickListener onClickListener;
+	
+	public void setOnClickListener(OnClickListener onClickListener){
+		this.onClickListener = onClickListener;
+	}
+}

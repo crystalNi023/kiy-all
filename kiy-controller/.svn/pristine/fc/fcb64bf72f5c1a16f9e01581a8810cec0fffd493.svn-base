@@ -1,0 +1,176 @@
+/**
+ * 2017年8月17日
+ */
+package com.kiy.controller;
+
+import java.util.HashMap;
+import java.util.List;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.browser.Browser;
+import org.eclipse.swt.browser.TitleEvent;
+import org.eclipse.swt.browser.TitleListener;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
+
+import com.kiy.common.*;
+import com.kiy.controller.report.*;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.QueryDeviceStatus;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Units.MDeviceStatus;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class FReport extends Shell implements FormMessage {
+
+	private Browser browser;
+	private Servo servo;
+
+	public void open(Servo s, String url) {
+		servo = s;
+		new ServoData(browser, s, "SERVO_DATA");
+		new AQueryDeviceStatus(browser, s, "QUERY_STATUS");
+		
+		browser.setUrl(Tool.getWorkPath() + url);
+
+		open();
+		layout();
+		Display display = getParent().getDisplay();
+		while (!isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	/**
+	 * Create the shell.
+	 * 
+	 * @param display
+	 */
+	public FReport(Shell parent) {
+		super(parent, SWT.SHELL_TRIM);
+		setLayout(new FillLayout(SWT.HORIZONTAL));
+
+		createContents();
+	}
+
+	/**
+	 * Create contents of the shell.
+	 */
+	protected void createContents() {
+		setSize(800, 600);
+
+		browser = new Browser(this, SWT.NONE);
+		browser.addTitleListener(new TitleListener() {
+			@Override
+			public void changed(TitleEvent e) {
+				// 根据HTML中设置的<title>标题更改窗口标题
+				FReport.this.setText(e.title);
+			}
+		});
+	}
+
+	@Override
+	protected void checkSubclass() {
+		// Disable the check that prevents subclassing of SWT components
+	}
+
+	@Override
+	public void received(Servo s, Message m,HashMap<Message, Unit> units) {
+		if(m.getResult()==Result.SUCCESS){
+			if(m.getActionCase()==ActionCase.QUERY_DEVICE_STATUS){
+				QueryDeviceStatus queryDeviceStatus = m.getQueryDeviceStatus();
+				int key = m.getKey();
+				if(AQueryDeviceStatus.keys.contains(key)){
+					StringBuilder sb = new StringBuilder();
+					buildMsg(sb,queryDeviceStatus);
+					System.out.println(sb);
+					browser.execute("received(\'"+sb+"\')");
+				}else{
+					//不是报表发送的请求不处理
+				}
+			}
+		}else{
+			
+		}
+		
+	}
+	
+	private void buildMsg(StringBuilder sb,QueryDeviceStatus qds) {
+		if (qds==null)
+			return;
+		
+		Device d = servo.getDevice(qds.getId());
+		
+		sb.append("data=");
+
+		sb.append("{");
+		
+		sb.append("id:\"");
+		sb.append(qds.getId());
+		sb.append("\"");
+		
+		sb.append(",vendor:\"");
+		sb.append(d.getVendor().name());
+		sb.append("\"");
+		
+		sb.append(",kind:\"");
+		sb.append(d.getKind().name());
+		sb.append("\"");
+		
+		sb.append(",number:\"");
+		sb.append(d.getNumber());
+		sb.append("\"");
+		
+		sb.append(",begin:");
+		sb.append(qds.getBegin());
+		
+		sb.append(",end:");
+		sb.append(qds.getEnd());
+		
+		Device device = Device.instance(d.getVendor(), d.getKind());
+		int featureCount = device.getFeatureCount();
+		
+		sb.append(",items:");
+		sb.append("[");
+		
+		List<MDeviceStatus> itemsList = qds.getItemsList();
+		
+		for(int i = 0;i<itemsList.size();i++){
+			sb.append("{");
+			sb.append("id:\"");
+			sb.append(itemsList.get(i).getId());
+			sb.append("\"");
+			
+			sb.append(",origin:");
+			sb.append(itemsList.get(i).getOrigin());
+			
+			for(int j=0;j<featureCount;j++){
+				sb.append(",value"+j+":\"");
+				Feature feature = device.getFeature(j);
+				feature.setValue(itemsList.get(i).getItemsMap().get(j));
+				sb.append(feature.getText()+"\"");
+			}
+			
+			sb.append(",created:");
+			sb.append(itemsList.get(i).getCreated());
+			
+			if(i==itemsList.size()-1){
+				sb.append("}");
+			}else{
+				sb.append("},");
+			}
+			
+		}
+		
+		sb.append("]");
+		sb.append("}");
+		sb.append(";");
+	}
+}

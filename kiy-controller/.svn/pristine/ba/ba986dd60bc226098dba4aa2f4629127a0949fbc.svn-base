@@ -1,0 +1,565 @@
+package com.kiy.controller;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.ViewForm;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.DateTime;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Tree;
+import org.eclipse.swt.widgets.TreeColumn;
+import org.eclipse.swt.widgets.TreeItem;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.Servo;
+import com.kiy.common.Unit;
+import com.kiy.common.Types.Origin;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.protocol.Messages.QueryDeviceStatus;
+import com.kiy.protocol.Messages.Result;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.resources.Lang;
+import com.kiy.resources.Resource;
+
+/**
+ * @author HLX
+ *
+ */
+public class FHistoryDeviceStatus extends Dialog implements FormMessage {
+
+	private boolean closing;
+	private MDeviceStatus tag;
+	private Shell shell;
+	private Tree tree;
+	private DateTime startSecond;
+	private DateTime endSecond;
+	private Date start;
+	private Date end;
+	private ViewForm viewForm;
+	private Composite composite0;
+	private Composite composite;
+	private DateTime endDay;
+	private DateTime startDay;
+	private TreeColumn treeColumn1111;
+
+	private Servo servo;
+	private ServoManager servoManager;
+	private List<MDeviceStatus> list;
+	private CtrClient client;
+	private Device d;
+
+	public FHistoryDeviceStatus(Shell parent) {
+		super(parent, 0);
+		closing = false;
+	}
+
+	/**
+	 * Open the dialog.
+	 * 
+	 * @return the result
+	 */
+	public MDeviceStatus open(Device d, ServoManager servoManager) {
+		list = new ArrayList<>();
+		this.d = d;
+		servo = d.getServo();
+		client = d.getServo().getClient();
+
+		createContents();
+		this.servoManager = servoManager;
+		F.center(getParent(), shell);
+		shell.open();
+		shell.layout();
+		Display display = getParent().getDisplay();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+		return tag;
+	}
+
+	/**
+	 * 绘制设备状态列表记录窗口
+	 */
+	private void createContents() {
+
+		shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE | SWT.MIN | SWT.MAX | SWT.RESIZE);
+		shell.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/controller.png"));
+		shell.addShellListener(shellAdapter);
+		shell.setSize(900, 500);
+		shell.setText(Lang.getString("FHistoryDeviceStatus.ShellName.text") + "-" + d.getName());
+		shell.setLayout(new FillLayout());
+
+		viewForm = new ViewForm(shell, SWT.NONE);
+
+		GridLayout gl = new GridLayout();
+		gl.numColumns = 7;
+		composite0 = new Composite(viewForm, SWT.NONE);
+		composite0.setLayout(gl);
+		viewForm.setContent(composite0);
+
+		Label label = new Label(composite0, SWT.NONE);
+		label.setBounds(16, 18, 70, 17);
+		label.setText(Lang.getString("FHistoryDeviceStatus.LabelStartTime.text"));
+		
+		Calendar calendar = Calendar.getInstance();
+		calendar.add(Calendar.WEEK_OF_YEAR, -1);
+		
+		// 设置当前选中时间为当前时间前一周
+		long timeInMillis = calendar.getTimeInMillis();
+		
+		startDay = new DateTime(composite0, SWT.BORDER | SWT.DROP_DOWN);
+		startDay.setBounds(94, 16, 110, 24);
+		startDay.setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DATE));
+
+
+		startSecond = new DateTime(composite0, SWT.BORDER | SWT.TIME);
+		GridData gd_startSecond = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_startSecond.widthHint = 110;
+		startSecond.setLayoutData(gd_startSecond);
+		startSecond.setBounds(212, 16, 110, 24);
+		startSecond.setTime(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), calendar.get(Calendar.SECOND));
+
+		Label label_1 = new Label(composite0, SWT.NONE);
+		label_1.setBounds(338, 18, 70, 17);
+		label_1.setText(Lang.getString("FHistoryDeviceStatus.LabelEndTime.text"));
+
+		
+		endDay = new DateTime(composite0, SWT.BORDER | SWT.DROP_DOWN);
+		endDay.setBounds(416, 16, 110, 24);
+
+		endSecond = new DateTime(composite0, SWT.BORDER | SWT.TIME);
+		GridData gd_endSecond = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_endSecond.widthHint = 110;
+		endSecond.setLayoutData(gd_endSecond);
+		endSecond.setBounds(534, 16, 110, 24);
+		
+
+		if (client != null && client.isConnected() && client.isRunning()) {
+			requestStatusRecords(timeInMillis, System.currentTimeMillis()+60000000l, client, d);
+		}
+
+		Button button = new Button(composite0, SWT.NONE);
+		GridData gd_button = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_button.widthHint = 80;
+		button.setLayoutData(gd_button);
+		button.setBounds(660, 13, 80, 27);
+		button.setText(Lang.getString("FHistoryDeviceStatus.LabelInquire.text"));
+		button.addSelectionListener(inquiryAdapter);
+
+		viewForm.setTopLeft(composite0);
+
+		GridLayout gridLayout = new GridLayout();
+		gridLayout.numColumns = 1;
+		composite = new Composite(viewForm, SWT.NONE);
+		composite.setLayout(gridLayout);
+		viewForm.setContent(composite);
+
+		// 表格布局
+		GridData gridData = new GridData(GridData.FILL_BOTH);
+		gridData.horizontalAlignment = SWT.FILL;
+		gridData.grabExcessHorizontalSpace = true;
+		gridData.grabExcessVerticalSpace = true;
+		gridData.verticalAlignment = SWT.FILL;
+
+		tree = new Tree(composite, SWT.VIRTUAL | SWT.BORDER | SWT.FULL_SELECTION);
+		tree.setHeaderVisible(true);
+		tree.setLinesVisible(true);
+		tree.setLayoutData(gridData);// 设置表格布局
+		// 虚拟化监听
+		tree.addListener(SWT.SetData, virtualListener);
+		tree.addListener(SWT.MouseDoubleClick, new Listener() {
+
+			@Override
+			public void handleEvent(Event arg0) {
+				viewStatusDetails();
+			}
+		});
+
+		TreeColumn treeColumn = new TreeColumn(tree, SWT.NONE);
+		treeColumn.setText(Lang.getString("FHistoryDeviceStatus.Name"));
+		treeColumn.setResizable(true);
+		treeColumn.setWidth(125);
+		treeColumn.setMoveable(true);
+		treeColumn.addListener(SWT.Selection, columnListener);
+		
+		TreeColumn treeColumn1 = new TreeColumn(tree, SWT.NONE);
+		treeColumn1.setText( Lang.getString("FHistoryDeviceStatus.workStatus"));
+		treeColumn1.setResizable(true);
+		treeColumn1.setWidth(125);
+		treeColumn1.setMoveable(true);
+		treeColumn1.addListener(SWT.Selection, columnListener);
+		
+		TreeColumn treeColumn11 = new TreeColumn(tree, SWT.NONE);
+		treeColumn11.setText( Lang.getString("FHistoryDeviceStatus.indicate"));
+		treeColumn11.setResizable(true);
+		treeColumn11.setWidth(125);
+		treeColumn11.setMoveable(true);
+		treeColumn11.addListener(SWT.Selection, columnListener);
+		
+		TreeColumn treeColumn111 = new TreeColumn(tree, SWT.NONE);
+		treeColumn111.setText( Lang.getString("FHistoryDeviceStatus.operationSource"));
+		treeColumn111.setResizable(true);
+		treeColumn111.setWidth(125);
+		treeColumn111.setMoveable(true);
+		treeColumn111.addListener(SWT.Selection, columnListener);
+		
+		treeColumn1111 = new TreeColumn(tree, SWT.NONE);
+		treeColumn1111.setText( Lang.getString("FHistoryDeviceStatus.time"));
+		treeColumn1111.setResizable(true);
+		treeColumn1111.setWidth(125);
+		treeColumn1111.setMoveable(true);
+		treeColumn1111.addListener(SWT.Selection, columnListener);
+		
+		Menu menu = new Menu(shell, SWT.POP_UP);
+		MenuItem m = new MenuItem(menu, SWT.PUSH);
+		m.setText(Lang.getString("FHistoryDeviceStatus.seeDetails"));
+		m.addSelectionListener(new SelectionAdapter() {
+
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				viewStatusDetails();
+			}
+
+		});
+		tree.setMenu(menu);
+	}
+
+	private void viewStatusDetails() {
+		TreeItem[] selection = tree.getSelection();
+		if (selection.length <= 0) {
+			return;
+		}
+		TreeItem item = selection[0];
+		Object data = item.getData();
+		if (data != null && data instanceof Device) {
+			FDeviceDetails f = new FDeviceDetails(shell);
+			f.open(d, (Device) data);
+		}
+	}
+
+	private void show(Event e) {
+		TreeItem item = (TreeItem) e.item;
+		MDeviceStatus mStatus = list.get(e.index);
+		
+		update(item, mStatus);
+	}
+
+	private void sort(TreeColumn widget) {
+		TreeColumn column = tree.getSortColumn();
+		if (widget == null && column == null)
+			return;
+
+		int dir = tree.getSortDirection();
+		if (widget == null) {
+			widget = column;
+		} else if (column == widget) {
+			dir = dir == SWT.UP ? SWT.DOWN : SWT.UP;
+			tree.setSortDirection(dir);
+		} else {
+			dir = SWT.UP;
+			tree.setSortColumn(widget);
+			tree.setSortDirection(dir);
+		}
+
+		
+		
+		final int direction = dir;
+		switch (tree.indexOf(widget)) {
+			case 0:
+				Collections.sort(list, new Comparator<MDeviceStatus>() {
+					public int compare(MDeviceStatus a, MDeviceStatus b) {
+						Device d1 = servo.getDevice(a.getId());
+						Device d2 = servo.getDevice(b.getId());
+						if (SWT.UP == direction)
+							return String.CASE_INSENSITIVE_ORDER.compare(d1.getName(), d2.getName());
+						else
+							return String.CASE_INSENSITIVE_ORDER.compare(d2.getName(), d1.getName());
+					}
+				});
+				break;
+			case 1:
+				Collections.sort(list, new Comparator<MDeviceStatus>() {
+					public int compare(MDeviceStatus a, MDeviceStatus b) {
+						Device d1 = servo.getDevice(a.getId());
+						Device d3 = Device.instance(d1.getVendor(), d1.getKind());
+						Feature[] features = d3.getFeatures();
+						
+						Map<Integer, Integer> itemsMap = a.getItemsMap();
+						for (Feature feature : features) {
+							if (feature.PRIMARY) {
+								feature.setValue(itemsMap.get(feature.INDEX));
+							}
+						}
+
+						Device d2 = servo.getDevice(b.getId());
+						Device d4 = Device.instance(d2.getVendor(), d2.getKind());
+						Feature[] features1 = d4.getFeatures();
+						Map<Integer, Integer> itemsMap1 = b.getItemsMap();
+						for (Feature feature : features1) {
+							if (feature.PRIMARY) {
+								feature.setValue(itemsMap1.get(feature.INDEX));
+							}
+						}
+						if (SWT.UP == direction)
+							return Integer.compare(d3.getStatus().getValue(), d4.getStatus().getValue());
+						else
+							return Integer.compare(d4.getStatus().getValue(), d3.getStatus().getValue());
+					}
+				});
+				break;
+			case 2:
+				Collections.sort(list, new Comparator<MDeviceStatus>() {
+					public int compare(MDeviceStatus a, MDeviceStatus b) {
+						Device d1 = servo.getDevice(a.getId());
+						Device d3 = Device.instance(d1.getVendor(), d1.getKind());
+						Feature[] features = d3.getFeatures();
+						Map<Integer, Integer> itemsMap = a.getItemsMap();
+						for (Feature feature : features) {
+							if (feature.PRIMARY) {
+								feature.setValue(itemsMap.get(feature.INDEX));
+//								feature.setValue(a.getValue(feature.INDEX));
+							}
+						}
+
+						Device d2 = servo.getDevice(b.getId());
+						Device d4 = Device.instance(d2.getVendor(), d2.getKind());
+						Map<Integer, Integer> itemsMap1 = b.getItemsMap();
+						Feature[] features1 = d4.getFeatures();
+						for (Feature feature : features1) {
+							if (feature.PRIMARY) {
+//								feature.setValue(b.getValue(feature.INDEX));
+								feature.setValue(itemsMap1.get(feature.INDEX));
+							}
+						}
+						if (SWT.UP == direction)
+							return String.CASE_INSENSITIVE_ORDER.compare(d3.getIndicate(), d4.getIndicate());
+						else
+							return String.CASE_INSENSITIVE_ORDER.compare(d4.getIndicate(), d3.getIndicate());
+					}
+				});
+				break;
+			case 3:
+				Collections.sort(list, new Comparator<MDeviceStatus>() {
+					public int compare(MDeviceStatus a, MDeviceStatus b) {
+						int origin = a.getOrigin();
+						int origin2 = b.getOrigin();
+						if (SWT.UP == direction)
+							return Integer.compare(origin, origin2);
+						else
+							return Integer.compare(origin2, origin);
+					}
+				});
+				break;
+			case 4:
+				Collections.sort(list, new Comparator<MDeviceStatus>() {
+					@Override
+					public int compare(MDeviceStatus a, MDeviceStatus b) {
+						long created = a.getCreated();
+						long created2 = b.getCreated();
+						if (SWT.UP == direction)
+							return Long.compare(created, created2);
+						else
+							return Long.compare(created2, created);
+					}
+				});
+				break;
+		}
+		tree.clearAll(true);
+	}
+
+	/**
+	 * 更新
+	 * 
+	 * @param
+	 */
+	private void update(TreeItem item, MDeviceStatus mStatus) {
+		if (mStatus == null)
+			return;
+		item.removeAll();
+		
+		// 通过设备id创建临时设备
+		String deviceId = mStatus.getId();
+		Device d = servo.getDevice(deviceId);
+
+		Device device = Device.instance(d.getVendor(), d.getKind());
+		// 1.设置设备名称
+		item.setText(0, d.getName());
+		// 2.设置操作源
+		item.setText(3, Origin.valueOf(mStatus.getOrigin()).name());
+		// 3.设置时间
+		long created = mStatus.getCreated();
+		String time = created <= 0 ? "" : F.format(new Date(created));
+		item.setText(4, time);
+		// 4.设置设备feature
+		Feature[] features = device.getFeatures();
+		Map<Integer, Integer> itemsMap = mStatus.getItemsMap();
+		for (Feature feature : features) {
+			feature.setValue(itemsMap.get(feature.INDEX));
+			TreeItem treeItem = new TreeItem(item, SWT.LEFT);
+			treeItem.setImage(Resource.getImage(FMain.class, "/com/kiy/resources/dot.png"));
+			treeItem.setText(0, feature.getName() != null ? feature.getName() : "no name");
+			treeItem.setText(1, feature.getAlarm() != null ? Lang.getString("AlarmType." + feature.getAlarm().name()) : "no alarm");
+			treeItem.setText(2, feature.getText() != null ? feature.getText() : "no value");
+			treeItem.setData(device);
+		}
+		// 5.设置设备工作状态
+		item.setText(1, Lang.getString("AlarmType." + device.getStatus().name()));
+		// 6.设置设备读数
+		item.setText(2, device.getIndicate());
+		item.setData(device);
+	}
+
+	/**
+	 * 请求设备状态记录
+	 * 
+	 * @param start 开始时间
+	 * @param end 结束时间
+	 */
+	private void requestStatusRecords(Long start, Long end, CtrClient client, Device d) {
+		Message.Builder bm = Message.newBuilder();
+		bm.setKey(CtrClient.getKey());
+		bm.setUserId(client.getServo().getUser().getId());
+		QueryDeviceStatus.Builder qdm = QueryDeviceStatus.newBuilder();
+		qdm.setBegin(start);
+		qdm.setEnd(end);
+		qdm.setId(d.getId());
+		bm.setQueryDeviceStatus(qdm);
+		client.send(bm.build());
+	}
+
+	@Override
+	public void received(Servo s, Message m,HashMap<Message,Unit> units) {
+		if (m.getActionCase() == ActionCase.QUERY_DEVICE_STATUS) {
+			if (m.getResult() == Result.SUCCESS) {
+				QueryDeviceStatus qds = m.getQueryDeviceStatus();
+				List<MDeviceStatus> mlist = qds.getItemsList();
+				
+				if (mlist.size() > 0) {
+					list.clear();
+					tree.removeAll();
+					list.addAll(mlist);
+					
+					tree.setSortColumn(treeColumn1111);
+					tree.setSortDirection(SWT.UP);
+					
+					tree.setItemCount(list.size());
+					tree.setSortColumn(treeColumn1111);
+					tree.setSortDirection(SWT.UP);
+				} else {
+					tree.removeAll();
+				}
+				
+				
+
+			} else {
+				F.mbWaring(shell, Lang.getString("FHistoryDeviceStatus.MessageBoxQueryTheDeviceHistoryStatusTitle.text"), Lang.getString("FHistoryDeviceStatus.MessageBoxQueryTheDeviceHistoryStatusContent.text"));
+			}
+		}
+	}
+
+	@Override
+	public void close() {
+		servoManager.off(this);
+		if (closing) {
+			return;
+		}
+		shell.close();
+	}
+
+	/**
+	 * shellAdapter
+	 */
+	private ShellAdapter shellAdapter = new ShellAdapter() {
+
+		@Override
+		public void shellClosed(ShellEvent e) {
+			closing = true;
+			close();
+		}
+	};
+
+	/**
+	 * Inquiry Button SelectionAdapter
+	 */
+	private SelectionAdapter inquiryAdapter = new SelectionAdapter() {
+		@Override
+		public void widgetSelected(SelectionEvent event) {
+			int sYear = startDay.getYear();
+			int sMonth = startDay.getMonth() + 1;
+			int sDay = startDay.getDay();
+			int sHours = startSecond.getHours();
+			int sMinutes = startSecond.getMinutes();
+			int sSeconds = startSecond.getSeconds();
+
+			int eYear = endDay.getYear();
+			int eMonth = endDay.getMonth()+1;
+			int eDay = endDay.getDay();
+			int eHours = endSecond.getHours();
+			int eMinutes = endSecond.getMinutes();
+			int eSeconds = endSecond.getSeconds();
+			// 聚合年月日时分秒
+			String startDate = sYear + "-" + sMonth + "-" + sDay + " " + sHours + ":" + sMinutes + ":" + sSeconds;
+			String endDate = eYear + "-" + eMonth + "-" + eDay + " " + eHours + ":" + eMinutes + ":" + eSeconds;
+			SimpleDateFormat form = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			try {
+				start = form.parse(startDate);
+				end = form.parse(endDate);
+			} catch (ParseException e1) {
+				return;
+			}
+
+			if (client != null && client.isConnected() && client.isRunning()) {
+				requestStatusRecords(start.getTime(), end.getTime(), client, d);
+			}
+		}
+	};
+
+	/**
+	 * Table Virtual Listener
+	 */
+	private Listener virtualListener = new Listener() {
+		@Override
+		public void handleEvent(Event event) {
+			show(event);
+		}
+	};
+
+	/**
+	 * Table Sort Listener
+	 */
+	private Listener columnListener = new Listener() {
+		@Override
+		public void handleEvent(Event e) {
+			sort((TreeColumn) e.widget);
+		}
+	};
+}

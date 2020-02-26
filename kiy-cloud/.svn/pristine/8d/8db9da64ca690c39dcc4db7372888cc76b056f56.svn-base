@@ -1,0 +1,190 @@
+/**
+ * 2017年2月17日
+ */
+package com.kiy.cloud.http;
+
+import java.io.PrintWriter;
+import java.text.DateFormat;
+import java.util.Date;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class JSON {
+
+	/**
+	 * {
+	 * 
+	 * @param p
+	 */
+	public static void begin(PrintWriter p) {
+		p.print('{');
+	}
+
+	/**
+	 * }
+	 * 
+	 * @param p
+	 */
+	public static void end(PrintWriter p) {
+		p.print('}');
+	}
+
+	public static void arrayBegin(PrintWriter p, String name, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		if (name != null) {
+			p.print('\"');
+			p.print(name);
+			p.print('\"');
+			p.print(':');
+		}
+		p.print('[');
+
+	}
+
+	public static void arrayEnd(PrintWriter p) {
+		p.print(']');
+	}
+
+	public static void objectBegin(PrintWriter p, Boolean first) {
+		objectBegin(p, null, first);
+	}
+
+	/**
+	 * "name":{
+	 * 
+	 * @param p
+	 * @param name
+	 */
+	public static void objectBegin(PrintWriter p, String name, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		if (name != null) {
+			p.print('\"');
+			p.print(name);
+			p.print('\"');
+			p.print(':');
+		}
+		p.print('{');
+	}
+
+	/**
+	 * }
+	 * 
+	 * @param p
+	 */
+	public static void objectEnd(PrintWriter p) {
+		p.print('}');
+	}
+
+	/**
+	 * "name":"value"
+	 * 
+	 * @param p
+	 * @param name
+	 * @param value
+	 */
+	public static void field(PrintWriter p, String name, String value) {
+		field(p, name, value, false);
+	}
+
+	
+	public static void field(PrintWriter p, String name, String value, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		p.print('\"');
+		p.print(name);
+		p.print('\"');
+		p.print(':');
+		p.print('\"');
+		p.print(value);
+		p.print('\"');
+	}
+
+	/**
+	 * "name":1/0
+	 * 
+	 * @param p
+	 * @param name
+	 * @param value
+	 */
+	public static void field(PrintWriter p, String name, Boolean value) {
+		field(p, name, value, false);
+	}
+
+	public static void field(PrintWriter p, String name, Boolean value, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		p.print('\"');
+		p.print(name);
+		p.print('\"');
+		p.print(':');
+		p.print(value ? '1' : '0');
+	}
+
+	/**
+	 * "name":898
+	 * 
+	 * @param p
+	 * @param name
+	 * @param value
+	 */
+	public static void field(PrintWriter p, String name, int value) {
+		field(p, name, value, false);
+	}
+
+	public static void field(PrintWriter p, String name, int value, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		p.print('\"');
+		p.print(name);
+		p.print('\"');
+		p.print(':');
+		p.print(value);
+	}
+
+	/**
+	 * "name":898
+	 * 
+	 * @param p
+	 * @param name
+	 * @param value
+	 */
+	public static void field(PrintWriter p, String name, float value) {
+		field(p, name, value, false);
+	}
+
+	public static void field(PrintWriter p, String name, float value, Boolean first) {
+		if (!first)
+			p.print(',');
+
+		p.print('\"');
+		p.print(name);
+		p.print('\"');
+		p.print(':');
+		p.print(value);
+	}
+
+	/**
+	 * "name":"local format date"
+	 * 
+	 * @param p
+	 * @param name
+	 * @param value
+	 */
+	public static void field(PrintWriter p, String name, Date value) {
+		field(p, name, value, false);
+	}
+
+	public static void field(PrintWriter p, String name, Date value, Boolean first) {
+		DateFormat f = DateFormat.getDateTimeInstance();
+		field(p, name, f.format(value), first);
+	}
+}

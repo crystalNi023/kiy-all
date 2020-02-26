@@ -1,0 +1,268 @@
+package com.kiy.servo.recognize;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Scene;
+import com.kiy.common.Tool;
+import com.kiy.servo.Config;
+import com.kiy.servo.data.Data;
+
+/**
+ * 语音识别
+ * 
+ * @author HLX Tel:18996470535
+ * @date 2018年5月22日 Copyright:Copyright(c) 2018
+ */
+public class Recognize {
+
+	public static void main(String[] args) {
+		 Config.load();
+		 Data.initialize();
+		 String recognize2 = Recognize.getInstance().recognizeString("关闭水晶球灯，而不");
+		 System.err.println(recognize2);
+	}
+
+	/**
+	 * 打开
+	 */
+	public static final int OPEN = 1;
+	/**
+	 * 关闭
+	 */
+	public static final int OFF = 2;
+	/**
+	 * 查询
+	 */
+	public static final int QUERY = 3;
+
+	/**
+	 * 动词
+	 */
+	private Map<String, Integer> keyWord;
+
+	/**
+	 * 名词(设备名称)
+	 */
+	private Map<String, Device> deviceWord;
+
+	/**
+	 * 名词(设备类型)
+	 */
+	private Set<String> targetWord;
+
+	/**
+	 * 名词翻译(设备类型)
+	 */
+	private Map<String, String> targetWordTransform;
+	
+	
+	/**
+	 * 场景
+	 */
+	private Map<String, Scene> scence;
+
+	/**
+	 * 平舌音、翘舌音: zh,ch,sh->z c s 和后鼻音: ang,eng,ing->an,en,in 鼻音N与边音L: l->n
+	 */
+	private Recognize() {
+		/**
+		 * 动词
+		 */
+		keyWord = new HashMap<>();
+		keyWord.put("dakai", OPEN);// 打开
+		keyWord.put("kai", OPEN); // 开
+		keyWord.put("kaiqi", OPEN); // 开启
+		keyWord.put("qidong", OPEN); // 启动
+		keyWord.put("nakai", OPEN); // 拉开
+
+		keyWord.put("guanbi", OFF); // 关闭
+		keyWord.put("guan", OFF); // 关
+		keyWord.put("guanshan", OFF); // 关上
+
+		keyWord.put("duqu", QUERY); // 读取
+		keyWord.put("caxun", QUERY); // 查询
+		keyWord.put("cakan", QUERY); // 查看
+		keyWord.put("xiansi", QUERY); // 显示
+		keyWord.put("huoqu", QUERY); // 获取
+		/**
+		 * 名词 (设备名字)
+		 */
+		Set<Device> devices = Data.getServo().getDevices();
+		deviceWord = new HashMap<>();
+		for (Device device : devices) {
+			deviceWord.put(StringToPingyin.String2PingyingBySimilarity(device.getName()).toLowerCase(), device);
+		}
+		
+		/**
+		 * 场景
+		 */
+		Set<Scene> scenes = Data.getServo().getScenes();
+		scence = new HashMap<>();
+		for (Scene scene : scenes) {
+			scence.put(StringToPingyin.String2PingyingBySimilarity(scene.getName()).toLowerCase(), scene);
+		}
+		
+		/**
+		 * 名词 (设备类型)
+		 */
+		targetWord = new HashSet<>();
+		targetWord.add("den");// 灯
+		targetWord.add("dianden"); // 电灯
+		targetWord.add("cuanhu"); // 窗户
+		targetWord.add("cuannian"); // 窗帘
+		targetWord.add("men"); // 门
+		targetWord.add("guanzao"); // 光照
+		targetWord.add("pm2.5");
+		targetWord.add("pm10");
+		targetWord.add("wendu");// 温度
+		targetWord.add("sidu"); // 湿度
+		targetWord.add("jiawan"); // 甲烷
+
+		/**
+		 * 名词翻译(设备类型)
+		 */
+		targetWordTransform = new HashMap<>();
+		targetWordTransform.put("den", "灯");
+		targetWordTransform.put("dianden", "电灯");
+		targetWordTransform.put("cuanhu", "窗户");
+		targetWordTransform.put("cuannian", "窗帘");
+		targetWordTransform.put("men", "门");
+		targetWordTransform.put("guanzao", "光照");
+		targetWordTransform.put("pm2.5", "pm2.5");
+		targetWordTransform.put("pm10", "pm10");
+		targetWordTransform.put("wendu", "温度");
+		targetWordTransform.put("sidu", "湿度");
+		targetWordTransform.put("jiawan", "甲烷");
+
+	}
+
+	public static volatile Recognize recognize;
+
+	public static Recognize getInstance() {
+		if (recognize == null) {
+			synchronized (Recognize.class) {
+				if (recognize == null) {
+					recognize = new Recognize();
+				}
+			}
+		}
+		return recognize;
+
+	}
+
+	public String recognizeString(String stri) {
+		String string = StringToPingyin.String2PingyingBySimilarity(stri).toLowerCase();
+
+		String verb = "";
+		String noun = "";
+		String deviceType = "";
+		int index = Integer.MAX_VALUE;
+		
+		/**
+		 * 匹配场景
+		 */
+		Set<String> keySet3 = scence.keySet();
+		for (String str : keySet3) {
+			if (str.equals(string)) {
+				return SpeechCommand.openScene(scence.get(str));
+			}
+		}
+
+		/**
+		 * 1.匹配动词
+		 */
+		Set<String> keySet = keyWord.keySet();
+		for (String str : keySet) {
+			if (string.contains(str)) {
+				int n = string.indexOf(str);
+				if (n <= index) {
+					verb = str;
+					index = n;
+				}
+			}
+		}
+
+		Set<String> keySet2 = deviceWord.keySet();
+		/**
+		 * 2.匹配名称
+		 */
+		for (String str : keySet2) {
+			if (string.contains(str)) {
+				noun = str;
+				break;
+			}
+		}
+		/**
+		 * 3.匹配设备类型
+		 */
+		for (String str : targetWord) {
+			if (string.contains(str)) {
+				deviceType = str;
+				break;
+			}
+		}
+		
+		/**
+		 * 4.具体判断操作指令
+		 */
+		if (!Tool.isEmpty(verb) && !Tool.isEmpty(noun)) {
+			Integer integer = keyWord.get(verb);
+			Device device = deviceWord.get(noun);
+			switch (integer) {
+				case OPEN:
+					/**
+					 * 打开设备
+					 */
+					return SpeechCommand.openDevice(device);
+				case OFF:
+					/**
+					 * 关闭设备
+					 */
+					return SpeechCommand.offDevice(device);
+				case QUERY:
+					/**
+					 * 读取设备状态
+					 */
+					return SpeechCommand.queryDevice(device);
+				default:
+					break;
+			}
+		}
+
+		if (!Tool.isEmpty(verb) && !Tool.isEmpty(deviceType)) {
+			Integer integer = keyWord.get(verb);
+			switch (integer) {
+				case OPEN:
+					return "请说明您具体要打开哪个" + targetWordTransform.get(deviceType) + ",例如打开客厅照明灯";
+				case OFF:
+					return "请说明您具体要关闭哪个" + targetWordTransform.get(deviceType) + ",例如关闭客厅照明灯";
+
+				case QUERY:
+					return "请说明您具体要读取哪个设备状态,例如查看室内温湿度";
+				default:
+					break;
+			}
+		}
+
+		return "有趣的问题，但是我听不懂";
+	}
+
+	public void refresh() {
+		Set<Device> devices = Data.getServo().getDevices();
+		deviceWord.clear();
+		for (Device device : devices) {
+			deviceWord.put(StringToPingyin.String2PingyingBySimilarity(device.getName()).toLowerCase(), device);
+		}
+
+		Set<Scene> scenes = Data.getServo().getScenes();
+		scence.clear();
+		for (Scene scene : scenes) {
+			scence.put(StringToPingyin.String2PingyingBySimilarity(scene.getName()).toLowerCase(), scene);
+		}
+		
+	}
+}

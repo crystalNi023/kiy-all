@@ -1,0 +1,548 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.data;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Linkage;
+import com.kiy.common.Maintain;
+import com.kiy.common.Notice;
+import com.kiy.common.Push;
+import com.kiy.common.Role;
+import com.kiy.common.Scene;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.ULog;
+import com.kiy.common.User;
+import com.kiy.common.Zone;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.Message.ActionCase;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.Util;
+
+/**
+ * 数据主类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Data {
+
+	private static DataBank DB;
+	private static DataCache DC;
+
+	private Data() {
+		// 对象只能有一个实例
+	}
+
+	public static void initialize() {
+		Log.info("Data initialize ...");
+
+		if (Config.DB) {
+			String db_type = Config.DB_TYPE;
+
+			DBConnection dbc = null;	
+			
+			try {
+				dbc = new DBConnection(db_type, Config.DB_URL, Config.DB_USER, Config.DB_PASSWORD, Config.DB_MAX);
+			} catch (Exception e) {
+				try {
+					Thread.sleep(1000);
+					dbc = new DBConnection(db_type, Config.DB_URL, Config.DB_USER, Config.DB_PASSWORD, Config.DB_MAX);
+				} catch (Exception e2) {
+					dbc = new DBConnection(db_type, Config.DB_URL, Config.DB_USER, Config.DB_PASSWORD, Config.DB_MAX);
+				}
+			}
+
+			if (DBConnection.DB_MYSQL.equalsIgnoreCase(db_type)) {
+				DB = new DBMySQL(dbc);
+			} else if (DBConnection.DB_ORACLE.equalsIgnoreCase(db_type)) {
+				DB = new DBOracle(dbc);
+			} else {
+				DB = null;
+				// 此情况不会出现，如果DBConnection能创建成功则DB_TYPE参数是正确的
+			}
+		}
+
+		DC = new DataCache();
+		if (Config.FILE_DATA)
+			DC.load();
+
+		if (DC.servo == null) {
+			DC.servo = new Servo();
+		}
+
+		if (DC.servo.getUnitCount() == 0) {
+			// 如果载入失败/没有实体对象，尝试从数据库载入
+			if (DB != null) {
+				Log.info("Load units from database ...");
+				DB.refresh(DC.servo);
+				Log.info("Load units count " + DC.servo.getUnitCount());
+			}
+		}
+
+		if (DC.servo.getUserCount() == 0) {
+			// 没有任何用户则初始化一个默认用户，否则无法登陆
+			User user = new User();
+			user.newId();
+			user.setName("administrator");
+			user.setPassword(Tool.MD5("ky"));
+			user.setEnable(true);
+			user.setCreated(new Date());
+			user.setUpdated(new Date());
+			Role role = new Role();
+			role.newId();
+			role.setName("manger");
+			role.setCreated(new Date());
+			role.setUpdated(new Date());
+			for (int index = 0; index < ActionCase.values().length; index++)
+				role.addCommand(ActionCase.values()[index].getNumber());
+
+			user.addRole(role);
+			DC.servo.add(user);
+			DC.servo.add(role);
+
+			Log.info("Default user \"administrator\" password:\"ky\"");
+		}
+
+		Log.info("Data initialized");
+	}
+
+	public static Servo getServo() {
+		if (DC == null)
+			return null;
+		return DC.servo;
+	}
+
+	public static void destroy() {
+		Log.info("Data destroy ...");
+
+		if (Config.FILE_DATA)
+			DC.save();
+
+		if (DB != null)
+			DB.dbc.destroy();
+
+		Log.info("Data destroyed");
+	}
+
+	// 以下为数据处理方法///////////////////////////
+
+	public static User Login(String username, String password) {
+		return DC.Login(username, password);
+	}
+
+	public static Set<Device> SelectDevices(long date) {
+		return DC.SelectDevices(date);
+	}
+
+	public static Set<Task> SelectTasks(long date) {
+		return DC.SelectTasks(date);
+	}
+
+	public static Set<Zone> SelectZones(long date) {
+		return DC.SelectZones(date);
+	}
+
+	public static Set<User> SelectUsers(long date) {
+		return DC.SelectUsers(date);
+	}
+
+	public static Set<Role> SelectRoles(long date) {
+		return DC.SelectRoles(date);
+	}
+	
+	public static Set<Scene> SelectScenes(long date) {
+		return DC.SelectScenes(date);
+	}
+	
+	public static Set<Linkage> SelectLinkage(long date) {
+		return DC.SelectLinkage(date);
+	}
+
+	public static Set<String> SelectDeletes(long date) {
+		if (DB == null)
+			return null;
+
+		return DB.SelectDeletes(new Date(date));
+	}
+
+	public static List<Device> QueryDeviceStatus(Device d, long begin, long end) {
+		if (DB == null || d == null)
+			return null;
+
+		return DB.QueryDeviceStatus(d, new Date(begin), new Date(end));
+	}
+
+	public static List<Maintain> QueryDeviceMaintain(String id, long begin, long end) {
+		if (DB == null)
+			return null;
+
+		return DB.QueryDeviceMaintain(id, new Date(begin), new Date(end));
+	}
+
+	public static List<ULog> QueryLog(String id, long begin, long end) {
+		if (DB == null)
+			return null;
+
+		return DB.QueryLog(id, new Date(begin), new Date(end));
+	}
+
+	public static User CreateUser(User user) {
+		user = DC.CreateUser(user);
+		if (DB != null && user != null)
+			if (!DB.CreateUser(user)) {
+				DC.servo.remove(user);
+				user = null;
+			}
+
+		return user;
+	}
+
+	public static Role CreateRole(Role role) {
+		role = DC.CreateRole(role);
+		if (DB != null && role != null)
+			if (!DB.CreateRole(role)) {
+				DC.servo.remove(role);
+				role = null;
+			}
+
+		return role;
+	}
+
+	public static Zone CreateZone(Zone zone) {
+		zone = DC.CreateZone(zone);
+		if (DB != null && zone != null)
+			if (!DB.CreateZone(zone)) {
+				DC.servo.remove(zone);
+				zone = null;
+			}
+
+		return zone;
+	}
+
+	public static Task CreateTask(Task task) {
+		task.setStart(Util.covertTime(task.getStart()));
+		task.setStop(Util.covertTime(task.getStop()));
+		task = DC.CreateTask(task);
+		if (DB != null && task != null)
+			if (!DB.CreateTask(task)) {
+				DC.servo.remove(task);
+				task = null;
+			}
+
+		return task;
+	}
+	
+	public static Scene CreateScene(Scene scene) {
+		scene = DC.CreateScene(scene);
+		if(DB != null && scene != null)
+			if (!DB.CreateScene(scene)) {
+				DC.servo.remove(scene);
+				scene = null;
+			}
+		return scene;
+	}
+	
+	public static Linkage CreateLinkage(Linkage linkage) {
+		linkage = DC.CreateLinkage(linkage);
+		if(DB != null && linkage != null)
+			if (!DB.CreateLinkage(linkage)) {
+				DC.servo.remove(linkage);
+				linkage = null;
+			}
+		return linkage;
+	}
+
+	public static Device CreateDevice(Device device) {
+		device = DC.CreateDevice(device);
+		if (DB != null && device != null)
+			if (!DB.CreateDevice(device)) {
+				DC.servo.remove(device);
+				device = null;
+			}
+
+		return device;
+	}
+
+	public static Maintain CreateMaintain(Maintain matintain) {
+		if (DB != null && matintain != null)
+			if (!DB.CreateMaintain(matintain)) {
+				matintain = null;
+			}
+
+		return matintain;
+	}
+
+	public static void CreateDeviceStatus(Device d, Origin o) {
+		if (DB != null && d != null)
+			DB.CreateDeviceStatus(d, o);
+	}
+	
+	public static void CreateLog(User u, Message req, Message rsp, long time) {
+		if (req == null)
+			return;
+
+		if (DB != null)
+			DB.CreateLog(u, req, rsp, time);
+	}
+	
+	public static void CreateNotice(Notice notice) {
+		if(DB!=null&&notice!=null) {
+			DB.CreateNotice(notice);
+		}
+	}
+
+	public static void UploadUserIcon(User user){
+		if(DB!=null&&user!=null) {
+			DB.UploadUserIcon(user);
+		}
+	}
+	
+	public static String QueryUserLog(String id){
+		if(DB!=null&&!Tool.isEmpty(id)) {
+			return DB.QueryUserIcon(id);
+		}
+		return "";
+	}
+
+	public static Zone MoveZone(String id, String parent) {
+		Zone zone = DC.MoveZone(id, parent);
+		if (DB != null && zone != null)
+			if (!DB.MoveZone(zone)) {
+				zone = null;
+			}
+
+		return zone;
+	}
+
+	public static Device MoveDevice(String id, String zone, String relay) {
+		Device device = DC.MoveDevice(id, zone, relay);
+		if (DB != null && device != null)
+			if (!DB.MoveDevice(device)) {
+				device = null;
+			}
+
+		return device;
+	}
+
+	public static Device MovePosition(String id, double longitude, double latitude, float altitude) {
+		Device device = DC.MovePosition(id, longitude, latitude, altitude);
+		if (DB != null && device != null)
+			if (!DB.MovePosition(device)) {
+				device = null;
+			}
+
+		return device;
+	}
+
+	public static User UpdateUser(User user) {
+		user = DC.UpdateUser(user);
+		if (DB != null && user != null)
+			if (!DB.UpdateUser(user)) {
+				// DC.servo.remove(user);
+				user = null;
+			}
+
+		return user;
+	}
+
+	public static Role UpdateRole(Role role) {
+		role = DC.UpdateRole(role);
+		if (DB != null && role != null)
+			if (!DB.UpdateRole(role)) {
+				// DC.servo.remove(role);
+				role = null;
+			}
+
+		return role;
+	}
+
+	public static Zone UpdateZone(Zone zone) {
+		zone = DC.UpdateZone(zone);
+		if (DB != null && zone != null)
+			if (!DB.UpdateZone(zone)) {
+				// DC.servo.remove(zone);
+				zone = null;
+			}
+
+		return zone;
+	}
+
+	public static Task UpdateTask(Task task) {
+		task.setStart(Util.covertTime(task.getStart()));
+		task.setStop(Util.covertTime(task.getStop()));
+		task = DC.UpdateTask(task);
+		if (DB != null && task != null)
+			if (!DB.UpdateTask(task)) {
+				// DC.servo.remove(task);
+				task = null;
+			}
+		return task;
+	}
+
+	public static Scene UpdateScene(Scene scene) {
+		scene = DC.UpdateScene(scene);
+		if (DB != null && scene != null)
+			if (!DB.UpdateScene(scene)){
+				scene = null;
+			}
+		return scene;
+	}
+	
+	public static Scene UpdateSceneStatusScenes(String id,boolean switchStatus) {
+		Scene scene = DC.UpdateSceneStatus(id, switchStatus);
+		if (DB != null && scene != null)
+			if (!DB.UpdateSceneStatus(id,switchStatus)) {
+				scene = null;
+			}
+		
+		return scene;
+		
+	}
+	
+	public static Linkage UpdateLinkage(Linkage linkage) {
+		linkage = DC.UpdateLinkage(linkage);
+		if (DB != null && linkage != null)
+			if (!DB.UpdateLinkage(linkage)){
+				linkage = null;
+			}
+		return linkage;
+	}
+	
+	public static Linkage UpdateLinkageStatus(String id,boolean linkageStatus) {
+		Linkage linkage = DC.UpdateLinkageStatus(id, linkageStatus);
+		if (DB != null && linkage != null)
+			if (!DB.UpdateLinkageStatus(id,linkageStatus)) {
+				linkage = null;
+			}
+		
+		return linkage;
+		
+	}
+	
+	public static Device UpdateDevice(Device device) {
+		device = DC.UpdateDevice(device);
+		if (DB != null && device != null)
+			if (!DB.UpdateDevice(device)) {
+				// DC.servo.remove(device);
+				device = null;
+			}
+
+		return device;
+	}
+
+	public static Maintain UpdateMaintain(Maintain maintain) {
+		if (DB != null && maintain != null)
+			if (!DB.UpdateMaintain(maintain)) {
+				// DC.servo.remove(device);
+				maintain = null;
+			}
+
+		return maintain;
+	}
+
+	public static User DeleteUser(String id) {
+		User user = DC.DeleteUser(id);
+		if (DB != null && user != null)
+			if (!DB.DeleteUser(user)) {
+				DC.servo.add(user);
+				user = null;
+			}
+
+		return user;
+	}
+
+	public static Role DeleteRole(String id) {
+		Role role = DC.DeleteRole(id);
+		if (DB != null && role != null)
+			if (!DB.DeleteRole(role)) {
+				DC.servo.add(role);
+				role = null;
+			}
+
+		return role;
+	}
+
+	public static Zone DeleteZone(String id) {
+		Zone zone = DC.DeleteZone(id);
+		if (DB != null && zone != null)
+			if (!DB.DeleteZone(zone)) {
+				DC.servo.add(zone);
+				zone = null;
+			}
+
+		return zone;
+	}
+
+	public static Task DeleteTask(String id) {
+		Task task = DC.DeleteTask(id);
+		if (DB != null && task != null)
+			if (!DB.DeleteTask(task)) {
+				DC.servo.add(task);
+				task = null;
+			}
+
+		return task;
+	}
+
+	public static Device DeleteDevice(String id) {
+		Device device = DC.DeleteDevice(id);
+		if (DB != null && device != null)
+			if (!DB.DeleteDevice(device)) {
+				DC.servo.add(device);
+				device = null;
+			}
+
+		return device;
+	}
+
+	public static Boolean DeleteMaintain(String id) {
+		if (DB != null && id != null)
+			return DB.DeleteMaintain(id);
+
+		return false;
+	}
+	
+	public static Scene DeleteScene(String id) {
+		Scene scene = DC.DeleteScene(id);
+		if (DB != null && scene != null)
+			if (!DB.DeleteScene(scene)) {
+				DC.servo.add(scene);
+				scene = null;
+			}
+
+		return scene;
+	}
+	
+	public static Linkage DeleteLinkage(String id) { 
+		Linkage linkage = DC.DeleteLinkage(id);
+		if (DB != null && linkage != null)
+			if (!DB.DeleteLinkage(linkage)) {
+				DC.servo.add(linkage);
+				linkage = null;
+			}
+		
+		return linkage;
+	}
+	
+	public static boolean isPriority(String id){
+		int count = DB.CountLinkageDevicePriority(id);
+		System.err.println(count+"DB.CountLinkageDevicePriority(id)");
+		if (count == 0) {
+			return true;
+		}
+		return false;
+	}
+	
+	public static boolean CreatePush(Push push) {
+		return DB.CreatePush(push);
+	}
+}

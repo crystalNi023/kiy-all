@@ -1,0 +1,172 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.cloud;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Properties;
+
+/**
+ * 服务配置参数
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class Config {
+
+	public static String CONFIG_FILENAME = "config.properties";
+
+	// 服务名称
+	public static String NAME = "KIY Cloud";
+	// 服务线程数
+	public static int THREAD = 1;
+	// 调试模式(将输出调试日志)
+	public static boolean DEBUG = true;
+
+	// 主控服务启用
+	public static boolean MASTER = true;
+	// 主控服务地址
+	public static String MASTER_IP;
+	// 主控服务端口
+	public static int MASTER_PORT = 1230;
+
+	// HTTP服务启用
+	public static boolean HTTP = false;
+	// HTTP服务模式HTTP/HTTPS
+	public static String HTTP_MODE = "HTTP";
+	// HTTP服务地址
+	public static String HTTP_IP;
+	// HTTP服务端口
+	public static int HTTP_PORT = 80;
+	// HTTP服务端口SSL
+	public static int HTTP_SSL_PORT = 443;
+	
+	// 意见反馈文件存储路径
+	public final static String FEEDBACK_URL = File.separatorChar + "data" + File.separator +"feedback"+File.separator;
+	
+	// 用户头像文件存储路径
+	public final static String USER_ICON_URL = File.separatorChar + "data" + File.separator +"userIcon"+File.separator;
+	
+	// Http文件访问跟路径
+//	public final static String IMG_URL = "http://127.0.0.1:8090/data/";
+	public final static String IMG_URL = "http://cloud.cqkiy.com:8080/data/";
+	
+	public final static String MYBATIS_CONFIG_URL = "mybatisConfig.xml";
+
+	public static String getWorkPath() {
+		String path = System.getProperty("user.dir");
+
+		return path;
+	}
+
+	public static void load() {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+
+		Properties properties = new Properties();
+		try (FileInputStream input = new FileInputStream(file)) {
+			properties.load(input);
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw new RuntimeException(ex);
+			// 必须成功加载配置文件，否则无法运行
+		}
+
+		NAME = properties.getProperty("NAME");
+		THREAD = Integer.parseInt(properties.getProperty("THREAD"));
+		DEBUG = getBoolean(properties.getProperty("DEBUG"));
+
+		MASTER = getBoolean(properties.getProperty("MASTER"));
+		if (MASTER) {
+			MASTER_IP = properties.getProperty("MASTER_IP");
+			MASTER_PORT = Integer.parseInt(properties.getProperty("MASTER_PORT"));
+		}
+
+		HTTP = getBoolean(properties.getProperty("HTTP"));
+		if (HTTP) {
+			HTTP_MODE = properties.getProperty("HTTP_MODE");
+			HTTP_IP = properties.getProperty("HTTP_IP");
+			HTTP_PORT = Integer.parseInt(properties.getProperty("HTTP_PORT"));
+			HTTP_SSL_PORT = Integer.parseInt(properties.getProperty("HTTP_SSL_PORT"));
+		}
+	}
+
+	public static void check() {
+		// 检查配置文件配置项是否完整
+		if (isEmpty(NAME)) {
+			// 必须设置名称
+			throw new IllegalArgumentException("Config error NAME");
+		}
+
+		if (THREAD < 0 || THREAD > 512) {
+			// 至少为0 ~ 512
+			throw new IllegalArgumentException("Config error THREAD, The value should be between 0~512");
+		}
+
+
+		if (HTTP) {
+			if (HTTP_PORT < 0 || HTTP_PORT > 65535)
+				// HTTP服务端口必须在有效范围内
+				throw new IllegalArgumentException("Config error HTTP_PORT");
+		}
+	}
+
+	public static void save() throws IOException {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+
+		Properties properties = new Properties();
+
+		properties.setProperty("NAME", NAME);
+		properties.setProperty("THREAD", Integer.toString(THREAD));
+		properties.setProperty("DEBUG", toBoolean(DEBUG));
+
+		properties.setProperty("MASTER", toBoolean(MASTER));
+		properties.setProperty("MASTER_IP", MASTER_IP);
+		properties.setProperty("MASTER_PORT", Integer.toString(MASTER_PORT));
+
+		properties.setProperty("HTTP", toBoolean(HTTP));
+		properties.setProperty("HTTP_MODE", HTTP_MODE);
+		properties.setProperty("HTTP_IP", HTTP_IP);
+		properties.setProperty("HTTP_PORT", Integer.toString(HTTP_PORT));
+		properties.setProperty("HTTP_SSL_PORT", Integer.toString(HTTP_SSL_PORT));
+
+		try (FileOutputStream output = new FileOutputStream(file);) {
+			properties.store(output, "SAVED BY SERVICE");
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw ex;
+		}
+	}
+
+	public static final boolean isEmpty(String s) {
+		if (s == null)
+			return true;
+		if (s.length() > 0)
+			return false;
+		return true;
+	}
+
+	public static boolean getBoolean(String value) {
+		if (value == null)
+			return false;
+		else if ("YES".equalsIgnoreCase(value))
+			return true;
+		else if ("ON".equalsIgnoreCase(value))
+			return true;
+		else
+			return false;
+	}
+
+	public static String toBoolean(boolean value) {
+		if (value)
+			return "ON";
+		else
+			return "OFF";
+	}
+}

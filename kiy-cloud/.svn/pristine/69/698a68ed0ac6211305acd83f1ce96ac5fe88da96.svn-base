@@ -1,0 +1,10 @@
+package com.kiy.cloud.data.dao;
+
+import com.kiy.cloud.data.bean.UserBean;
+
+
+public interface UserDao {
+	
+	public boolean createUser(UserBean userBean) throws Exception;
+
+}

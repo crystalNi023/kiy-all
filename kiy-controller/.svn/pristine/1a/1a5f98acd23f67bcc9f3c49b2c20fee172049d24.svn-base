@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+	<div>
+	<h1>创建角色</h1>
+	<hr>
+	<p>首先首先在<a href="parameterList.html">结构视图</a>中选择你要创建角色的伺服器。选择[主窗口]->[伺服器]选项卡->[用户角色]，然后会弹出用户角色窗口。如下图所示</p>
+	<img src="createRole_1.png" />
+	<p>选择[操作]选项卡->[新建]选项卡->[角色]，或者在角色tab栏点击右键选择[新建]，然后会弹出角色创建窗口。如下图所示</p>
+	<img src="createRole_2.png" />
+	<p>输入您要创建的角色名，勾选该角色所拥有的权限，点击[确定],创建角色成功，可以在用户角色窗口看到您新创建的角色。点击右键菜单你可以进行角色编辑，删除等操作</p>
+	<p><a href="createUser.html">上一页</a>  <a href="createDevice.html">下一页</a></p>
+	</div>
+</body>
+</html>

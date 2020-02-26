@@ -1,0 +1,98 @@
+/**
+ * 2017年2月18日
+ */
+package com.kiy.servo.http;
+
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+
+import com.kiy.servo.Log;
+
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+
+/**
+ * HTTP请求处理类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+
+	public static final String JSON = "/json/";
+	public static final String XML = "/xml/";
+
+	private HttpProcess process;
+
+	public HttpRequestHandler(HttpProcess p) {
+		process = p;
+	}
+
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+		if (request.decoderResult() == DecoderResult.SUCCESS) {
+			HttpParameters parameters = new HttpParameters();
+
+			// GET
+			QueryStringDecoder get = new QueryStringDecoder(request.uri());
+			parameters.setDecoder(get);
+
+			// POST
+			if (request.method() == HttpMethod.POST) {
+				HttpPostRequestDecoder post = new HttpPostRequestDecoder(request);
+				parameters.setDecoder(post);
+			}
+
+			// RESPONSE
+			FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+			PrintWriter writer = new PrintWriter(new OutputStreamWriter(new ByteBufOutputStream(response.content()), "UTF-8"));
+			// JSON/XML /json/select_devices
+			if (get.path().startsWith(JSON)) {
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json;charset=UTF-8");
+				process.process(HttpProcess.CODE_JSON, get.path().substring(JSON.length()), parameters, writer);
+			} else if (get.path().startsWith(XML)) {
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/xml;charset=UTF-8");
+				process.process(HttpProcess.CODE_XML, get.path().substring(XML.length()), parameters, writer);
+			} else {
+				response.headers().set(HttpHeaderNames.CONTENT_TYPE, "html/text;charset=UTF-8");
+				writer.println("ERROR");
+				response.setStatus(HttpResponseStatus.BAD_REQUEST);
+			}
+			writer.flush();
+
+			// SEND
+			if (HttpUtil.isKeepAlive(request)) {
+				response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+				response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+				ctx.writeAndFlush(response);
+			} else {
+				ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+			}
+		} else {
+			FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.EXPECTATION_FAILED);
+			ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+		}
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		// 出现异常时,记录错误关闭通道
+		Log.error(cause);
+		ctx.channel().disconnect();
+		ctx.channel().close();
+	}
+}

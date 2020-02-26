@@ -1,0 +1,570 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>电力运行记录</title>
+<link href="style.css" rel="stylesheet" type="text/css">
+<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+<script type="text/javascript" src="jquery-ui-1.10.4.custom.min.js"></script>
+<script type="text/javascript" src="jquery.ui.datepicker-zh-CN.min.js"></script>
+<link rel="stylesheet" href="jquery-ui-1.10.4.custom.css">
+<script type="text/javascript">
+	$(document)
+			.ready(
+					function() {
+							var data = SERVO_DATA();
+							var obj = eval(data);
+							var switching_room = $('#switching_room');
+							var start_date = $('start_date');
+							var end_date = $('end_date');
+
+							for (var i = 0; i < obj.length; i++) {
+								switching_room
+										.append("<option value='"+obj[i]["id"]+"'>"
+												+ obj[i]["name"] + "</option>");
+							}
+
+							$("#start_date").datepicker();
+							$("#start_date").datepicker("option", "dateFormat",
+									"yy-mm-dd");
+							$("#end_date").datepicker();
+							$("#end_date").datepicker("option", "dateFormat",
+									"yy-mm-dd");
+
+					});
+	
+	function query() {
+		var beginDate = document.getElementById("start_date").value;
+		var endDate = document.getElementById("end_date").value;
+		
+		if(beginDate==null||beginDate==""){
+			alert("请选择开始时间");
+			return;
+		}
+		
+		if(endDate==null||endDate==""){
+			alert("请选择结束时间");
+			return;
+		}
+
+		var arys1 = new Array();
+		var arys2 = new Array();
+		arys1 = beginDate.split('-');
+		var sdate = new Date(arys1[0], parseInt(arys1[1] - 1), arys1[2]);
+		arys2 = endDate.split('-');
+		var edate = new Date(arys2[0], parseInt(arys2[1] - 1), arys2[2]);
+		if (sdate > edate) {
+			alert("开始时间小于结束时间");
+		}else{
+			$("#tdb  tr:not(:first)").remove(); //清空表格中的数据
+			
+			QUERY_STATUS(document.getElementById("switching_room").value,"",sdate.getTime(),edate.getTime());
+		}
+	}
+	
+	//比较日前大小  
+	function compareDate(checkStartDate, checkEndDate) {
+		var arys1 = new Array();
+		var arys2 = new Array();
+		if (checkStartDate != null && checkEndDate != null) {
+			arys1 = checkStartDate.split('-');
+			var sdate = new Date(arys1[0], parseInt(arys1[1] - 1), arys1[2]);
+			arys2 = checkEndDate.split('-');
+			var edate = new Date(arys2[0], parseInt(arys2[1] - 1), arys2[2]);
+			if (sdate > edate) {
+				return false;
+			} else {
+				return true;
+			}
+		}
+	}
+
+	function string2Date(string){
+		var arys1 = new Array();
+		if (string != null){
+			arys1 = string.split('-');
+			var sdate = new Date(arys1[0], parseInt(arys1[1] - 1), arys1[2]);
+			return sdate;
+		}else{
+			return null;
+		} 
+	}
+	
+	function compare(start,end){
+		var time =0
+		if(start>end){
+			time =start-end;
+		}else{
+			time =end-start;
+		}
+		return Math.floor(time/86400000)
+	}
+	
+
+	function received(json) {
+		var data2 = eval(json);
+		
+		// $('#t').html(json);
+		
+		var weekday=new Array(7)
+		weekday[0]="日"
+		weekday[1]="一"
+		weekday[2]="二"
+		weekday[3]="三"
+		weekday[4]="四"
+		weekday[5]="五"
+		weekday[6]="六"
+
+		if (data2) {
+			var tr = document.getElementById('tdb').getElementsByTagName('tr');
+			if (tr.length<=1) {
+				var number = compare(data2["begin"],data2["end"]);
+				//1.计算时间相差数量
+				// alert("开始时间与结束时间的时间差 = "+number);
+				//2.先将所有表格绘制出来
+				var isAfternoon = false;
+				date = new Date(data2["begin"]);
+				for (var i = 0; i < number*2; i++) {
+					if (isAfternoon == false) {
+						$("#tdb").append('<tr id="'+'time_'+(date.getMonth()+1)+'_'+date.getDate()+'_am'+'"><th scope="row">'+(date.getMonth()+1)+'-'+date.getDate()+'</th><th>'+ weekday[date.getDay()]+'</th><th>9:00</th><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="1" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="2" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="3" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td></td><td data-vendor="YIYOU" data-kind="SENSOR_MOISTURE_TEMPERATURE" data-feature="0"></td> </tr>');
+							isAfternoon=!isAfternoon;
+					}else{
+						$("#tdb").append('<tr id="'+'time_'+(date.getMonth()+1)+'_'+date.getDate()+'_pm'+'"><th scope="row">'+(date.getMonth()+1)+'-'+date.getDate()+'</th><th>'+ weekday[date.getDay()]+'</th><th>17:00</th><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="1" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="1" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="2" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="2" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="2"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="3"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="4"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="8"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="9"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="10"></td><td data-number="3" data-vendor="ELECALL" data-kind="POWER_METER" data-feature="22"></td><td data-number="3" data-vendor="LINGRUI" data-kind="TRANSFORMER_TEMPERATURE_CONTROLLER" data-feature="1"></td><td></td><td data-vendor="YIYOU" data-kind="SENSOR_MOISTURE_TEMPERATURE" data-feature="0"></td> </tr>');
+							isAfternoon=!isAfternoon;
+							date.setDate(date.getDate() + 1);
+							//日期加一天
+					}
+				}
+			}else{
+				//表格已经绘制完成
+			}	
+
+			//根据厂商和类型添加表格
+			//1.室内温度
+			if (data2["vendor"] == "YIYOU"&&data2["kind"]=="SENSOR_MOISTURE_TEMPERATURE") {		
+				var day; //记录当前是哪一天
+				var moring; //记录 9:00的数据
+				var afternoon; // 记录 17:00 的数据
+				day = new Date(data2["begin"]);	//第一次时间为开始时间
+				//循环添加数据
+				for (var i = 0; i < data2["items"].length; i++) {
+					var dayNow = new Date(data2["items"][i]["created"]);
+					var timeM = dayNow.getTime()-day.getTime();//与记录的时间相差值
+					if(timeM>=86400000){
+						var t = Math.floor(timeM/86400000);
+						//往表格中添加数据
+						if (moring) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";	
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-vendor')=="YIYOU"&&$(this).attr('data-kind')=='SENSOR_MOISTURE_TEMPERATURE'&&$(this).attr('data-feature')=='0'){
+										$(this).text(moring["value0"]);
+									}
+								})
+							} 
+
+						if (afternoon) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-vendor')=="YIYOU"&&$(this).attr('data-kind')=='SENSOR_MOISTURE_TEMPERATURE'&&$(this).attr('data-feature')=='0'){
+										$(this).text(afternoon["value0"]);
+								}
+							})
+						}
+
+						//清空缓存数据
+						moring =null;
+						moring =  data2["items"][i];
+						afternoon = null;
+						//更新记录时间
+						day.setDate(day.getDate() + t);
+					}else{
+						//是同一天，继续比较大小
+						if (moring == null) {
+							moring = data2["items"][i];
+						}else{
+							//比较已经保存的时间与9:00的间隔大小是否更小，如果更小更新数据
+							var date_am = new Date(day.getTime());
+							date_am.setHours(9);
+							var a = (Math.abs(date_am.getTime()-moring["created"]));
+							var b = (Math.abs(date_am.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								// alert("更新9:00时间");
+								moring = data2["items"][i];
+							}else{
+								// 已经找出最接近9:00的对象
+								// alert("已经找出最接近9:00的对象");
+							}
+						}
+
+						if (afternoon == null) {
+							afternoon = data2["items"][i];
+						}else{
+							//比较已经保存的时间与17:00的间隔大小是否更小，如果更小更新数据
+							var date_pm = new Date(day.getTime());
+							date_pm.setHours(17);
+							var a = (Math.abs(date_pm.getTime()-afternoon["created"]));
+							var b = (Math.abs(date_pm.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								 // alert("更新17:00时间")
+								afternoon = data2["items"][i];
+							}else{
+								// alert("已经找出最接近17:00的对象");
+								// 已经找出最接近17:00的对象
+							}
+						}
+
+						if (i == data2["items"].length-1) {
+							if (moring) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-vendor')=="YIYOU"&&$(this).attr('data-kind')=='SENSOR_MOISTURE_TEMPERATURE'&&$(this).attr('data-feature')=='0'){
+											$(this).text(moring["value0"]);
+										}
+									})
+								} 
+
+							if (afternoon) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-vendor')=="YIYOU"&&$(this).attr('data-kind')=='SENSOR_MOISTURE_TEMPERATURE'&&$(this).attr('data-feature')=='0'){
+											$(this).text(afternoon["value0"]);
+										}
+									})
+								}
+							}
+
+						}
+					}
+				}
+
+				//2.电能表 
+				if (data2["vendor"] == "ELECALL"&&data2["kind"]=="POWER_METER") {		
+				var day; //记录当前是哪一天
+				var moring; //记录 9:00的数据
+				var afternoon; // 记录 17:00 的数据
+				day = new Date(data2["begin"]);	//第一次时间为开始时间
+				//循环添加数据
+				for (var i = 0; i < data2["items"].length; i++) {
+					var dayNow = new Date(data2["items"][i]["created"]);
+					var timeM = dayNow.getTime()-day.getTime();//与记录的时间相差值
+					if(timeM>=86400000){
+						var t = Math.floor(timeM/86400000);
+						//往表格中添加数据
+						if (moring) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";	
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='2'){
+										$(this).text(moring["value2"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='3'){
+										$(this).text(moring["value3"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='4'){
+										$(this).text(moring["value4"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='8'){
+										$(this).text(moring["value8"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='9'){
+										$(this).text(moring["value9"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='10'){
+										$(this).text(moring["value10"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='22'){
+										$(this).text(moring["value22"]);
+									}
+								})
+							} 
+
+						if (afternoon) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='2'){
+										$(this).text(afternoon["value2"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='3'){
+										$(this).text(afternoon["value3"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='4'){
+										$(this).text(afternoon["value4"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='8'){
+										$(this).text(afternoon["value8"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='9'){
+										$(this).text(afternoon["value9"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='10'){
+										$(this).text(afternoon["value10"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='22'){
+										$(this).text(afternoon["value22"]);
+									}
+							})
+						}
+
+						//清空缓存数据
+						moring =null;
+						moring =  data2["items"][i];
+						afternoon = null;
+						//更新记录时间
+						day.setDate(day.getDate() + t);
+					}else{
+						//是同一天，继续比较大小
+						if (moring == null) {
+							moring = data2["items"][i];
+						}else{
+							//比较已经保存的时间与9:00的间隔大小是否更小，如果更小更新数据
+							var date_am = new Date(day.getTime());
+							date_am.setHours(9);
+							var a = (Math.abs(date_am.getTime()-moring["created"]));
+							var b = (Math.abs(date_am.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								// alert("更新9:00时间");
+								moring = data2["items"][i];
+							}else{
+								// 已经找出最接近9:00的对象
+								// alert("已经找出最接近9:00的对象");
+							}
+						}
+
+						if (afternoon == null) {
+							afternoon = data2["items"][i];
+						}else{
+							//比较已经保存的时间与17:00的间隔大小是否更小，如果更小更新数据
+							var date_pm = new Date(day.getTime());
+							date_pm.setHours(17);
+							var a = (Math.abs(date_pm.getTime()-afternoon["created"]));
+							var b = (Math.abs(date_pm.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								 // alert("更新17:00时间")
+								afternoon = data2["items"][i];
+							}else{
+								// alert("已经找出最接近17:00的对象");
+								// 已经找出最接近17:00的对象
+							}
+						}
+
+						if (i == data2["items"].length-1) {
+							if (moring) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='2'){
+										$(this).text(moring["value2"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='3'){
+										$(this).text(moring["value3"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='4'){
+										$(this).text(moring["value4"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='8'){
+										$(this).text(moring["value8"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='9'){
+										$(this).text(moring["value9"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='10'){
+										$(this).text(moring["value10"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='22'){
+										$(this).text(moring["value22"]);
+									}
+									})
+								} 
+
+							if (afternoon) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='2'){
+										$(this).text(afternoon["value2"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='3'){
+										$(this).text(afternoon["value3"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='4'){
+										$(this).text(afternoon["value4"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='8'){
+										$(this).text(afternoon["value8"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='9'){
+										$(this).text(afternoon["value9"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='10'){
+										$(this).text(afternoon["value10"]);
+									}else if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="ELECALL"&&$(this).attr('data-kind')=='POWER_METER'&&$(this).attr('data-feature')=='22'){
+										$(this).text(afternoon["value22"]);
+									}
+									})
+								}
+							}
+
+						}
+					}
+				}
+
+
+				//3.变压器温度控制器
+				if (data2["vendor"] == "LINGRUI"&&data2["kind"]=="TRANSFORMER_TEMPERATURE_CONTROLLER") {		
+				var day; //记录当前是哪一天
+				var moring; //记录 9:00的数据
+				var afternoon; // 记录 17:00 的数据
+				day = new Date(data2["begin"]);	//第一次时间为开始时间
+				//循环添加数据
+				for (var i = 0; i < data2["items"].length; i++) {
+					var dayNow = new Date(data2["items"][i]["created"]);
+					var timeM = dayNow.getTime()-day.getTime();//与记录的时间相差值
+					if(timeM>=86400000){
+						var t = Math.floor(timeM/86400000);
+						//往表格中添加数据
+						if (moring) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";	
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="LINGRUI"&&$(this).attr('data-kind')=='TRANSFORMER_TEMPERATURE_CONTROLLER'&&$(this).attr('data-feature')=='1'){
+										$(this).text(moring["value1"]);
+									}
+								})
+							} 
+
+						if (afternoon) {
+							var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+							$('#'+id+'> td').each(function(){
+								if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="LINGRUI"&&$(this).attr('data-kind')=='TRANSFORMER_TEMPERATURE_CONTROLLER'&&$(this).attr('data-feature')=='1'){
+										$(this).text(afternoon["value1"]);
+									}
+							})
+						}
+
+						//清空缓存数据
+						moring =null;
+						moring =  data2["items"][i];
+						afternoon = null;
+						//更新记录时间
+						day.setDate(day.getDate() + t);
+					}else{
+						//是同一天，继续比较大小
+						if (moring == null) {
+							moring = data2["items"][i];
+						}else{
+							//比较已经保存的时间与9:00的间隔大小是否更小，如果更小更新数据
+							var date_am = new Date(day.getTime());
+							date_am.setHours(9);
+							var a = (Math.abs(date_am.getTime()-moring["created"]));
+							var b = (Math.abs(date_am.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								// alert("更新9:00时间");
+								moring = data2["items"][i];
+							}else{
+								// 已经找出最接近9:00的对象
+								// alert("已经找出最接近9:00的对象");
+							}
+						}
+
+						if (afternoon == null) {
+							afternoon = data2["items"][i];
+						}else{
+							//比较已经保存的时间与17:00的间隔大小是否更小，如果更小更新数据
+							var date_pm = new Date(day.getTime());
+							date_pm.setHours(17);
+							var a = (Math.abs(date_pm.getTime()-afternoon["created"]));
+							var b = (Math.abs(date_pm.getTime()-data2["items"][i]["created"]));
+							if (b<a) {
+								 // alert("更新17:00时间")
+								afternoon = data2["items"][i];
+							}else{
+								// alert("已经找出最接近17:00的对象");
+								// 已经找出最接近17:00的对象
+							}
+						}
+
+						if (i == data2["items"].length-1) {
+							if (moring) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_am";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="LINGRUI"&&$(this).attr('data-kind')=='TRANSFORMER_TEMPERATURE_CONTROLLER'&&$(this).attr('data-feature')=='1'){
+										$(this).text(moring["value1"]);
+									}
+									})
+								} 
+
+							if (afternoon) {
+								var id = "time_"+(day.getMonth()+1)+"_"+day.getDate()+"_pm";
+								$('#'+id+'> td').each(function(){
+									if($(this).attr('data-number')==data2["number"]&&$(this).attr('data-vendor')=="LINGRUI"&&$(this).attr('data-kind')=='TRANSFORMER_TEMPERATURE_CONTROLLER'&&$(this).attr('data-feature')=='1'){
+										$(this).text(afternoon["value1"]);
+									}
+									})
+								}
+							}
+
+						}
+					}
+				}
+
+
+		}
+
+	}
+
+	
+</script>
+</head>
+<body>
+	<table>
+		<caption>
+			<div>电力运行记录</div>
+			<div>
+				配电房: <select id="switching_room"></select> 
+				开始时间: <input type="text" id="start_date" />
+				结束日期: <input type="text" id="end_date" /> 
+				<button type="button" onclick="query()">查询</button>
+			</div>
+		</caption>
+		<thead>
+			<tr>
+				<th rowspan="3" scope="row">日期</th>
+				<th rowspan="3">星期</th>
+				<th rowspan="3">时间</th>
+				<th colspan="8">1#变压器(低压总柜)</th>
+				<th colspan="8">2#变压器(低压总柜)</th>
+				<th colspan="8">3#变压器(低压总柜)</th>
+				<th colspan="2">其它</th>
+			</tr>
+			<tr>
+				<th colspan="3">电压(V)</th>
+				<th colspan="3">电流(A)</th>
+				<th>功率因数</th>
+				<th>温度</th>
+				<th colspan="3">电压(V)</th>
+				<th colspan="3">电流(A)</th>
+				<th>功率因数</th>
+				<th>温度</th>
+				<th colspan="3">电压(V)</th>
+				<th colspan="3">电流(A)</th>
+				<th>功率因数</th>
+				<th>温度</th>
+				<th>室内风机</th>
+				<th>室内环境温度</th>
+			</tr>
+			<tr>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th></th>
+				<th></th>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th></th>
+				<th></th>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th>A</th>
+				<th>B</th>
+				<th>C</th>
+				<th></th>
+				<th></th>
+				<th></th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody id="tdb">
+			
+			
+		</tbody>
+		<tfoot>
+			<tr>
+				<th colspan="3" scope="row">备注</th>
+				<td colspan="33">&nbsp;</td>
+			</tr>
+		</tfoot>
+	</table>
+	<div id="t"></div>
+</body>
+</html>

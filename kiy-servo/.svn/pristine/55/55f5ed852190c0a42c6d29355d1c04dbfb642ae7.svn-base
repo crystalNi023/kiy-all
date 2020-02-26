@@ -1,0 +1,29 @@
+package com.kiy.servo.recognize;
+
+import com.kiy.common.Device;
+
+/**
+ * 语音控制指令
+ * @author HLX Tel:18996470535 
+ * @date 2018年5月22日 
+ * Copyright:Copyright(c) 2018
+ */
+public class SpeechCommand {
+	
+	private SpeechCommand(){}
+
+	public static void  speechCommandExecute(Device device,Integer action){
+		switch (action) {
+			case Recognize.OPEN:
+				
+				break;
+			case Recognize.OFF:
+				break;
+				
+			case Recognize.QUERY:
+				break;
+			default:
+				break;
+		}
+	}
+}

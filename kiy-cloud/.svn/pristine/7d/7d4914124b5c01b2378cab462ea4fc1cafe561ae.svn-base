@@ -1,0 +1,38 @@
+package com.kiy.cloud.data.dao.impl;
+
+import java.io.InputStream;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.logging.LogFactory;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.data.bean.ServoBean;
+import com.kiy.cloud.data.dao.ServoDao;
+
+public class ServoDaoImpl implements ServoDao{
+
+	@Override
+	public String findCustomerIdById(String id) throws Exception {
+		LogFactory.useJdkLogging();  
+		InputStream inputStream = Resources.getResourceAsStream(Config.MYBATIS_CONFIG_URL);
+        SqlSessionFactory factory = new SqlSessionFactoryBuilder().build(inputStream);
+        SqlSession session = factory.openSession();
+        String servoBean = session.selectOne("servos.findCustmomerById",id);         
+        session.close();
+        return servoBean;
+	}
+
+	@Override
+	public ServoBean findServoById(String id) throws Exception {
+		InputStream inputStream = Resources.getResourceAsStream(Config.MYBATIS_CONFIG_URL);
+        SqlSessionFactory factory = new SqlSessionFactoryBuilder().build(inputStream);
+        SqlSession session = factory.openSession();
+        ServoBean servoBean = session.selectOne("servos.findServoById",id);         
+        session.close();
+        return servoBean;
+	}
+
+}

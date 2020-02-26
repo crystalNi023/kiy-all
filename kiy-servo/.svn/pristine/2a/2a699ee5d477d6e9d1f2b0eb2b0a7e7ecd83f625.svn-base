@@ -1,0 +1,36 @@
+/**
+ * 2017年2月19日
+ */
+package com.kiy.servo.test;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Test {
+
+	public S s = new Sb();
+
+	public class S {
+		protected int value;
+
+		public S() {
+			value = 0;
+		}
+
+		public int getValue() {
+			return value;
+		}
+	}
+
+	public class Sb extends S {
+		public Sb() {
+			value = 1;
+		}
+	}
+
+	public static void main(String[] args) {
+		Test t = new Test();
+		System.out.println(t.s.getValue());
+	}
+}

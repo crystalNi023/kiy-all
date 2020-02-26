@@ -1,0 +1,390 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+import com.kiy.common.Tool;
+
+/**
+ * 服务配置参数
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class Config {
+
+	public static String CONFIG_FILENAME = "config.properties";
+
+	// 服务名称
+	public static String NAME = "Untitled Servo";
+	// 服务线程数
+	public static int THREAD = 1;
+	// 调试模式(将输出调试日志)
+	public static boolean DEBUG = true;
+
+	// 设备服务启用
+	public static boolean DRIVER = true;
+	// 设备中断重启间隔(秒)
+	public static int DRIVER_RESTART = 12;
+	// 设备心跳间隔(秒)
+	public static int DRIVER_HEARTBEAT = 6;
+	// 设备指令间隔(秒)
+	public static int DRIVER_INTERVAL = 3000;
+	// 设备通信超时(秒)
+	public static int DRIVER_TIMEOUT = 3;
+	// 设备通信系数
+	public static int DRIVER_DELAY = 128;
+
+	// 主控服务启用
+	public static boolean MASTER = true;
+	// 主控服务地址
+	public static String MASTER_IP;
+	// 主控服务端口
+	public static int MASTER_PORT = 1230;
+
+	// 设备巡游启动
+	public static boolean CRUISE = false;
+	// 设备巡游间隔
+	public static int CRUISE_DELAY = 10;
+	
+	// 计划策略启用
+	public static boolean STRATEGY = false;
+	
+	// MQTT 启用
+	public static boolean MQTT = false;
+	// MQTT 地址
+	public static String MQTT_HOST;
+	// MQTT 用户名
+	public static String MQTT_USERNAME;
+	// MQTT 密码
+	public static String MQTT_PASSWORD;
+	// MQTT 订阅 TOPIC
+	public static String MQTT_SUBSCRIPTION_TOPIC;
+	
+	// 数据库启用
+	public static boolean DB = false;
+	// 数据库最大连接数
+	public static int DB_MAX = 3;
+	// 数据库类型
+	public static String DB_TYPE = "MySQL";
+	// 数据库主机
+	public static String DB_URL;
+	// 数据库用户
+	public static String DB_USER;
+	// 数据库密码
+	public static String DB_PASSWORD;
+	// 数据文件
+	public static boolean FILE_DATA;
+	
+	// 文件根目录
+	public static String FILE_DIRECTORY = "data";
+	// 地图文件目录	
+	public static String FILE_DIRECTORY_MAP = "map";
+
+	// 云服务启用
+	public static boolean CLOUD = false;
+	// 云服务主机
+	public static String CLOUD_HOST = "cloud.athenall.com";
+	
+//	public static String CLOUD_HOST = "127.0.0.1";
+	// 云服务端口
+	public static int CLOUD_PORT = 8230;
+	// 云服务重置间隔
+	public static int CLOUD_RESET = 10;
+	// 云服务标识
+	public static String CLOUD_ID;
+	
+	// 天气接口城市id
+	public static String WEATHER_WEAID;
+	// AQI指数 城市id
+	public static String AQI_WEAID;
+	
+	// 短信服务启用
+	public static boolean SMS = false;
+	// 业主手机号
+	public static String PHONE;
+	
+	//摄像头APP ID
+	public static String CAMERA_APP_ID;
+	
+	//摄像头APP SECRET
+	public static String CAMERA_APP_SECRET;
+	
+	//摄像头请求Host地址
+	public static String CAMERA_HOST_ADRESS;
+	
+	//远程服务控制端口remotePort
+	public static int REMOTE_PORT;
+	
+	public static String getWorkPath() {
+		return System.getProperty("user.dir");
+	}
+
+	public static void load() {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+
+		SafeProperties properties = new SafeProperties();
+		
+		  
+		try (FileInputStream input = new FileInputStream(file)) {
+			properties.load(input,"utf-8");
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw new RuntimeException(ex);
+			// 必须成功加载配置文件，否则无法运行
+		}
+
+		NAME = properties.getProperty("NAME");
+		THREAD = Integer.parseInt(properties.getProperty("THREAD"));
+		DEBUG = getBoolean(properties.getProperty("DEBUG"));
+
+		DRIVER = getBoolean(properties.getProperty("DRIVER"));
+		DRIVER_RESTART = Integer.parseInt(properties.getProperty("DRIVER_RESTART"));
+		DRIVER_HEARTBEAT = Integer.parseInt(properties.getProperty("DRIVER_HEARTBEAT"));
+		DRIVER_INTERVAL = Integer.parseInt(properties.getProperty("DRIVER_INTERVAL"));
+		DRIVER_TIMEOUT = Integer.parseInt(properties.getProperty("DRIVER_TIMEOUT"));
+		DRIVER_DELAY = Integer.parseInt(properties.getProperty("DRIVER_DELAY"));
+
+		MASTER = getBoolean(properties.getProperty("MASTER"));
+		MASTER_IP = properties.getProperty("MASTER_IP");
+		MASTER_PORT = Integer.parseInt(properties.getProperty("MASTER_PORT"));
+
+		CRUISE = getBoolean(properties.getProperty("CRUISE"));
+		CRUISE_DELAY = Integer.parseInt(properties.getProperty("CRUISE_DELAY"));
+		
+		STRATEGY = getBoolean(properties.getProperty("STRATEGY"));
+
+		DB = getBoolean(properties.getProperty("DB"));
+
+		DB_MAX = Integer.parseInt(properties.getProperty("DB_MAX"));
+		DB_TYPE = properties.getProperty("DB_TYPE");
+		DB_URL = properties.getProperty("DB_URL");
+		DB_USER = properties.getProperty("DB_USER");
+		DB_PASSWORD = properties.getProperty("DB_PASSWORD");
+		
+		MQTT = getBoolean(properties.getProperty("MQTT"));
+		MQTT_HOST = properties.getProperty("MQTT_HOST");
+		MQTT_USERNAME = properties.getProperty("MQTT_USERNAME");
+		MQTT_PASSWORD = properties.getProperty("MQTT_PASSWORD");
+		MQTT_SUBSCRIPTION_TOPIC = properties.getProperty("MQTT_SUBSCRIPTION_TOPIC");
+
+		FILE_DATA = getBoolean(properties.getProperty("FILE_DATA"));
+
+		CLOUD = getBoolean(properties.getProperty("CLOUD"));
+		CLOUD_HOST = properties.getProperty("CLOUD_HOST");
+		CLOUD_PORT = Integer.parseInt(properties.getProperty("CLOUD_PORT"));
+		CLOUD_RESET = Integer.parseInt(properties.getProperty("CLOUD_RESET"));
+		CLOUD_ID = properties.getProperty("CLOUD_ID");
+		
+		WEATHER_WEAID = properties.getProperty("WEATHER_WEAID");
+		AQI_WEAID = properties.getProperty("AQI_WEAID");
+		
+		SMS = getBoolean(properties.getProperty("SMS"));
+		PHONE = properties.getProperty("PHONE");
+		CAMERA_APP_ID = properties.getProperty("CAMERA_APP_ID");
+		CAMERA_APP_SECRET = properties.getProperty("CAMERA_APP_SECRET");
+		CAMERA_HOST_ADRESS = properties.getProperty("CAMERA_HOST_ADRESS");
+		REMOTE_PORT =  Integer.parseInt(properties.getProperty("REMOTE_PORT"));
+	}
+
+	public static void check() {
+		// 检查配置文件配置项是否完整
+		if (Tool.isEmpty(NAME)) {
+			// 必须设置名称
+			throw new IllegalArgumentException("Config error NAME");
+		}
+
+		if (THREAD < 0 || THREAD > 512) {
+			// 至少为0 ~ 512
+			throw new IllegalArgumentException("Config error THREAD, The value should be between 0~512");
+		}
+
+		if (DB) {
+			if (DB_MAX < 1)
+				// 数据库连接至少为1
+				throw new IllegalArgumentException("Config error DB_MAX");
+			if (Tool.isEmpty(DB_TYPE))
+				// 数据库类型不能为空
+				throw new IllegalArgumentException("Config error DB_TYPE");
+			if (Tool.isEmpty(DB_URL))
+				// 数据库连接字符串不能为空
+				throw new IllegalArgumentException("Config error DB_URL");
+		}
+
+		if (MQTT) {
+			if (Tool.isEmpty(MQTT_HOST)) 
+				// MQTT 地址不能为空
+				throw new IllegalArgumentException("Config error MQTT_HOST"); 
+			if (Tool.isEmpty(MQTT_USERNAME)) 
+				// MQTT 用户名不能为空
+				throw new IllegalArgumentException("Config error MQTT_USERNAME"); 
+			if (Tool.isEmpty(MQTT_PASSWORD)) 
+				// MQTT 密码不能为空
+				throw new IllegalArgumentException("Config error MQTT_PASSWORD"); 
+			if (Tool.isEmpty(MQTT_SUBSCRIPTION_TOPIC)) 
+				// MQTT 订阅主题不能为空
+				throw new IllegalArgumentException("Config error MQTT_SUBSCRIPTION_TOPIC"); 
+		}
+		
+		if (CLOUD) {
+			if (Tool.isEmpty(CLOUD_HOST)) 
+				// Cloud 地址不能为空
+				throw new IllegalArgumentException("Config error CLOUD_HOST"); 
+			if (Tool.isEmpty(CLOUD_ID)) 
+				// CLOUD_ID不能为空
+				throw new IllegalArgumentException("Config error CLOUD_ID"); 
+		}
+		
+		
+		
+	}
+
+	public static void save() throws IOException {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+		SafeProperties properties = new SafeProperties();
+
+		properties.addComment("伺服器名称");
+		properties.setProperty("NAME", NAME);
+		properties.addSpace();
+		
+		properties.addComment("线程数量,0由系统决定");
+		properties.addComment("当硬件系统使用了超线程等技术时建议手动设定(THREAD=CPU物理数*核心数*超线程*4)");
+		properties.setProperty("THREAD", Integer.toString(THREAD));
+		properties.addSpace();
+		
+		properties.addComment("调试日志");
+		properties.setProperty("DEBUG", toBoolean(DEBUG));
+		properties.addSpace();
+		
+		properties.addComment("设备服务启用");
+		properties.setProperty("DRIVER", toBoolean(DRIVER));
+		properties.addComment("设备中断重启间隔(秒)");
+		properties.addComment("当设备出现异常中断等待此时间后重启");
+		properties.setProperty("DRIVER_RESTART", Integer.toString(DRIVER_RESTART));
+		properties.addComment("设备心跳间隔(秒)");
+		properties.addComment("通过以太网连接的设备当没有通信时发送链路包的触发时间");
+		properties.setProperty("DRIVER_HEARTBEAT", Integer.toString(DRIVER_HEARTBEAT));
+		properties.addComment("设备指令间隔(秒)");
+		properties.addComment("当多个用户同时获取设备状态时在此时间内的请求会合并");
+		properties.setProperty("DRIVER_INTERVAL", Integer.toString(DRIVER_INTERVAL));
+		properties.addComment("设备通信超时(秒)");
+		properties.addComment("等待设备返回指令的时间,超过此时间将视为超时");
+		properties.setProperty("DRIVER_TIMEOUT", Integer.toString(DRIVER_TIMEOUT));
+		properties.addComment("设备通信系数(BAUD_RATE/DELAY)");
+		properties.addComment("串口通信设备在连续发送和转换状态时需要等待一定时间量");
+		properties.setProperty("DRIVER_DELAY", Integer.toString(DRIVER_DELAY));
+		properties.addSpace();
+		
+		properties.addComment("主控服务启用");
+		properties.setProperty("MASTER", toBoolean(MASTER));
+		properties.addComment("主控服务地址,空表示所有地址");
+		properties.setProperty("MASTER_IP", MASTER_IP);
+		properties.addComment("主控服务端口");
+		properties.setProperty("MASTER_PORT", Integer.toString(MASTER_PORT));
+		properties.addSpace();
+
+		properties.addComment("设备巡游启用");
+		properties.setProperty("CRUISE", toBoolean(CRUISE));
+		properties.addComment("设备巡游延时(秒) 每次巡游时间间隔");
+		properties.setProperty("CRUISE_DELAY", Integer.toString(CRUISE_DELAY));
+		properties.addSpace();
+		
+		properties.addComment("计划策略启用");
+		properties.setProperty("STRATEGY", toBoolean(STRATEGY));
+		properties.addSpace();
+
+		properties.addComment("MQTT服务启用");
+		properties.setProperty("MQTT", toBoolean(MQTT));
+		properties.addComment("MQTT HOST");
+		properties.setProperty("MQTT_HOST", MQTT_HOST);
+		properties.addComment("MQTT USERNAME");
+		properties.setProperty("MQTT_USERNAME", MQTT_USERNAME);
+		properties.addComment("MQTT PASSWORD");
+		properties.setProperty("MQTT_PASSWORD", MQTT_PASSWORD);
+		properties.addComment("MQTT 订阅 TOPIC");
+		properties.setProperty("MQTT_SUBSCRIPTION_TOPIC", MQTT_SUBSCRIPTION_TOPIC);
+		properties.addSpace();
+		
+		properties.addComment("数据库启用");
+		properties.setProperty("DB", toBoolean(DB));
+		properties.addComment("数据库最大连接数");
+		properties.setProperty("DB_MAX", Integer.toString(DB_MAX));
+		properties.addComment("数据库类型MySql/Oracle");
+		properties.setProperty("DB_TYPE", DB_TYPE);
+		properties.addComment("数据库连接字符串");
+		properties.setProperty("DB_URL", DB_URL);
+		properties.addComment("数据库用户名");
+		properties.setProperty("DB_USER", DB_USER);
+		properties.addComment("数据库密码");
+		properties.setProperty("DB_PASSWORD", DB_PASSWORD);
+		properties.addComment("文件数据启用");
+		properties.setProperty("FILE_DATA", toBoolean(FILE_DATA));
+		properties.addSpace();
+		
+		properties.addComment("云服务启用");
+		properties.setProperty("CLOUD", toBoolean(CLOUD));
+		properties.addComment("云服务主机");
+		properties.setProperty("CLOUD_HOST", CLOUD_HOST);
+		properties.addComment("云服务端口");
+		properties.setProperty("CLOUD_PORT", Integer.toString(CLOUD_PORT));
+		properties.addComment("云服务重置间隔(当连接中断/异常)");
+		properties.setProperty("CLOUD_RESET", Integer.toString(CLOUD_RESET));
+		properties.addComment("云服务标识");
+		properties.setProperty("CLOUD_ID", CLOUD_ID);
+		properties.addSpace();
+		
+		properties.addComment("天气城市ID");
+		properties.setProperty("WEATHER_WEAID", WEATHER_WEAID);
+		properties.addComment("PM城市ID");
+		properties.setProperty("AQI_WEAID", AQI_WEAID);
+		properties.addSpace();
+
+		properties.addComment("短信服务");
+		properties.setProperty("SMS", toBoolean(CLOUD));
+		properties.addComment("业主手机号码");
+		properties.setProperty("PHONE", PHONE);
+		
+		properties.addComment("摄像头APP ID");
+		properties.setProperty("CAMERA_APP_ID", CAMERA_APP_ID);
+		properties.addComment("摄像头APP SECRET");
+		properties.setProperty("CAMERA_APP_SECRET", CAMERA_APP_SECRET);
+		properties.addComment("摄像头HOST地址");
+		properties.setProperty("CAMERA_HOST_ADRESS", CAMERA_HOST_ADRESS);
+		properties.addComment("映射端口（从云端自动获取）");
+		properties.setProperty("REMOTE_PORT", Integer.toString(REMOTE_PORT));
+		
+		try (FileOutputStream output = new FileOutputStream(file);) {
+			properties.store(output, "SAVED BY SERVICE","utf-8");
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw ex;
+		}
+	}
+
+	public static boolean getBoolean(String value) {
+		if (value == null)
+			return false;
+		else if ("YES".equalsIgnoreCase(value))
+			return true;
+		else if ("ON".equalsIgnoreCase(value))
+			return true;
+		else
+			return false;
+	}
+
+	public static String toBoolean(boolean value) {
+		if (value)
+			return "ON";
+		else
+			return "OFF";
+	}
+}

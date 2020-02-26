@@ -1,0 +1,101 @@
+/**
+ * 2017年8月17日
+ */
+package com.kiy.controller.report;
+
+import java.math.BigDecimal;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.eclipse.swt.browser.Browser;
+import org.eclipse.swt.browser.BrowserFunction;
+
+import com.kiy.client.CtrClient;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Zone;
+import com.kiy.common.Types.Vendor;
+import com.kiy.protocol.Messages.Message;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class AQueryDeviceStatus extends BrowserFunction {
+
+	private final Servo servo;
+
+	public static Set<Integer> keys;
+
+	public AQueryDeviceStatus(Browser b, Servo s, String n) {
+		super(b, n);
+		if (keys == null) {
+			keys = new HashSet<Integer>();
+		}
+		servo = s;
+	}
+
+	@Override
+	public Object function(Object[] arguments) {
+		if (arguments.length < 4)
+			return null;
+
+		String zone_id = null;
+		if (arguments[0] != null)
+			zone_id = arguments[0].toString();
+
+		@SuppressWarnings("unused")
+		String device_id = null;
+		if (arguments[1] != null)
+			device_id = arguments[1].toString();
+
+		long start = 0;
+		if (arguments[2] != null) {
+			BigDecimal bd = new BigDecimal(arguments[2].toString());
+			start = Long.valueOf(bd.toPlainString());
+		}
+		long end = 0;
+		if (arguments[3] != null) {
+			BigDecimal bd = new BigDecimal(arguments[3].toString());
+			end = Long.valueOf(bd.toPlainString());
+			Calendar calendar = Calendar.getInstance();
+			calendar.setTimeInMillis(end);
+			calendar.add(Calendar.DATE, 1);// 把日期往后增加一天.整数往后推,负数往前移动
+			Date date = calendar.getTime(); // 这个时间就是日期往后推一天的结果
+			end = date.getTime();
+		}
+
+		CtrClient client = servo.getClient();
+
+		keys.clear();
+
+		if (zone_id != null) {
+			Zone zone = servo.getZone(zone_id);
+			Set<Device> devices = zone.getDevices();
+			// 获取该区域下的设备历史状态
+			for (Device device : devices) {
+				if ((device.getVendor() == Vendor.YIYOU && device.getKind() == Kind.SENSOR_MOISTURE_TEMPERATURE)
+						|| (device.getVendor() == Vendor.ELECALL && device
+								.getKind() == Kind.POWER_METER)
+						|| (device.getVendor() == Vendor.LINGRUI && device
+								.getKind() == Kind.TRANSFORMER_TEMPERATURE_CONTROLLER)) {
+					if (client.isConnected() && client.isRunning()) {
+						Message.Builder m = Message.newBuilder();
+						m.setUserId(servo.getUser().getId());
+						int key = CtrClient.getKey();
+						keys.add(key);
+						m.setKey(key);
+						m.getQueryDeviceStatusBuilder().setBegin(start)
+								.setEnd(end).setId(device.getId());
+						client.send(m.build());
+					}
+				}
+			}
+		}
+
+		return 1;
+	}
+}

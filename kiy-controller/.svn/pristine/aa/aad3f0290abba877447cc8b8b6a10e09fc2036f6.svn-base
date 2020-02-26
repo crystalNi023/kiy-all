@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div>
+    <h1>创建伺服器</h1>
+	<hr>
+	<p>首先选择[主窗口]->[伺服器]选项卡->[新建]选项卡->[伺服器]，然后会弹出创建伺服器窗口。如下图所示</p>
+	<img src="createServo_1.png" />
+	<p>
+	在主机/ip地址栏和端口输入您从管理员那里得到的ip地址和端口。输入您的账户和密码就可以新建一个伺服器，点击自动连接，下次就不用进行登录操作。如下图所示
+	</p>
+	<img src="createServo_2.png" />
+	<p class="para">
+		<font size=2>点击确认按钮登录伺服器，创建伺服器成功。您可以在用户结果视图中看到您新创建的伺服器。
+		</font>
+	</p>
+		<p><a href="parameterList.html">上一页</a>  <a href="createUser.html">下一页</a></p>
+	</div>
+</body>
+</html>

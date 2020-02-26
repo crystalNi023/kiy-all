@@ -1,0 +1,71 @@
+package com.kiy.servo.master;
+
+import java.util.concurrent.LinkedBlockingDeque;
+
+import com.kiy.servo.Log;
+
+/**
+ * 设备消息队列
+ * @author HLX Tel:18996470535 
+ * @date 2018年4月17日 
+ * Copyright:Copyright(c) 2018
+ */
+public class MessageDeviceDeque implements Runnable{
+	
+	private LinkedBlockingDeque<MessageDevice> deque;
+	
+	private MessageDeviceDeque(){
+		deque = new LinkedBlockingDeque<MessageDevice>(1024);
+	}
+	
+//	private boolean isInterupt() 
+		
+	
+	public static MessageDeviceDeque messageDeviceDeque;
+	
+	public static MessageDeviceDeque  getInstance(){
+		if (messageDeviceDeque == null) {
+			messageDeviceDeque =  new MessageDeviceDeque();
+		}
+		return messageDeviceDeque;
+	}	
+	
+	
+	@Override
+	public void run() {   
+		while (true) {
+			MessageDevice poll = deque.poll();
+			if(poll!=null){
+				Log.debug("取出消息执行 当前剩余排队消息 "+deque.size());	
+				poll.execute();
+			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @param messageDevice
+	 */
+	public void add(MessageDevice messageDevice){
+		if (messageDevice.isWriteDevice()) {
+			try {
+				deque.putFirst(messageDevice);
+				Log.debug("消息插入队列成功 插入到顶部 deque size "+deque.size());
+				System.out.println(deque.hashCode());
+			} catch (InterruptedException e) {
+				Log.debug("消息插入队列失败");
+				e.printStackTrace();
+			}
+		}else {
+			try {
+				deque.putLast(messageDevice);
+				Log.debug("消息插入队列成功 插入到尾部 deque size "+deque.size());
+			} catch (InterruptedException e) {
+				Log.debug("消息插入队列失败");
+				e.printStackTrace();
+			}
+			
+		}
+	}
+	
+}

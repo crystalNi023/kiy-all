@@ -1,0 +1,95 @@
+package com.kiy.cloud.recognize;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ConcurrentLinkedDeque;
+
+import com.alibaba.fastjson.JSON;
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.common.Tool;
+
+/**
+ * 语音识别消息队列
+ * @author HLX Tel:18996470535 
+ * @date 2018年5月21日 
+ * Copyright:Copyright(c) 2018
+ */
+public class RecognizeMessageDeque implements Runnable {
+	private ConcurrentLinkedDeque<String> deque;
+	private RecognizeListener recognizeListener;
+	
+	
+	private boolean running = true;
+
+	
+	private RecognizeMessageDeque() {
+		deque = new ConcurrentLinkedDeque<>();
+	}
+	
+	public void setRecognoizeListener(RecognizeListener listener){
+		recognizeListener = listener;
+	}
+
+
+	public static volatile  RecognizeMessageDeque recognizeMessageDeque;
+
+	public static RecognizeMessageDeque getInstance() {
+		if (recognizeMessageDeque == null) {
+			synchronized (RecognizeMessageDeque.class){
+				if (recognizeMessageDeque == null) {
+					recognizeMessageDeque = new RecognizeMessageDeque();
+				}
+			}
+		}
+		return recognizeMessageDeque;
+		
+	}
+
+	@Override
+	public void run() {
+		while (running) {
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+				run();
+			}
+			
+			if (!deque.isEmpty()) {
+				String filepath = deque.poll();
+				Path path = FileSystems.getDefault().getPath(filepath);
+			    byte[] data;
+				try {
+					data = Files.readAllBytes(path);
+					HttpResponse response = HttpUtil.sendAsrPost(data,"pcm",16000,Config.RECOGNIZE_URL,Config.RECOGNIZE_ACCESS_KEY_ID,Config.RECOGNIZE_ACCESS_KEY_SECRET);
+					recognizeListener.onRecognizeSuccess(filepath, JSON.toJSONString(response));
+				} catch (IOException e) {
+					Log.error(e);
+				}
+			}
+		}
+	}
+
+	public void start() {
+		running = true;
+		run();
+	}
+
+	/**
+	 * 
+	 * @param messageDevice
+	 */
+	public void add(String filePath) {
+		if (Tool.isEmpty(filePath)) {
+			return;
+		}
+		deque.addLast(filePath);
+	}
+	
+	public void stop() {
+		running = false;
+	}
+
+}

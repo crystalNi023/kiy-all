@@ -1,0 +1,62 @@
+package com.kiy.servo.test;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.Socket;
+
+public class TT {
+//	public static void main(String[] args) {
+//		String msg ="{\"alarm\": {\"button_id\": 3,\"button_name\":\"\",\"state\": 0},\"deviceKey\": \"00000UJM\",\"timestamp\": \"2018-06-28 11:09:01\"}";
+//		JsonObject jsonObject = new JsonParser().parse(msg).getAsJsonObject();
+//		JsonObject alarm = jsonObject.getAsJsonObject("alarm");
+//		int buttonId = alarm.get("button_id").getAsInt();
+//		int state = alarm.get("state").getAsInt();
+//		
+//		System.err.println(alarm.toString());
+//		System.err.println(buttonId);
+//		System.err.println(state);
+//	}
+	public static void main(String[] args) throws IOException {
+		 Socket socket = null;
+	        try {
+	            System.out.println("connecting...");
+	            socket = new Socket("192.168.0.149", 8899);
+	            System.out.println("connection success");
+	 
+	            String str = "02 C4 14 7A 01 53 FF"; //发送的16进制开锁命令
+	            byte[] bytes = hexStringToByteArray(str);
+	            OutputStream os = socket.getOutputStream();
+	            os.write(bytes);
+	            os.close();
+	 
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	        } finally {
+	            if (socket != null) {
+	                try {
+	                    socket.close();
+	                } catch (Exception e) {
+	 
+	                }
+	            }
+	        }
+	}
+	 /**
+     * 16进制表示的字符串转换为字节数组
+     *
+     * @param hexString 16进制表示的字符串
+     * @return byte[] 字节数组
+     */
+    public static byte[] hexStringToByteArray(String hexString) {
+        hexString = hexString.replaceAll(" ", "");
+        int len = hexString.length();
+        byte[] bytes = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            // 两位一组，表示一个字节,把这样表示的16进制字符串，还原成一个字节
+            bytes[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4) + Character
+                    .digit(hexString.charAt(i + 1), 16));
+        }
+        return bytes;
+    }
+
+}

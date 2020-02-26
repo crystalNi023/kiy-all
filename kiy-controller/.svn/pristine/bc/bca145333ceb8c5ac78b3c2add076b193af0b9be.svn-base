@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+	<div>
+		<h1>查询日志</h1>
+		<hr>
+		<h2>查看所有日志</h2>
+		<p>首先选择需要查看的伺服器，选择[主窗口]->[伺服器]选项卡->[查询日志]，或者打开[用户角色]窗口，选择[操作]->[查看所有日志]，然后会弹出日志窗口该窗口查看的该伺服器下的一周内所有的日志信息，如想查看其他时间段的日志信息，更改日志窗口上的开始时间或结束时间即可。点击[查询]便可以查看日志信息，点击右键打开，或双击日志便可查看日志详细信息。如下图所示</p>
+		<img src="queryLog_1.png" /> <img src="queryLog_2.png" />
+		<h2>查看用户日志</h2>
+		<p>首先选择需要查看的伺服器，打开[用户角色]窗口,在用户tab界面，点击右键，选择[查看日志]查看该用户日志信息，如下图所示。</p>
+		<img src="queryLog_3.png" />
+		<p>
+			<a href="createPlan.html">上一页</a> <a href="getDeviceStatus.html">下一页</a>
+		</p>
+	</div>
+</body>
+</html>

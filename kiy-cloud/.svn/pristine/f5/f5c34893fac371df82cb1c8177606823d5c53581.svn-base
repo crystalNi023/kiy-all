@@ -1,0 +1,276 @@
+package com.kiy.cloud.http;
+
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http.multipart.HttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDecoderException;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import com.kiy.cloud.Config;
+import com.kiy.cloud.Log;
+import com.kiy.cloud.data.bean.FeedbackBean;
+import com.kiy.cloud.data.bean.UserBean;
+import com.kiy.cloud.data.dao.impl.FeedBackDaoImpl;
+import com.kiy.cloud.data.dao.impl.UserDaoImpl;
+import com.kiy.common.Tool;
+
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+
+	public static final int FEEDBACK_IMG = 3;
+	public static final int USER_ICON_IMG = 4;
+
+	private static final String BAD_PARAMETER = "BAD_PARAMETER";
+	private static final String SUCCESS = "SUCCESS";
+
+	private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE); // Disk
+
+	private HttpPostRequestDecoder decoder;
+
+	private String filePath;
+
+	public HttpProcess() {
+
+	}
+
+	public void process(int type, String path, HttpParameters parameters, PrintWriter writer, FullHttpRequest request) {
+		switch (path) {
+			case "create_feedback": {
+				decoder = new HttpPostRequestDecoder(factory, request);
+				try {
+					String username = parameters.getValue("username"); // 意见反馈用户名
+					String servo_id = parameters.getValue("servo_id"); // 服务器key
+					String content = parameters.getValue("content"); // 意见反馈内容
+					if (Tool.isEmpty(username) || Tool.isEmpty(servo_id) || Tool.isEmpty(content)) {
+						error(writer, type, BAD_PARAMETER);
+						reset();
+						return;
+					}
+					String choice = parameters.getValue("choice");
+					getUploadFile(type, writer, request, FEEDBACK_IMG);
+
+					FeedbackBean feedbackBean = new FeedbackBean();
+					feedbackBean.setUsername(username);
+					feedbackBean.setServoId(servo_id);
+					feedbackBean.setImg_url(filePath);
+					feedbackBean.setContent(content);
+					
+					if (!Tool.isEmpty(choice)) {
+						feedbackBean.setChoice(Integer.valueOf(choice));
+					}
+
+					boolean createFeedBack = false;
+					try {
+						createFeedBack = new FeedBackDaoImpl().createFeedBack(feedbackBean);
+					} catch (Exception e) {
+						Log.error(e);
+						reset();
+						error(writer, type, BAD_PARAMETER);
+						return;
+					}
+					if (createFeedBack) {
+						success(writer, type, SUCCESS);
+						reset();
+						return;
+					} else {
+						error(writer, type, "CREATE_FAILURE");
+						reset();
+						return;
+					}
+				} catch (IOException e) {
+					Log.error(e);
+					error(writer, type, "CREATE_FAILURE");
+					reset();
+					return;
+				}
+			}
+			case "upload_userIcon": {
+				decoder = new HttpPostRequestDecoder(factory, request);
+				try {
+					String user_id = parameters.getValue("user_id"); // 意见反馈用户key
+					String servo_id = parameters.getValue("servo_id"); // 服务器key
+					
+					if (Tool.isEmpty(user_id) || Tool.isEmpty(servo_id)) {
+						error(writer, type, BAD_PARAMETER);
+						reset();
+						return;
+					}
+					getUploadFile(type, writer, request, USER_ICON_IMG);
+					if (Tool.isEmpty(filePath)) {
+						error(writer, type, BAD_PARAMETER);
+						reset();
+						return;
+					}
+					UserBean userBean = new UserBean();
+					userBean.setUserId(user_id);
+					userBean.setServoId(servo_id);
+					userBean.setUserIcon(filePath);
+
+					boolean createUser = false;
+					try {
+						createUser = new UserDaoImpl().createUser(userBean);
+					} catch (Exception e) {
+						Log.error(e);
+						reset();
+						error(writer, type, BAD_PARAMETER);
+						return;
+					}
+					if (createUser) {
+						success(writer, type, SUCCESS);
+						reset();
+						return;
+					} else {
+						error(writer, type, "CREATE_FAILURE");
+						reset();
+						return;
+					}
+				} catch (IOException e) {
+					Log.error(e);
+					error(writer, type, "CREATE_FAILURE");
+					reset();
+					return;
+				}
+
+			}
+			default:
+				break;
+		}
+	}
+
+	private void getUploadFile(int type, PrintWriter writer, FullHttpRequest request, int FileType) {
+		/**
+		 * 3.读取上传文件
+		 */
+		HttpContent chunk = request;
+		try {
+			decoder.offer(chunk);
+		} catch (ErrorDataDecoderException e1) {
+			Log.error(e1);
+			error(writer, type, "CREATE_FAILURE");
+			reset();
+			return;
+		}
+		readHttpDataChunkByChunk(type, writer, FileType); // 从解码器decoder中读出数据
+	}
+
+	private void writeHttpData(InterfaceHttpData data, int fileType) throws IOException {
+		if (data.getHttpDataType() == HttpDataType.Attribute) {
+			// Attribute就是form表单里带的各种 name= 的属性
+		} else if (data.getHttpDataType() == HttpDataType.InternalAttribute) {
+
+		} else {
+			String uploadFileName = getUploadFileName(data);
+			if (Tool.isEmpty(uploadFileName)) {
+				return;
+			}
+			FileUpload fileUpload = (FileUpload) data;
+			if (fileUpload.isCompleted()) {
+				String f = "";
+				if (fileType == FEEDBACK_IMG) {
+					f = Config.FEEDBACK_URL;
+				} else {
+					f = Config.USER_ICON_URL;
+				}
+				File dir = new File(Config.getWorkPath() + f);
+				if (!dir.exists()) {
+					dir.mkdir();
+				}
+				File dest = new File(dir, uploadFileName);
+				fileUpload.renameTo(dest);
+				if (fileType == FEEDBACK_IMG) {
+					filePath = Config.IMG_URL + "feedback/" + dest.getName();
+				} else {
+					filePath = Config.IMG_URL + "userIcon/" + dest.getName();
+				}
+			}
+		}
+	}
+
+	/**
+	 * chunk 从decoder中读出数据，写入临时对象，然后写入文件， 这个封装主要是为了释放临时对象
+	 */
+	private void readHttpDataChunkByChunk(int type, PrintWriter writer, int FileType) {
+		try {
+			while (decoder.hasNext()) {
+				InterfaceHttpData data = decoder.next();
+				if (data != null) {
+					try {
+						writeHttpData(data, FileType);
+					} catch (IOException e) {
+						Log.error(e);
+						error(writer, type, "CREATE_FAILURE");
+						reset();
+						return;
+					} finally {
+						data.release();
+					}
+				}
+			}
+		} catch (EndOfDataDecoderException e1) {
+		}
+	}
+
+	private void reset() {
+		filePath = null;
+		if (decoder != null) {
+			decoder.destroy();
+			decoder = null;
+		}
+
+	}
+
+	/**
+	 * 在InterfaceHttpData中读取上传的文件名称
+	 * 
+	 * @param data
+	 * @return
+	 */
+	private String getUploadFileName(InterfaceHttpData data) {
+		String content = data.toString();
+		String temp = content.substring(0, content.indexOf("\n"));
+		content = temp.substring(temp.lastIndexOf("=") + 2, temp.lastIndexOf("\""));
+		return content;
+	}
+
+	public void success(PrintWriter writer, int type, String success) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", 0, true);
+			JSON.field(writer, "msg", success, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", 0);
+			XML.element(writer, "msg", success);
+
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	public void error(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "result", 1, true);
+			JSON.field(writer, "msg", error, false);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "result", 1);
+			XML.element(writer, "msg", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+}

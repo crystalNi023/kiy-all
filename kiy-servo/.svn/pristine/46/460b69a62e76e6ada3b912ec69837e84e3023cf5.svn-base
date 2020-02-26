@@ -1,0 +1,2807 @@
+/**
+ * 2017年3月1日
+ */
+package com.kiy.servo.http;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.Maintain;
+import com.kiy.common.Role;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.Types.Link;
+import com.kiy.common.Types.Repair;
+import com.kiy.common.Types.Status;
+import com.kiy.common.Types.Vendor;
+import com.kiy.common.ULog;
+import com.kiy.common.User;
+import com.kiy.common.Zone;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.driver.DriverAdpater;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class HttpProcess {
+
+	public static final int CODE_JSON = 1;
+	public static final int CODE_XML = 2;
+
+	private static final String BAD_PARAMETER = "BAD_PARAMETER";
+	private static final String DATA_ERROR = "DATA_ERROR";
+	private static final String DENIED = "DENIED";
+	private static final String DEVICE_NOT_FOUND = "DEVICE_NOT_FOUND";
+	private static final String DEVICE_OFFLINE = "DEVICE_OFFLINE";
+	private static final String SUCCESS = "SUCCESS";
+
+	private Map<String, User> tokens;
+
+	public HttpProcess() {
+		tokens = new ConcurrentHashMap<String, User>();
+	}
+
+	public void clear() {
+		tokens.clear();
+	}
+
+	/*
+	 * login { name:"value", enabled:0, remark:"test" }
+	 */
+	/*
+	 * login { error:""}
+	 */
+	/*
+	 * <?xml version="1.0" encoding="utf-8"?> <create_user>
+	 * <name>username</name> <enabled>0</enabled> <remark>test</remark>
+	 * </create_user>
+	 */
+	/*
+	 * <?xml version="1.0" encoding="utf-8"?> <login> <error></error> </login>
+	 */
+
+	public void process(int type, String path, HttpParameters parameters, PrintWriter writer) {
+		try {
+			switch (path) {
+				case "login": {
+					String username = parameters.getValue("username");
+					String password = parameters.getValue("password");
+
+					if (Tool.isEmpty(username) || Tool.isEmpty(password)) {
+						error(writer, type, BAD_PARAMETER);
+						break;
+					}
+
+					User user = Data.Login(username, password);
+					if (user == null) {
+						error(writer, type, DENIED);
+						break;
+					}
+
+					if (user.getEnable()) {
+						String token = makeToken();
+						tokens.put(token, user);
+						login(writer, type, user, token);
+					} else {
+						error(writer, type, DENIED);
+						break;
+					}
+					break;
+				}
+				case "logout": {
+					String token = parameters.getValue("token");
+
+					if (Tool.isEmpty(token)) {
+						error(writer, type, BAD_PARAMETER);
+						break;
+					}
+
+					tokens.remove(token);
+					break;
+				}
+				case "query_device_maintains": {
+					String id = parameters.getValue("id");
+					Long begin = Long.valueOf(parameters.getValue("begin"));
+					Long end = Long.valueOf(parameters.getValue("end"));
+					List<Maintain> maintains = Data.QueryDeviceMaintain(id, begin, end);
+					query_device_maintains(writer, type, maintains);
+					break;
+				}
+				case "select_zones": {
+					String parent = parameters.getValue("parent");
+					Set<Zone> zones = null;
+					if (Tool.isEmpty(parent)) {
+						zones = Data.getServo().getRootZones();
+					} else {
+						Zone z = Data.getServo().getZone(parent);
+						zones = z.getZones();
+					}
+					select_zones(writer, type, zones);
+					break;
+				}
+				case "select_devices": {
+					String zone = parameters.getValue("zone");
+					Set<Device> devices = null;
+					if (Tool.isEmpty(zone)) {
+						devices = Data.getServo().getRootDevices();
+					} else {
+						Zone z = Data.getServo().getZone(zone);
+						devices = z.getDevices();
+					}
+					select_devices(writer, type, devices);
+					break;
+				}
+				case "select_device": {
+					String id = parameters.getValue("id");
+					Device device = Data.getServo().getDevice(id);
+					select_device(writer, type, device);
+					break;
+				}
+				case "select_task": {
+					String taskId = parameters.getValue("id");
+					Task task = Data.getServo().getTask(taskId);
+					select_task(writer, type, task);
+					break;
+				}
+				case "select_tasks": {
+					Set<Task> tasks = Data.getServo().getTasks();
+					select_tasks(writer, type, tasks);
+					break;
+				}
+				case "select_role": {
+					Role role = new Role();
+					String roleId = parameters.getValue("id");
+					role = Data.getServo().getRole(roleId);
+					select_role(writer, type, role);
+					break;
+				}
+				case "select_roles": {
+					Set<Role> roles = Data.getServo().getRoles();
+					select_roles(writer, type, roles);
+					break;
+				}
+				case "select_users": {
+					Set<User> users = Data.getServo().getUsers();
+					select_users(writer, type, users);
+					break;
+				}
+				case "select_user": {
+					User user = new User();
+					String userId = parameters.getValue("id");
+					user = Data.getServo().getUser(userId);
+					select_user(writer, type, user);
+					break;
+				}
+
+				case "select_userLogs": {
+					String userId = parameters.getValue("id");
+					Long begin = Long.valueOf(parameters.getValue("begin"));
+					Long end = Long.valueOf(parameters.getValue("end"));
+					List<ULog> userLogs = Data.QueryLog(userId, begin, end);
+					select_userLogs(writer, type, userLogs);
+					break;
+				}
+				case "get_server": {
+					Servo servo = new Servo();
+					servo = Data.getServo();
+					get_server(writer, type, servo);
+					break;
+				}
+				case "create_zone": {
+					Zone zone = new Zone();
+					zone.newId();
+					zone.setName(parameters.getValue("name"));
+					zone.setParentId(parameters.getValue("parentId"));
+					zone.setRemark("remark");
+					zone.setCreated(new Date());
+					zone.setUpdated(zone.getCreated());
+					zone = Data.CreateZone(zone);
+					if (zone == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_zone(writer, type, zone);
+					}
+					break;
+				}
+				case "create_device_maintain": {
+					Maintain maintain = new Maintain();
+					maintain.newId();
+					maintain.setDeviceId(parameters.getValue("device_id"));
+					maintain.setEnergyBalance(Integer.valueOf(parameters.getValue("energy_balance")));
+					maintain.setLoad(Integer.valueOf(parameters.getValue("load")));
+					maintain.setMutual(Float.valueOf(parameters.getValue("mutual")));
+					maintain.setName(parameters.getValue("name"));
+					maintain.setPower(Integer.valueOf(parameters.getValue("power")));
+					maintain.setRadix(Integer.valueOf(parameters.getValue("radix")));
+					maintain.setRemark(parameters.getValue("remark"));
+					maintain.setRepair(Repair.valueOf(Integer.valueOf(parameters.getValue("repair"))));
+					maintain.setSn(parameters.getValue("sn"));
+					maintain.setCreated(new Date());
+					maintain.setUpdated(maintain.getCreated());
+					maintain = Data.CreateMaintain(maintain);
+					if (maintain == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_device_maintain(writer, type, maintain);
+					}
+					break;
+				}
+				case "create_user": {
+					User user = new User();
+					user.newId();
+					user.setZoneId(parameters.getValue("zone_id"));
+					user.setName(parameters.getValue("name"));
+					user.setPassword(parameters.getValue("password"));
+					user.setEnable(Converter.getBoolean(parameters.getValue("enable")));
+					user.setRealname(parameters.getValue("realname"));
+					user.setMobile(parameters.getValue("mobile"));
+					user.setPhone(parameters.getValue("phone"));
+					user.setEmail(parameters.getValue("email"));
+					user.setRemark(parameters.getValue("remark"));
+					user.setCreated(new Date());
+					user.setUpdated(user.getCreated());
+
+					List<String> roles = parameters.getValues("role_id");
+					if (roles != null) {
+						for (String id : roles) {
+							user.addRole(id);
+						}
+					}
+					user = Data.CreateUser(user);
+					if (user == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_user(writer, type, user);
+					}
+					break;
+				}
+
+				case "create_role": {
+					Role role = new Role();
+					role.newId();
+					role.setName(parameters.getValue("name"));
+					role.setRemark(parameters.getValue("remark"));
+					role.setCreated(new Date());
+					role.setUpdated(role.getCreated());
+
+					List<String> commands = parameters.getValues("command");
+					if (commands != null) {
+						for (String number : commands) {
+							role.addCommand(Integer.valueOf(number));
+						}
+					}
+
+					role = Data.CreateRole(role);
+					if (role == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_role(writer, type, role);
+					}
+					break;
+				}
+
+				case "create_task": {
+					Task task = new Task();
+					task.newId();
+					task.setDay(Integer.valueOf(parameters.getValue("day")));
+					// task.setFeed(Float.valueOf(parameters.getValue("feed")));
+					// task.setFeedLower(Float.valueOf(parameters.getValue("feedLower")));
+					// task.setFeedUpper(Float.valueOf(parameters.getValue("feedUpper")));
+					task.setInterval(Integer.valueOf(parameters.getValue("interval")));
+					// task.setLimitLower(Integer.valueOf(parameters.getValue("limitLower")));
+					// task.setLimitUpper(Integer.valueOf(parameters.getValue("limitUpper")));
+					task.setMonth(Integer.valueOf(parameters.getValue("month")));
+					task.setName(parameters.getValue("name"));
+					task.setReadKind(Kind.valueOf(Integer.valueOf(parameters.getValue("readType"))));
+					task.setRemark(parameters.getValue("remark"));
+					task.setRepeat(Integer.valueOf(parameters.getValue("repeat")));
+					task.setRoleId(parameters.getValue("roleId"));
+					SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");// 小写的mm表示的是分钟
+					Date start;
+					Date stop;
+					try {
+						start = sdf.parse(parameters.getValue("start"));
+						stop = sdf.parse(parameters.getValue("stop"));
+						task.setStart(start);
+						task.setStop(stop);
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+					task.setWeek(Integer.valueOf(parameters.getValue("week")));
+					task.setWriteKind(Kind.valueOf(Integer.valueOf(parameters.getValue("writeType"))));
+					task.setCreated(new Date());
+					task.setUpdated(task.getCreated());
+
+					task = Data.CreateTask(task);
+					if (task == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_task(writer, type, task);
+					}
+					break;
+				}
+				case "create_device": {
+					Device device = Device.instance(Vendor.valueOf(Integer.valueOf(parameters.getValue("vendor"))), Kind.valueOf(Integer.valueOf(parameters.getValue("vendor"))));
+					device.newId();
+					device.setAddress(parameters.getValue("address"));
+					device.setDelay(Integer.valueOf(parameters.getValue("delay")));
+					device.setLink(Link.valueOf(Integer.valueOf(parameters.getValue("lind"))));
+					device.setLoad(Integer.valueOf(parameters.getValue("load")));
+					device.setMutual(Float.valueOf(parameters.getValue("mutual")));
+					device.setName(parameters.getValue("name"));
+					device.setNetworkIp(parameters.getValue("networkIp"));
+					device.setNetworkPort(Integer.valueOf(parameters.getValue("networkPort")));
+					device.setNumber(parameters.getValue("number"));
+					device.setOwnerId(parameters.getValue("ownerId"));
+					device.setPassword(parameters.getValue("password"));
+					device.setPhaseCheck(Integer.valueOf(parameters.getValue("phaseCheck")));
+					device.setPhasePower(Integer.valueOf(parameters.getValue("phaseCheck")));
+					device.setPower(Integer.valueOf(parameters.getValue("power")));
+					SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");// 小写的mm表示的是分钟
+					Date produced;
+					try {
+						produced = sdf.parse(parameters.getValue("produced"));
+						device.setProduced(produced);
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+					device.setRelayId(parameters.getValue("relayId"));
+					device.setRemark(parameters.getValue("remark"));
+					device.setSerialBaudRate(Integer.valueOf(parameters.getValue("serialBaudRate")));
+					device.setSerialPort(parameters.getValue("serialPort"));
+					device.setSn(parameters.getValue("sn"));
+					device.setStatus(Status.valueOf(Integer.valueOf(parameters.getValue("status"))));
+					device.setZoneId(parameters.getValue("zoneId"));
+					device.setCreated(new Date());
+					device.setUpdated(device.getCreated());
+					device = Data.CreateDevice(device);
+					if (device == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						create_device(writer, type, device);
+					}
+					break;
+				}
+				case "delete_device_maintain": {
+					String id = parameters.getValue("id");
+					Boolean row = Data.DeleteMaintain(id);
+					if (!row) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						success(writer, type, SUCCESS);
+					}
+					break;
+				}
+				case "delete_device": {
+					String deviceId = parameters.getValue("id");
+					Device device = Data.DeleteDevice(deviceId);
+					if (device == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						delete_device(writer, type, device);
+					}
+					break;
+				}
+				case "delete_user": {
+					User user = new User();
+					String userId = parameters.getValue("id");
+					user = Data.DeleteUser(userId);
+					if (user == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						delete_user(writer, type, user);
+					}
+					break;
+				}
+				case "delete_role": {
+					Role role = new Role();
+					String roleId = parameters.getValue("id");
+					role = Data.DeleteRole(roleId);
+					if (role == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						delete_role(writer, type, role);
+					}
+					break;
+				}
+				case "delete_zone": {
+					Zone zone = new Zone();
+					String zoneId = parameters.getValue("id");
+					zone = Data.DeleteZone(zoneId);
+					if (zone == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						delete_zone(writer, type, zone);
+					}
+					break;
+				}
+				case "delete_task": {
+					Task task = new Task();
+					String taskId = parameters.getValue("id");
+					task = Data.DeleteTask(taskId);
+					if (task == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						delete_task(writer, type, task);
+					}
+					break;
+				}
+				// case "set_server_config":{
+				// Servo servo = new Servo();
+				// servo.setId(parameters.getValue("id"));
+				// servo.setIp(parameters.getValue("ip"));
+				// servo.setName(parameters.getValue("name"));
+				// servo.setPassword(parameters.getValue("password"));
+				// servo.setPort(Integer.valueOf(parameters.getValue("port")));
+				// servo.setRemark(parameters.getValue("remark"));
+				// servo.setUpdated(new Date());
+				// break;
+				// }
+				case "update_device_maintain": {
+					Maintain maintain = new Maintain();
+					maintain.setId(parameters.getValue("id"));
+					maintain.setDeviceId(parameters.getValue("device_id"));
+					maintain.setEnergyBalance(Integer.valueOf(parameters.getValue("energy_balance")));
+					maintain.setLoad(Integer.valueOf(parameters.getValue("load")));
+					maintain.setMutual(Float.valueOf(parameters.getValue("mutual")));
+					maintain.setName(parameters.getValue("name"));
+					maintain.setPower(Integer.valueOf(parameters.getValue("power")));
+					maintain.setRadix(Integer.valueOf(parameters.getValue("radix")));
+					maintain.setRemark(parameters.getValue("remark"));
+					maintain.setRepair(Repair.valueOf(Integer.valueOf(parameters.getValue("repair"))));
+					maintain.setSn(parameters.getValue("sn"));
+					maintain.setUpdated(new Date());
+					maintain = Data.UpdateMaintain(maintain);
+					update_device_maintain(writer, type, maintain);
+					break;
+				}
+				case "update_user": {
+					User user = new User();
+					user.setId(parameters.getValue("id"));
+					user.setZoneId(parameters.getValue("zone_id"));
+					user.setName(parameters.getValue("name"));
+					user.setPassword(parameters.getValue("password"));
+					user.setEnable(Converter.getBoolean(parameters.getValue("enable")));
+					user.setRealname(parameters.getValue("realname"));
+					user.setMobile(parameters.getValue("mobile"));
+					user.setPhone(parameters.getValue("phone"));
+					user.setEmail(parameters.getValue("email"));
+					user.setRemark(parameters.getValue("remark"));
+					user.setUpdated(new Date());
+					List<String> roles = parameters.getValues("role_id");
+					if (roles != null) {
+						for (String id : roles) {
+							user.addRole(id);
+						}
+					}
+					user = Data.UpdateUser(user);
+					if (user == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						update_user(writer, type, user);
+					}
+					break;
+				}
+				case "update_device": {
+					Device device = Device.instance(Vendor.valueOf(Integer.valueOf(parameters.getValue("vendor"))), Kind.valueOf(Integer.valueOf(parameters.getValue("vendor"))));
+					device.setId(parameters.getValue("id"));
+					device.setAddress(parameters.getValue("address"));
+					device.setDelay(Integer.valueOf(parameters.getValue("delay")));
+					device.setLink(Link.valueOf(Integer.valueOf(parameters.getValue("lind"))));
+					device.setLoad(Integer.valueOf(parameters.getValue("load")));
+					device.setMutual(Float.valueOf(parameters.getValue("mutual")));
+					device.setName(parameters.getValue("name"));
+					device.setNetworkIp(parameters.getValue("networkIp"));
+					device.setNetworkPort(Integer.valueOf(parameters.getValue("networkPort")));
+					device.setNumber(parameters.getValue("number"));
+					device.setOwnerId(parameters.getValue("ownerId"));
+					device.setPassword(parameters.getValue("password"));
+					device.setPhaseCheck(Integer.valueOf(parameters.getValue("phaseCheck")));
+					device.setPhasePower(Integer.valueOf(parameters.getValue("phaseCheck")));
+					device.setPower(Integer.valueOf(parameters.getValue("power")));
+					SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");// 小写的mm表示的是分钟
+					Date produced;
+					try {
+						produced = sdf.parse(parameters.getValue("produced"));
+						device.setProduced(produced);
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+					device.setRelayId(parameters.getValue("relayId"));
+					device.setRemark(parameters.getValue("remark"));
+					device.setSerialBaudRate(Integer.valueOf(parameters.getValue("serialBaudRate")));
+					device.setSerialPort(parameters.getValue("serialPort"));
+					device.setSn(parameters.getValue("sn"));
+					device.setStatus(Status.valueOf(Integer.valueOf(parameters.getValue("status"))));
+					device.setZoneId(parameters.getValue("zoneId"));
+					device = Data.UpdateDevice(device);
+					if (device == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						update_device(writer, type, device);
+					}
+					break;
+				}
+				case "update_role": {
+					Role role = new Role();
+					role.setId(parameters.getValue("id"));
+					role.setName(parameters.getValue("name"));
+					role.setRemark(parameters.getValue("remark"));
+					role.setUpdated(new Date());
+
+					List<String> commands = parameters.getValues("command");
+					if (commands != null) {
+						for (String number : commands) {
+							role.addCommand(Integer.valueOf(number));
+						}
+					}
+
+					role = Data.UpdateRole(role);
+					if (role == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						update_role(writer, type, role);
+					}
+					break;
+				}
+				case "update_zone": {
+					Zone zone = new Zone();
+					zone.setId(parameters.getValue("id"));
+					zone.setName(parameters.getValue("name"));
+					zone.setParentId(parameters.getValue("parentId"));
+					zone.setRemark("remark");
+					zone.setUpdated(new Date());
+					zone = Data.UpdateZone(zone);
+					if (zone == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						update_zone(writer, type, zone);
+					}
+					break;
+				}
+				case "update_task": {
+					Task task = new Task();
+					task.setId(parameters.getValue("id"));
+					;
+					task.setDay(Integer.valueOf(parameters.getValue("day")));
+					// task.setFeed(Float.valueOf(parameters.getValue("feed")));
+					// task.setFeedLower(Float.valueOf(parameters.getValue("feedLower")));
+					// task.setFeedUpper(Float.valueOf(parameters.getValue("feedUpper")));
+					task.setInterval(Integer.valueOf(parameters.getValue("interval")));
+					// task.setLimitLower(Integer.valueOf(parameters.getValue("limitLower")));
+					// task.setLimitUpper(Integer.valueOf(parameters.getValue("limitUpper")));
+					task.setMonth(Integer.valueOf(parameters.getValue("month")));
+					task.setName(parameters.getValue("name"));
+					task.setReadKind(Kind.valueOf(Integer.valueOf(parameters.getValue("readType"))));
+					task.setRemark(parameters.getValue("remark"));
+					task.setRepeat(Integer.valueOf(parameters.getValue("repeat")));
+					task.setRoleId(parameters.getValue("roleId"));
+					SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");// 小写的mm表示的是分钟
+					Date start;
+					Date stop;
+					try {
+						start = sdf.parse(parameters.getValue("start"));
+						stop = sdf.parse(parameters.getValue("stop"));
+						task.setStart(start);
+						task.setStop(stop);
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+					task.setWeek(Integer.valueOf(parameters.getValue("week")));
+					task.setWriteKind(Kind.valueOf(Integer.valueOf(parameters.getValue("writeType"))));
+					task.setUpdated(new Date());
+					task = Data.UpdateTask(task);
+					if (task == null) {
+						error(writer, type, DATA_ERROR);
+					} else {
+						update_task(writer, type, task);
+					}
+					break;
+				}
+				case "get_device_status": {
+					String id = parameters.getValue("id");
+					Device device = Data.getServo().getDevice(id);
+					if (device == null) {
+						error(writer, type, DEVICE_NOT_FOUND);
+						break;
+					}
+					DriverAdpater adpater = Driver.getAdpater(device);
+					if (adpater == null) {
+						error(writer, type, DEVICE_NOT_FOUND);
+						break;
+					}
+					adpater.getStatus(device);
+					if (!adpater.isActive()) {
+						error(writer, type, DEVICE_OFFLINE);
+						break;
+					}
+					device.getFeatures();
+					get_device_status(writer, type, device);
+					break;
+				}
+				case "set_device_status": {
+					String id = parameters.getValue("id");
+					List<String> indexs = parameters.getValues("index");
+					List<String> values = parameters.getValues("value");
+					Device device = Data.getServo().getDevice(id);
+					if (device == null) {
+						error(writer, type, DEVICE_NOT_FOUND);
+						break;
+					}
+					DriverAdpater adpater = Driver.getAdpater(device);
+					if (adpater == null) {
+						error(writer, type, DEVICE_NOT_FOUND);
+						break;
+					}
+					if (!adpater.isActive()) {
+						error(writer, type, DEVICE_OFFLINE);
+						break;
+					}
+					for (int i = 0; i < indexs.size(); i++) {
+						device.getFeature(Integer.valueOf(indexs.get(i))).setValue(Integer.valueOf(values.get(i)));
+					}
+					adpater.setStatus(device);
+					set_device_status(writer, type, device);
+					break;
+				}
+				default:
+					break;
+			}
+		} catch (IOException ex) {
+			Log.error(ex);
+		}
+	}
+
+	private void update_device_maintain(PrintWriter writer, int type, Maintain maintain) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "maintain", true);
+			{
+				JSON.field(writer, "device_id", maintain.getDeviceId(), true);
+				JSON.field(writer, "energy_balance", maintain.getEnergyBalance());
+				JSON.field(writer, "id", maintain.getId());
+				JSON.field(writer, "load", maintain.getLoad());
+				JSON.field(writer, "mutual", maintain.getMutual());
+				JSON.field(writer, "name", maintain.getName());
+				JSON.field(writer, "power", maintain.getPower());
+				JSON.field(writer, "radix", maintain.getRadix());
+				JSON.field(writer, "remark", maintain.getRemark());
+				JSON.field(writer, "sn", maintain.getSn());
+				JSON.field(writer, "repair", maintain.getRepair().getValue());
+				JSON.field(writer, "update", maintain.getUpdated());
+				JSON.field(writer, "created", maintain.getCreated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_device_maintain");
+			XML.elementBegin(writer, "device_maintain");
+			{
+				XML.element(writer, "device_id", maintain.getDeviceId());
+				XML.element(writer, "energy_balance", maintain.getEnergyBalance());
+				XML.element(writer, "id", maintain.getId());
+				XML.element(writer, "load", maintain.getLoad());
+				XML.element(writer, "mutual", maintain.getMutual());
+				XML.element(writer, "name", maintain.getName());
+				XML.element(writer, "power", maintain.getPower());
+				XML.element(writer, "radix", maintain.getRadix());
+				XML.element(writer, "remark", maintain.getRemark());
+				XML.element(writer, "sn", maintain.getSn());
+				XML.element(writer, "repair", maintain.getRepair().getValue());
+				XML.element(writer, "reated", maintain.getCreated());
+				XML.element(writer, "updated", maintain.getUpdated());
+			}
+			XML.elementEnd(writer, "device_maintain");
+			XML.elementEnd(writer, "update_device_maintains");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void update_device(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "device", true);
+			JSON.objectBegin(writer, true);
+			{
+				JSON.field(writer, "id", device.getId(), true);
+				JSON.field(writer, "zone_id", device.getZoneId());
+				JSON.field(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				JSON.field(writer, "owner_id", device.getOwnerId());
+				JSON.field(writer, "vendor", device.getVendor().getValue());
+				JSON.field(writer, "kind", device.getKind().getValue());
+				JSON.field(writer, "link", device.getLink().getValue());
+				JSON.field(writer, "sn", device.getSn());
+				JSON.field(writer, "name", device.getName());
+				JSON.field(writer, "number", device.getNumber());
+				JSON.field(writer, "password", device.getPassword());
+				JSON.field(writer, "network_ip", device.getNetworkIp());
+				JSON.field(writer, "network_port", device.getNetworkPort());
+				JSON.field(writer, "serial_port", device.getSerialPort());
+				JSON.field(writer, "serial_baud_rate", device.getSerialBaudRate());
+				JSON.field(writer, "load", device.getLoad());
+				JSON.field(writer, "power", device.getPower());
+				JSON.field(writer, "mutual", device.getMutual());
+				JSON.field(writer, "delay", device.getDelay());
+				JSON.field(writer, "remark", device.getRemark());
+				JSON.field(writer, "address", device.getAddress());
+				JSON.field(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				JSON.field(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				JSON.field(writer, "indicate", device.getIndicate());
+				JSON.field(writer, "alarm", device.getStatus().name());
+				JSON.field(writer, "check_phase", device.getPhaseCheck());
+				JSON.field(writer, "power_phase", device.getPhasePower());
+				JSON.arrayBegin(writer, "features", false);
+				Boolean f = true;
+				Feature[] feature = device.getFeatures();
+				if (feature != null) {
+					for (int i = 0; i < feature.length; i++) {
+						JSON.objectBegin(writer, f);
+						{
+							JSON.field(writer, "name", feature[i].getName(), true);
+							JSON.field(writer, "text", feature[i].getText());
+							JSON.field(writer, "alarm", feature[i].getAlarm() == null ? "null" : feature[i].getAlarm().toString());
+							JSON.field(writer, "index", feature[i].INDEX);
+							JSON.field(writer, "value", feature[i].getValue());
+							JSON.field(writer, "primary", feature[i].PRIMARY);
+							JSON.field(writer, "read_only", feature[i].READ_ONLY);
+							JSON.field(writer, "maximum", feature[i].MAXIMUM);
+							JSON.field(writer, "minimum", feature[i].MINIMUM);
+							JSON.field(writer, "step", feature[i].STEP);
+							JSON.field(writer, "type", feature[i].TYPE);
+						}
+						JSON.objectEnd(writer);
+						if (f) {
+							f = false;
+						}
+					}
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", device.getCreated());
+				JSON.field(writer, "updated", device.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_device");
+			XML.elementBegin(writer, "device");
+			{
+				XML.element(writer, "id", device.getId());
+				XML.element(writer, "zone_id", device.getZoneId());
+				XML.element(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				XML.element(writer, "owner_id", device.getOwnerId());
+				XML.element(writer, "vendor", device.getVendor().getValue());
+				XML.element(writer, "kind", device.getKind().getValue());
+				XML.element(writer, "link", device.getLink().getValue());
+				XML.element(writer, "sn", device.getSn());
+				XML.element(writer, "name", device.getName());
+				XML.element(writer, "number", device.getNumber());
+				XML.element(writer, "password", device.getPassword());
+				XML.element(writer, "network_ip", device.getNetworkIp());
+				XML.element(writer, "network_port", device.getNetworkPort());
+				XML.element(writer, "serial_port", device.getSerialPort());
+				XML.element(writer, "serial_baud_rate", device.getSerialBaudRate());
+				XML.element(writer, "load", device.getLoad());
+				XML.element(writer, "power", device.getPower());
+				XML.element(writer, "mutual", device.getMutual());
+				XML.element(writer, "delay", device.getDelay());
+				XML.element(writer, "remark", device.getRemark());
+				XML.element(writer, "address", device.getAddress());
+				XML.element(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				XML.element(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				XML.elementBegin(writer, "features");
+				for (int i = 0; i < device.getFeatures().length; i++) {
+					XML.elementBegin(writer, "feature");
+					{
+						XML.element(writer, "index", device.getFeatures()[i].INDEX);
+						XML.element(writer, "maximum", device.getFeatures()[i].MAXIMUM);
+						XML.element(writer, "minimum", device.getFeatures()[i].MINIMUM);
+						XML.element(writer, "step", device.getFeatures()[i].STEP);
+						XML.element(writer, "type", device.getFeatures()[i].TYPE);
+						XML.element(writer, "primary", device.getFeatures()[i].PRIMARY);
+						XML.element(writer, "read_only", device.getFeatures()[i].READ_ONLY);
+						XML.element(writer, "name", device.getFeatures()[i].getName());
+						XML.element(writer, "text", device.getFeatures()[i].getText());
+						XML.element(writer, "alarm", device.getFeatures()[i].getAlarm().name());
+						XML.element(writer, "", device.getFeatures()[i].getValue());
+					}
+				}
+				XML.elementEnd(writer, "features");
+				XML.element(writer, "created", device.getCreated());
+				XML.element(writer, "updated", device.getUpdated());
+			}
+			XML.elementEnd(writer, "device");
+			XML.elementEnd(writer, "update_device");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void get_server(PrintWriter writer, int type, Servo servo) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "user", true);
+			{
+				JSON.field(writer, "id", servo.getId(), true);
+				JSON.field(writer, "ip", servo.getIp());
+				JSON.field(writer, "name", servo.getName());
+				JSON.field(writer, "password", servo.getPassword());
+				JSON.field(writer, "port", servo.getPort());
+				JSON.field(writer, "remark", servo.getRemark());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_user");
+			{
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", servo.getId());
+					XML.element(writer, "ip", servo.getIp());
+					XML.element(writer, "name", servo.getName());
+					XML.element(writer, "password", servo.getPassword());
+					XML.element(writer, "port", servo.getPort());
+					XML.element(writer, "remark", servo.getRemark());
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "delete_users");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private String makeToken() {
+		return Long.toHexString(System.nanoTime());
+	}
+
+	private void error(PrintWriter writer, int type, String error) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "error", error, true);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "error", error);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void success(PrintWriter writer, int type, String success) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.field(writer, "success", success, true);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.element(writer, "error", success);
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void login(PrintWriter writer, int type, User user, String token) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			{
+				JSON.field(writer, "token", token, true);
+				JSON.objectBegin(writer, "user", false);
+				{
+					JSON.field(writer, "id", user.getId(), true);
+					JSON.field(writer, "zone_id", user.getZoneId());
+					JSON.field(writer, "name", user.getName());
+					JSON.field(writer, "enable", user.getEnable());
+					JSON.field(writer, "realname", user.getRealname());
+					JSON.field(writer, "mobile", user.getMobile());
+					JSON.field(writer, "phone", user.getPhone());
+					JSON.field(writer, "email", user.getEmail());
+					JSON.field(writer, "remark", user.getRemark());
+					JSON.field(writer, "created", user.getCreated());
+					JSON.field(writer, "updated", user.getUpdated());
+				}
+				JSON.objectEnd(writer);
+			}
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "login");
+			{
+				XML.element(writer, "token", token);
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "name", user.getName());
+					XML.element(writer, "enable", user.getEnable());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "login");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void query_device_maintains(PrintWriter writer, int type, List<Maintain> maintains) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "maintains", true);
+			for (Maintain maintain : maintains) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "device_id", maintain.getDeviceId(), true);
+					JSON.field(writer, "energy_balance", maintain.getEnergyBalance());
+					JSON.field(writer, "id", maintain.getId());
+					JSON.field(writer, "load", maintain.getLoad());
+					JSON.field(writer, "mutual", maintain.getMutual());
+					JSON.field(writer, "name", maintain.getName());
+					JSON.field(writer, "power", maintain.getPower());
+					JSON.field(writer, "radix", maintain.getRadix());
+					JSON.field(writer, "remark", maintain.getRemark());
+					JSON.field(writer, "sn", maintain.getSn());
+					JSON.field(writer, "repair", maintain.getRepair().getValue());
+					JSON.field(writer, "update", maintain.getUpdated());
+					JSON.field(writer, "created", maintain.getCreated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "query_device_maintains");
+			for (Maintain maintain : maintains) {
+				XML.elementBegin(writer, "device_maintain");
+				{
+					XML.element(writer, "device_id", maintain.getDeviceId());
+					XML.element(writer, "energy_balance", maintain.getEnergyBalance());
+					XML.element(writer, "id", maintain.getId());
+					XML.element(writer, "load", maintain.getLoad());
+					XML.element(writer, "mutual", maintain.getMutual());
+					XML.element(writer, "name", maintain.getName());
+					XML.element(writer, "power", maintain.getPower());
+					XML.element(writer, "radix", maintain.getRadix());
+					XML.element(writer, "remark", maintain.getRemark());
+					XML.element(writer, "sn", maintain.getSn());
+					XML.element(writer, "repair", maintain.getRepair().getValue());
+					XML.element(writer, "reated", maintain.getCreated());
+					XML.element(writer, "updated", maintain.getUpdated());
+				}
+				XML.elementEnd(writer, "device_maintain");
+			}
+			XML.elementEnd(writer, "query_device_maintains");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_zones(PrintWriter writer, int type, Set<Zone> zones) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "zones", true);
+			for (Zone zone : zones) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", zone.getId(), true);
+					JSON.field(writer, "parent", zone.getParentId());
+					JSON.field(writer, "name", zone.getName());
+					JSON.field(writer, "remark", zone.getRemark());
+					JSON.field(writer, "created", zone.getCreated());
+					JSON.field(writer, "updated", zone.getUpdated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_zones");
+			for (Zone zone : zones) {
+				XML.elementBegin(writer, "zone");
+				{
+					XML.element(writer, "id", zone.getId());
+					XML.element(writer, "parent", zone.getParentId());
+					XML.element(writer, "name", zone.getName());
+					XML.element(writer, "remark", zone.getRemark());
+					XML.element(writer, "created", zone.getCreated());
+					XML.element(writer, "updated", zone.getUpdated());
+				}
+				XML.elementEnd(writer, "zone");
+			}
+			XML.elementEnd(writer, "select_zones");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_device(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "device", true);
+			{
+				JSON.field(writer, "id", device.getId(), true);
+				JSON.field(writer, "zone_id", device.getZoneId());
+				JSON.field(writer, "zone_name", device.getZone() == null ? "null" : device.getZone().getName());
+				JSON.field(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				JSON.field(writer, "owner_id", device.getOwnerId());
+				JSON.field(writer, "vendor", device.getVendor().getValue());
+				JSON.field(writer, "kind", device.getKind().getValue());
+				JSON.field(writer, "link", device.getLink().getValue());
+				JSON.field(writer, "sn", device.getSn());
+				JSON.field(writer, "name", device.getName());
+				JSON.field(writer, "number", device.getNumber());
+				JSON.field(writer, "password", device.getPassword());
+				JSON.field(writer, "network_ip", device.getNetworkIp());
+				JSON.field(writer, "network_port", device.getNetworkPort());
+				JSON.field(writer, "serial_port", device.getSerialPort());
+				JSON.field(writer, "serial_baud_rate", device.getSerialBaudRate());
+				JSON.field(writer, "load", device.getLoad());
+				JSON.field(writer, "power", device.getPower());
+				JSON.field(writer, "mutual", device.getMutual());
+				JSON.field(writer, "delay", device.getDelay());
+				JSON.field(writer, "remark", device.getRemark());
+				JSON.field(writer, "address", device.getAddress());
+				JSON.field(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				JSON.field(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				JSON.field(writer, "indicate", device.getIndicate());
+				JSON.field(writer, "alarm", device.getStatus().toString());
+				JSON.field(writer, "check_phase", device.getPhaseCheck());
+				JSON.field(writer, "power_phase", device.getPhasePower());
+				JSON.arrayBegin(writer, "features", false);
+				Boolean first = true;
+				Feature[] feature = device.getFeatures();
+				if (feature != null) {
+					for (int i = 0; i < feature.length; i++) {
+						JSON.objectBegin(writer, first);
+						{
+							JSON.field(writer, "index", feature[i].INDEX, true);
+							JSON.field(writer, "name", feature[i].getName());
+							JSON.field(writer, "text", feature[i].getText());
+							JSON.field(writer, "alarm", feature[i].getAlarm() == null ? "null" : feature[i].getAlarm().toString());
+							JSON.field(writer, "primary", feature[i].PRIMARY);
+							JSON.field(writer, "read_only", feature[i].READ_ONLY);
+							JSON.field(writer, "maximum", feature[i].MAXIMUM);
+							JSON.field(writer, "minimum", feature[i].MINIMUM);
+							JSON.field(writer, "step", feature[i].STEP);
+							JSON.field(writer, "type", feature[i].TYPE);
+						}
+						JSON.objectEnd(writer);
+						if (first) {
+							first = false;
+						}
+					}
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", device.getCreated());
+				JSON.field(writer, "updated", device.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_device");
+			{
+				XML.elementBegin(writer, "device");
+				{
+					XML.element(writer, "id", device.getId());
+					XML.element(writer, "zone_id", device.getZoneId());
+					XML.element(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+					XML.element(writer, "owner_id", device.getOwnerId());
+					XML.element(writer, "vendor", device.getVendor().getValue());
+					XML.element(writer, "kind", device.getKind().getValue());
+					XML.element(writer, "link", device.getLink().getValue());
+					XML.element(writer, "sn", device.getSn());
+					XML.element(writer, "name", device.getName());
+					XML.element(writer, "number", device.getNumber());
+					XML.element(writer, "password", device.getPassword());
+					XML.element(writer, "network_ip", device.getNetworkIp());
+					XML.element(writer, "network_port", device.getNetworkPort());
+					XML.element(writer, "serial_port", device.getSerialPort());
+					XML.element(writer, "serial_baud_rate", device.getSerialBaudRate());
+					XML.element(writer, "load", device.getLoad());
+					XML.element(writer, "power", device.getPower());
+					XML.element(writer, "mutual", device.getMutual());
+					XML.element(writer, "delay", device.getDelay());
+					XML.element(writer, "remark", device.getRemark());
+					XML.element(writer, "address", device.getAddress());
+					XML.element(writer, "insDtalled", device.getInstalled());
+					XML.element(writer, "produced", device.getProduced());
+					XML.elementBegin(writer, "features");
+					for (int i = 0; i < device.getFeatures().length; i++) {
+						XML.elementBegin(writer, "feature");
+						{
+							XML.element(writer, "index", device.getFeatures()[i].INDEX);
+							XML.element(writer, "maximum", device.getFeatures()[i].MAXIMUM);
+							XML.element(writer, "minimum", device.getFeatures()[i].MINIMUM);
+							XML.element(writer, "step", device.getFeatures()[i].STEP);
+							XML.element(writer, "type", device.getFeatures()[i].TYPE);
+							XML.element(writer, "primary", device.getFeatures()[i].PRIMARY);
+							XML.element(writer, "read_only", device.getFeatures()[i].READ_ONLY);
+							XML.element(writer, "name", device.getFeatures()[i].getName());
+							XML.element(writer, "text", device.getFeatures()[i].getText());
+							XML.element(writer, "alarm", device.getFeatures()[i].getAlarm().name());
+							XML.element(writer, "value", device.getFeatures()[i].getValue());
+						}
+						XML.elementEnd(writer, "feature");
+					}
+					XML.elementEnd(writer, "features");
+					XML.element(writer, "created", device.getCreated());
+					XML.element(writer, "updated", device.getUpdated());
+				}
+				XML.elementEnd(writer, "device");
+			}
+			XML.elementEnd(writer, "select_device");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_devices(PrintWriter writer, int type, Set<Device> devices) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "devices", true);
+			for (Device device : devices) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", device.getId(), true);
+					JSON.field(writer, "zone_id", device.getZoneId());
+					JSON.field(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+					JSON.field(writer, "owner_id", device.getOwnerId());
+					JSON.field(writer, "vendor", device.getVendor().getValue());
+					JSON.field(writer, "kind", device.getKind().getValue());
+					JSON.field(writer, "link", device.getLink().getValue());
+					JSON.field(writer, "sn", device.getSn());
+					JSON.field(writer, "name", device.getName());
+					JSON.field(writer, "number", device.getNumber());
+					JSON.field(writer, "password", device.getPassword());
+					JSON.field(writer, "network_ip", device.getNetworkIp());
+					JSON.field(writer, "network_port", device.getNetworkPort());
+					JSON.field(writer, "serial_port", device.getSerialPort());
+					JSON.field(writer, "serial_baud_rate", device.getSerialBaudRate());
+					JSON.field(writer, "load", device.getLoad());
+					JSON.field(writer, "power", device.getPower());
+					JSON.field(writer, "mutual", device.getMutual());
+					JSON.field(writer, "delay", device.getDelay());
+					JSON.field(writer, "remark", device.getRemark());
+					JSON.field(writer, "address", device.getAddress());
+					JSON.field(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+					JSON.field(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+					JSON.field(writer, "indicate", device.getIndicate());
+					JSON.field(writer, "alarm", device.getStatus() == null ? "null" : device.getStatus().toString());
+					JSON.field(writer, "check_phase", device.getPhaseCheck());
+					JSON.field(writer, "power_phase", device.getPhasePower());
+					JSON.arrayBegin(writer, "features", false);
+					Boolean f = true;
+					Feature[] feature = device.getFeatures();
+					if (feature != null) {
+						for (int i = 0; i < feature.length; i++) {
+							JSON.objectBegin(writer, f);
+							{
+								JSON.field(writer, "name", feature[i].getName(), true);
+								JSON.field(writer, "text", feature[i].getText());
+								JSON.field(writer, "alarm", feature[i].getAlarm() == null ? "null" : feature[i].getAlarm().toString());
+								JSON.field(writer, "index", feature[i].INDEX);
+								JSON.field(writer, "value", feature[i].getValue());
+								JSON.field(writer, "primary", feature[i].PRIMARY);
+								JSON.field(writer, "read_only", feature[i].READ_ONLY);
+								JSON.field(writer, "maximum", feature[i].MAXIMUM);
+								JSON.field(writer, "minimum", feature[i].MINIMUM);
+								JSON.field(writer, "step", feature[i].STEP);
+								JSON.field(writer, "type", feature[i].TYPE);
+							}
+							JSON.objectEnd(writer);
+							if (f) {
+								f = false;
+							}
+						}
+					}
+					JSON.arrayEnd(writer);
+					JSON.field(writer, "created", device.getCreated());
+					JSON.field(writer, "updated", device.getUpdated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_devices");
+			for (Device device : devices) {
+				XML.elementBegin(writer, "devices");
+				{
+					XML.element(writer, "id", device.getId());
+					XML.element(writer, "zone_id", device.getZoneId());
+					XML.element(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+					XML.element(writer, "owner_id", device.getOwnerId());
+					XML.element(writer, "vendor", device.getVendor().getValue());
+					XML.element(writer, "kind", device.getKind().getValue());
+					XML.element(writer, "link", device.getLink().getValue());
+					XML.element(writer, "sn", device.getSn());
+					XML.element(writer, "name", device.getName());
+					XML.element(writer, "number", device.getNumber());
+					XML.element(writer, "password", device.getPassword());
+					XML.element(writer, "network_ip", device.getNetworkIp());
+					XML.element(writer, "network_port", device.getNetworkPort());
+					XML.element(writer, "serial_port", device.getSerialPort());
+					XML.element(writer, "serial_baud_rate", device.getSerialBaudRate());
+					XML.element(writer, "load", device.getLoad());
+					XML.element(writer, "power", device.getPower());
+					XML.element(writer, "mutual", device.getMutual());
+					XML.element(writer, "delay", device.getDelay());
+					XML.element(writer, "remark", device.getRemark());
+					XML.element(writer, "address", device.getAddress());
+					XML.element(writer, "insDtalled", device.getInstalled());
+					XML.element(writer, "produced", device.getProduced());
+					XML.elementBegin(writer, "features");
+					for (int i = 0; i < device.getFeatures().length; i++) {
+						XML.elementBegin(writer, "feature");
+						{
+							XML.element(writer, "index", device.getFeatures()[i].INDEX);
+							XML.element(writer, "maximum", device.getFeatures()[i].MAXIMUM);
+							XML.element(writer, "minimum", device.getFeatures()[i].MINIMUM);
+							XML.element(writer, "step", device.getFeatures()[i].STEP);
+							XML.element(writer, "type", device.getFeatures()[i].TYPE);
+							XML.element(writer, "primary", device.getFeatures()[i].PRIMARY);
+							XML.element(writer, "read_only", device.getFeatures()[i].READ_ONLY);
+							XML.element(writer, "name", device.getFeatures()[i].getName());
+							XML.element(writer, "text", device.getFeatures()[i].getText());
+							XML.element(writer, "alarm", device.getFeatures()[i].getAlarm().name());
+							XML.element(writer, "value", device.getFeatures()[i].getValue());
+						}
+						XML.elementEnd(writer, "feature");
+					}
+					XML.elementEnd(writer, "features");
+					XML.element(writer, "created", device.getCreated());
+					XML.element(writer, "updated", device.getUpdated());
+				}
+				XML.elementEnd(writer, "devices");
+			}
+			XML.elementEnd(writer, "select_devices");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_tasks(PrintWriter writer, int type, Set<Task> tasks) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "tasks", true);
+			for (Task task : tasks) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", task.getId(), true);
+					JSON.field(writer, "name", task.getName());
+					JSON.field(writer, "start", task.getStart());
+					JSON.field(writer, "stop", task.getStop());
+					JSON.field(writer, "month", task.getMonth());
+					JSON.field(writer, "week", task.getWeek());
+					JSON.field(writer, "day", task.getDay());
+					JSON.field(writer, "interval", task.getInterval());
+					JSON.field(writer, "repeat", task.getRepeat());
+					// JSON.field(writer, "limit_upper", task.getLimitUpper());
+					// JSON.field(writer, "limit_lower", task.getLimitLower());
+					// JSON.field(writer, "feed", task.getFeed());
+					// JSON.field(writer, "feed_upper", task.getFeedUpper());
+					// JSON.field(writer, "feed_lower", task.getFeedLower());
+					JSON.field(writer, "read_type", task.getReadKind().getValue());
+					JSON.field(writer, "write_type", task.getWriteKind().getValue());
+					JSON.field(writer, "role_id", task.getRoleId());
+					JSON.field(writer, "remark", task.getRemark());
+					JSON.field(writer, "created", task.getCreated());
+					JSON.field(writer, "updated", task.getUpdated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_tasks");
+			for (Task task : tasks) {
+				XML.elementBegin(writer, "task");
+				{
+					XML.element(writer, "id", task.getId());
+					XML.element(writer, "name", task.getName());
+					XML.element(writer, "start", task.getStart());
+					XML.element(writer, "stop", task.getStop());
+					XML.element(writer, "month", task.getMonth());
+					XML.element(writer, "week", task.getWeek());
+					XML.element(writer, "day", task.getDay());
+					XML.element(writer, "interval", task.getInterval());
+					XML.element(writer, "repeat", task.getRepeat());
+					// XML.element(writer, "limit_upper", task.getLimitUpper());
+					// XML.element(writer, "limit_lower", task.getLimitLower());
+					// XML.element(writer, "feed", task.getFeed());
+					// XML.element(writer, "feed_upper", task.getFeedUpper());
+					// XML.element(writer, "feed_lower", task.getFeedLower());
+					XML.element(writer, "read_type", task.getReadKind().getValue());
+					XML.element(writer, "write_type", task.getWriteKind().getValue());
+					XML.element(writer, "role_id", task.getRoleId());
+					XML.element(writer, "remark", task.getRemark());
+					XML.element(writer, "created", task.getCreated());
+					XML.element(writer, "updated", task.getUpdated());
+				}
+				XML.elementEnd(writer, "task");
+			}
+			XML.elementEnd(writer, "select_tasks");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_task(PrintWriter writer, int type, Task task) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "task", true);
+			{
+				JSON.field(writer, "id", task.getId(), true);
+				JSON.field(writer, "name", task.getName());
+				JSON.field(writer, "start", task.getStart());
+				JSON.field(writer, "stop", task.getStop());
+				JSON.field(writer, "month", task.getMonth());
+				JSON.field(writer, "week", task.getWeek());
+				JSON.field(writer, "day", task.getDay());
+				JSON.field(writer, "interval", task.getInterval());
+				JSON.field(writer, "repeat", task.getRepeat());
+				// JSON.field(writer, "limit_upper", task.getLimitUpper());
+				// JSON.field(writer, "limit_lower", task.getLimitLower());
+				// JSON.field(writer, "feed", task.getFeed());
+				// JSON.field(writer, "feed_upper", task.getFeedUpper());
+				// JSON.field(writer, "feed_lower", task.getFeedLower());
+				JSON.field(writer, "read_type", task.getReadKind().getValue());
+				JSON.field(writer, "write_type", task.getWriteKind().getValue());
+				JSON.field(writer, "role_id", task.getRoleId());
+				JSON.field(writer, "remark", task.getRemark());
+				JSON.field(writer, "created", task.getCreated());
+				JSON.field(writer, "updated", task.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_task");
+			XML.elementBegin(writer, "task");
+			{
+				XML.element(writer, "id", task.getId());
+				XML.element(writer, "name", task.getName());
+				XML.element(writer, "start", task.getStart());
+				XML.element(writer, "stop", task.getStop());
+				XML.element(writer, "month", task.getMonth());
+				XML.element(writer, "week", task.getWeek());
+				XML.element(writer, "day", task.getDay());
+				XML.element(writer, "interval", task.getInterval());
+				XML.element(writer, "repeat", task.getRepeat());
+				// XML.element(writer, "limit_upper", task.getLimitUpper());
+				// XML.element(writer, "limit_lower", task.getLimitLower());
+				// XML.element(writer, "feed", task.getFeed());
+				// XML.element(writer, "feed_upper", task.getFeedUpper());
+				// XML.element(writer, "feed_lower", task.getFeedLower());
+				XML.element(writer, "read_type", task.getReadKind().getValue());
+				XML.element(writer, "write_type", task.getWriteKind().getValue());
+				XML.element(writer, "role_id", task.getRoleId());
+				XML.element(writer, "remark", task.getRemark());
+				XML.element(writer, "created", task.getCreated());
+				XML.element(writer, "updated", task.getUpdated());
+			}
+			XML.elementEnd(writer, "task");
+			XML.elementEnd(writer, "select_task");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_roles(PrintWriter writer, int type, Set<Role> roles) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "roles", true);
+			for (Role role : roles) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", role.getId(), true);
+					JSON.field(writer, "name", role.getName());
+					JSON.field(writer, "remark", role.getRemark());
+					Boolean f = true;
+					JSON.arrayBegin(writer, "commands", false);
+					for (Integer command : role.getCommands()) {
+						JSON.objectBegin(writer, f);
+						{
+							JSON.field(writer, "command_number", command, true);
+							JSON.field(writer, "command", command.toString(), false);
+						}
+						JSON.objectEnd(writer);
+						if (f)
+							f = false;
+					}
+					JSON.arrayEnd(writer);
+					JSON.field(writer, "created", role.getCreated());
+					JSON.field(writer, "updated", role.getUpdated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_roles");
+			for (Role role : roles) {
+				XML.elementBegin(writer, "role");
+				{
+					XML.element(writer, "id", role.getId());
+					XML.element(writer, "name", role.getName());
+					XML.element(writer, "remark", role.getRemark());
+					XML.elementBegin(writer, "commands");
+					{
+						for (Integer command : role.getCommands()) {
+							XML.element(writer, "command_number", command);
+							XML.element(writer, "command", command.toString());
+						}
+					}
+					XML.elementEnd(writer, "commands");
+					XML.element(writer, "created", role.getCreated());
+					XML.element(writer, "updated", role.getUpdated());
+				}
+				XML.elementEnd(writer, "role");
+			}
+			XML.elementEnd(writer, "select_roles");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_role(PrintWriter writer, int type, Role role) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "role", true);
+			{
+				JSON.field(writer, "id", role.getId(), true);
+				JSON.field(writer, "name", role.getName());
+				JSON.field(writer, "remark", role.getRemark());
+				Boolean f = true;
+				JSON.arrayBegin(writer, "commands", false);
+				for (Integer command : role.getCommands()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "command_number", command, true);
+						JSON.field(writer, "command", command.toString());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", role.getCreated());
+				JSON.field(writer, "updated", role.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_role");
+			{
+				XML.elementBegin(writer, "role");
+				{
+					XML.element(writer, "id", role.getId());
+					XML.element(writer, "name", role.getName());
+					XML.element(writer, "remark", role.getRemark());
+					XML.elementBegin(writer, "commands");
+					{
+						for (Integer command : role.getCommands()) {
+							XML.element(writer, "command_number", command);
+							XML.element(writer, "command", command.toString());
+						}
+					}
+					XML.elementEnd(writer, "commands");
+				}
+				XML.elementEnd(writer, "role");
+			}
+			XML.elementEnd(writer, "create_role");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_users(PrintWriter writer, int type, Set<User> users) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "users", true);
+			for (User user : users) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", user.getId(), true);
+					JSON.field(writer, "zone_id", user.getZoneId());
+					JSON.field(writer, "zone_name", user.getZone() == null ? "null" : user.getZone().getName());
+
+					Boolean f = true;
+					JSON.arrayBegin(writer, "roles", false);
+					for (Role role : user.getRoles()) {
+						JSON.objectBegin(writer, f);
+						{
+							JSON.field(writer, "id", role.getId(), true);
+							JSON.field(writer, "name", role.getName());
+							JSON.field(writer, "remark", role.getRemark());
+						}
+						JSON.objectEnd(writer);
+						if (f)
+							f = false;
+					}
+					JSON.arrayEnd(writer);
+					JSON.field(writer, "name", user.getName());
+					JSON.field(writer, "enable", user.getEnable());
+					JSON.field(writer, "realname", user.getRealname());
+					JSON.field(writer, "mobile", user.getMobile());
+					JSON.field(writer, "phone", user.getPhone());
+					JSON.field(writer, "email", user.getEmail());
+					JSON.field(writer, "remark", user.getRemark());
+					JSON.field(writer, "created", user.getCreated());
+					JSON.field(writer, "updated", user.getUpdated());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_users");
+			for (User user : users) {
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "zone_name", user.getZone() == null ? "null" : user.getZone().getName());
+					XML.elementBegin(writer, "roles");
+					for (Role role : user.getRoles()) {
+						XML.elementBegin(writer, "role");
+						{
+							XML.element(writer, "id", role.getId());
+							XML.element(writer, "name", role.getName());
+							XML.element(writer, "remark", role.getRemark());
+						}
+						XML.elementEnd(writer, "role");
+					}
+					XML.elementEnd(writer, "roles");
+					XML.element(writer, "name", user.getName());
+					XML.element(writer, "enable", user.getEnable());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "select_users");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_user(PrintWriter writer, int type, User user) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "user", true);
+			{
+				JSON.field(writer, "id", user.getId(), true);
+				JSON.field(writer, "zone_id", user.getZoneId());
+				JSON.field(writer, "zone_name", user.getZone() == null ? "null" : user.getZone().getName());
+				JSON.field(writer, "name", user.getName());
+				JSON.field(writer, "enable", user.getEnable());
+				JSON.field(writer, "realname", user.getRealname());
+				JSON.field(writer, "mobile", user.getMobile());
+				JSON.field(writer, "phone", user.getPhone());
+				JSON.field(writer, "email", user.getEmail());
+				JSON.field(writer, "remark", user.getRemark());
+				JSON.field(writer, "created", user.getCreated());
+				JSON.field(writer, "updated", user.getUpdated());
+
+				Boolean f = true;
+				JSON.arrayBegin(writer, "roles", false);
+				for (Role role : user.getRoles()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "id", role.getId(), true);
+						JSON.field(writer, "name", role.getName());
+						JSON.field(writer, "remark", role.getRemark());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_user");
+			{
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "name", user.getName());
+					XML.elementBegin(writer, "roles");
+					for (Role role : user.getRoles()) {
+						XML.elementBegin(writer, "role");
+						{
+							XML.element(writer, "id", role.getId());
+							XML.element(writer, "name", role.getName());
+							XML.element(writer, "remark", role.getRemark());
+						}
+						XML.elementEnd(writer, "role");
+					}
+					XML.elementEnd(writer, "roles");
+					XML.element(writer, "enable", user.getEnable());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "select_user");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void select_userLogs(PrintWriter writer, int type, List<ULog> userLogs) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "userLogs", true);
+			for (ULog uLog : userLogs) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "id", uLog.getId(), true);
+					// JSON.field(writer,
+					// "user_name",Data.getServo().getUser(uLog.getUserId()).getName()==null?"null":Data.getServo().getUser(uLog.getUserId()).getName());
+					JSON.field(writer, "uLog_name", uLog.getName());
+					// JSON.field(writer, "uLog_parameter",
+					// uLog.getParameter());
+					JSON.field(writer, "uLog_remark", uLog.getRemark());
+					JSON.field(writer, "uLog_time", uLog.getTime());
+					JSON.field(writer, "uLog_created", uLog.getCreated());
+					JSON.field(writer, "uLog_userId", uLog.getUserId());
+					JSON.field(writer, "uLog_command", uLog.getCommand());
+					JSON.field(writer, "uLog_status", uLog.getStatus());
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "select_userLogs");
+			for (ULog uLog : userLogs) {
+				XML.elementBegin(writer, "userLog");
+				{
+					XML.element(writer, "id", uLog.getId());
+					XML.element(writer, "uLog_name", uLog.getName());
+					// XML.element(writer, "uLog_parameter",
+					// uLog.getParameter());
+					XML.element(writer, "uLog_remark", uLog.getRemark());
+					XML.element(writer, "uLog_time", uLog.getTime());
+					XML.element(writer, "uLog_created", uLog.getCreated());
+					// XML.element(writer, "uLog_userId", uLog.getUserId());
+					XML.element(writer, "uLog_command", uLog.getCommand());
+					XML.element(writer, "uLog_status", uLog.getStatus());
+				}
+				XML.elementEnd(writer, "userLog");
+			}
+			XML.elementEnd(writer, "select_userLogs");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_zone(PrintWriter writer, int type, Zone zone) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "zone", true);
+			{
+				JSON.field(writer, "id", zone.getId(), true);
+				JSON.field(writer, "parent", zone.getParentId());
+				JSON.field(writer, "name", zone.getName());
+				JSON.field(writer, "remark", zone.getRemark());
+				JSON.field(writer, "created", zone.getCreated());
+				JSON.field(writer, "updated", zone.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_zone");
+			XML.elementBegin(writer, "zone");
+			{
+				XML.element(writer, "id", zone.getId());
+				XML.element(writer, "parent", zone.getParentId());
+				XML.element(writer, "name", zone.getName());
+				XML.element(writer, "remark", zone.getRemark());
+				XML.element(writer, "created", zone.getCreated());
+				XML.element(writer, "updated", zone.getUpdated());
+			}
+			XML.elementEnd(writer, "zone");
+			XML.elementEnd(writer, "create_zone");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_device_maintain(PrintWriter writer, int type, Maintain maintain) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "maintain", true);
+			{
+				JSON.field(writer, "device_id", maintain.getDeviceId(), true);
+				JSON.field(writer, "energy_balance", maintain.getEnergyBalance());
+				JSON.field(writer, "id", maintain.getId());
+				JSON.field(writer, "load", maintain.getLoad());
+				JSON.field(writer, "mutual", maintain.getMutual());
+				JSON.field(writer, "name", maintain.getName());
+				JSON.field(writer, "power", maintain.getPower());
+				JSON.field(writer, "radix", maintain.getRadix());
+				JSON.field(writer, "remark", maintain.getRemark());
+				JSON.field(writer, "sn", maintain.getSn());
+				JSON.field(writer, "repair", maintain.getRepair().getValue());
+				JSON.field(writer, "update", maintain.getUpdated());
+				JSON.field(writer, "created", maintain.getCreated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_device_maintain");
+			XML.elementBegin(writer, "device_maintain");
+			{
+				XML.element(writer, "device_id", maintain.getDeviceId());
+				XML.element(writer, "energy_balance", maintain.getEnergyBalance());
+				XML.element(writer, "id", maintain.getId());
+				XML.element(writer, "load", maintain.getLoad());
+				XML.element(writer, "mutual", maintain.getMutual());
+				XML.element(writer, "name", maintain.getName());
+				XML.element(writer, "power", maintain.getPower());
+				XML.element(writer, "radix", maintain.getRadix());
+				XML.element(writer, "remark", maintain.getRemark());
+				XML.element(writer, "sn", maintain.getSn());
+				XML.element(writer, "repair", maintain.getRepair().getValue());
+				XML.element(writer, "reated", maintain.getCreated());
+				XML.element(writer, "updated", maintain.getUpdated());
+			}
+			XML.elementEnd(writer, "device_maintain");
+			XML.elementEnd(writer, "create_device_maintains");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_device(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "device", true);
+			JSON.objectBegin(writer, true);
+			{
+				JSON.field(writer, "id", device.getId(), true);
+				JSON.field(writer, "zone_id", device.getZoneId());
+				JSON.field(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				JSON.field(writer, "owner_id", device.getOwnerId());
+				JSON.field(writer, "vendor", device.getVendor().getValue());
+				JSON.field(writer, "kind", device.getKind().getValue());
+				JSON.field(writer, "link", device.getLink().getValue());
+				JSON.field(writer, "sn", device.getSn());
+				JSON.field(writer, "name", device.getName());
+				JSON.field(writer, "number", device.getNumber());
+				JSON.field(writer, "password", device.getPassword());
+				JSON.field(writer, "network_ip", device.getNetworkIp());
+				JSON.field(writer, "network_port", device.getNetworkPort());
+				JSON.field(writer, "serial_port", device.getSerialPort());
+				JSON.field(writer, "serial_baud_rate", device.getSerialBaudRate());
+				JSON.field(writer, "load", device.getLoad());
+				JSON.field(writer, "power", device.getPower());
+				JSON.field(writer, "mutual", device.getMutual());
+				JSON.field(writer, "delay", device.getDelay());
+				JSON.field(writer, "remark", device.getRemark());
+				JSON.field(writer, "address", device.getAddress());
+				JSON.field(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				JSON.field(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				JSON.field(writer, "indicate", device.getIndicate());
+				JSON.field(writer, "alarm", device.getStatus().name());
+				JSON.field(writer, "check_phase", device.getPhaseCheck());
+				JSON.field(writer, "power_phase", device.getPhasePower());
+				JSON.arrayBegin(writer, "features", false);
+				Boolean f = true;
+				Feature[] feature = device.getFeatures();
+				if (feature != null) {
+					for (int i = 0; i < feature.length; i++) {
+						JSON.objectBegin(writer, f);
+						{
+							JSON.field(writer, "name", feature[i].getName(), true);
+							JSON.field(writer, "text", feature[i].getText());
+							JSON.field(writer, "alarm", feature[i].getAlarm() == null ? "null" : feature[i].getAlarm().toString());
+							JSON.field(writer, "index", feature[i].INDEX);
+							JSON.field(writer, "value", feature[i].getValue());
+							JSON.field(writer, "primary", feature[i].PRIMARY);
+							JSON.field(writer, "read_only", feature[i].READ_ONLY);
+							JSON.field(writer, "maximum", feature[i].MAXIMUM);
+							JSON.field(writer, "minimum", feature[i].MINIMUM);
+							JSON.field(writer, "step", feature[i].STEP);
+							JSON.field(writer, "type", feature[i].TYPE);
+						}
+						JSON.objectEnd(writer);
+						if (f) {
+							f = false;
+						}
+					}
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", device.getCreated());
+				JSON.field(writer, "updated", device.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_device");
+			XML.elementBegin(writer, "device");
+			{
+				XML.element(writer, "id", device.getId());
+				XML.element(writer, "zone_id", device.getZoneId());
+				XML.element(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				XML.element(writer, "owner_id", device.getOwnerId());
+				XML.element(writer, "vendor", device.getVendor().getValue());
+				XML.element(writer, "kind", device.getKind().getValue());
+				XML.element(writer, "link", device.getLink().getValue());
+				XML.element(writer, "sn", device.getSn());
+				XML.element(writer, "name", device.getName());
+				XML.element(writer, "number", device.getNumber());
+				XML.element(writer, "password", device.getPassword());
+				XML.element(writer, "network_ip", device.getNetworkIp());
+				XML.element(writer, "network_port", device.getNetworkPort());
+				XML.element(writer, "serial_port", device.getSerialPort());
+				XML.element(writer, "serial_baud_rate", device.getSerialBaudRate());
+				XML.element(writer, "load", device.getLoad());
+				XML.element(writer, "power", device.getPower());
+				XML.element(writer, "mutual", device.getMutual());
+				XML.element(writer, "delay", device.getDelay());
+				XML.element(writer, "remark", device.getRemark());
+				XML.element(writer, "address", device.getAddress());
+				XML.element(writer, "insDtalled", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				XML.element(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				XML.elementBegin(writer, "features");
+				for (int i = 0; i < device.getFeatures().length; i++) {
+					XML.elementBegin(writer, "feature");
+					XML.element(writer, "index", device.getFeatures()[i].INDEX);
+					XML.element(writer, "maximum", device.getFeatures()[i].MAXIMUM);
+					XML.element(writer, "minimum", device.getFeatures()[i].MINIMUM);
+					XML.element(writer, "step", device.getFeatures()[i].STEP);
+					XML.element(writer, "type", device.getFeatures()[i].TYPE);
+					XML.element(writer, "value", device.getFeatures()[i].getValue());
+					XML.element(writer, "name", device.getFeatures()[i].getName());
+					XML.element(writer, "text", device.getFeatures()[i].getText());
+					XML.element(writer, "alarm", device.getFeatures()[i].getAlarm().name());
+					XML.elementEnd(writer, "feature");
+				}
+				XML.elementEnd(writer, "features");
+				XML.element(writer, "created", device.getCreated());
+				XML.element(writer, "updated", device.getUpdated());
+			}
+			XML.elementEnd(writer, "device");
+			XML.elementEnd(writer, "create_device");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_user(PrintWriter writer, int type, User user) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "user", true);
+			{
+				JSON.field(writer, "id", user.getId(), true);
+				JSON.field(writer, "zone_id", user.getZoneId());
+				JSON.field(writer, "zone_name", user.getZone() == null ? "null" : user.getZone().getName());
+				JSON.field(writer, "name", user.getName());
+				JSON.field(writer, "enable", user.getEnable());
+				JSON.field(writer, "realname", user.getRealname());
+				JSON.field(writer, "mobile", user.getMobile());
+				JSON.field(writer, "phone", user.getPhone());
+				JSON.field(writer, "email", user.getEmail());
+				JSON.field(writer, "remark", user.getRemark());
+				JSON.field(writer, "created", user.getCreated());
+				JSON.field(writer, "updated", user.getUpdated());
+
+				Boolean f = true;
+				JSON.arrayBegin(writer, "roles", false);
+				for (Role role : user.getRoles()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "id", role.getId(), true);
+						JSON.field(writer, "name", role.getName());
+						JSON.field(writer, "remark", role.getRemark());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_user");
+			{
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "zone_name", user.getZone().getName());
+					XML.element(writer, "name", user.getName());
+					XML.element(writer, "enable", user.getEnable());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+					XML.elementBegin(writer, "roles");
+					{
+						for (Role role : user.getRoles()) {
+							XML.elementBegin(writer, "role");
+							{
+								XML.element(writer, "id", role.getId());
+								XML.element(writer, "name", role.getName());
+								XML.element(writer, "remark", role.getRemark());
+							}
+							XML.elementEnd(writer, "role");
+						}
+					}
+					XML.elementEnd(writer, "roles");
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "select_users");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_role(PrintWriter writer, int type, Role role) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "role", true);
+			{
+				JSON.field(writer, "id", role.getId(), true);
+				JSON.field(writer, "name", role.getName());
+				JSON.field(writer, "remark", role.getRemark());
+				Boolean f = true;
+				JSON.arrayBegin(writer, "commands", false);
+				for (Integer command : role.getCommands()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "command_number", command, true);
+						JSON.field(writer, "command", command.toString());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", role.getCreated());
+				JSON.field(writer, "updated", role.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_role");
+			{
+				XML.elementBegin(writer, "role");
+				{
+					XML.element(writer, "id", role.getId());
+					XML.element(writer, "name", role.getName());
+					XML.element(writer, "remark", role.getRemark());
+					XML.elementBegin(writer, "commands");
+					{
+						for (Integer command : role.getCommands()) {
+							XML.element(writer, "command_number", command);
+							XML.element(writer, "command", command.toString());
+						}
+					}
+					XML.elementEnd(writer, "commands");
+				}
+				XML.elementEnd(writer, "role");
+			}
+			XML.elementEnd(writer, "create_role");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void create_task(PrintWriter writer, int type, Task task) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "task", true);
+			{
+				JSON.field(writer, "id", task.getId(), true);
+				JSON.field(writer, "name", task.getName());
+				JSON.field(writer, "start", task.getStart());
+				JSON.field(writer, "stop", task.getStop());
+				JSON.field(writer, "month", task.getMonth());
+				JSON.field(writer, "week", task.getWeek());
+				JSON.field(writer, "day", task.getDay());
+				JSON.field(writer, "interval", task.getInterval());
+				JSON.field(writer, "repeat", task.getRepeat());
+				// JSON.field(writer, "limit_upper", task.getLimitUpper());
+				// JSON.field(writer, "limit_lower", task.getLimitLower());
+				// JSON.field(writer, "feed", task.getFeed());
+				// JSON.field(writer, "feed_upper", task.getFeedUpper());
+				// JSON.field(writer, "feed_lower", task.getFeedLower());
+				JSON.field(writer, "read_type", task.getReadKind().getValue());
+				JSON.field(writer, "write_type", task.getWriteKind().getValue());
+				JSON.field(writer, "role_id", task.getRoleId());
+				JSON.field(writer, "remark", task.getRemark());
+				JSON.field(writer, "created", task.getCreated());
+				JSON.field(writer, "updated", task.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "create_task");
+			XML.elementBegin(writer, "task");
+			{
+				XML.element(writer, "id", task.getId());
+				XML.element(writer, "name", task.getName());
+				XML.element(writer, "start", task.getStart());
+				XML.element(writer, "stop", task.getStop());
+				XML.element(writer, "month", task.getMonth());
+				XML.element(writer, "week", task.getWeek());
+				XML.element(writer, "day", task.getDay());
+				XML.element(writer, "interval", task.getInterval());
+				XML.element(writer, "repeat", task.getRepeat());
+				// XML.element(writer, "limit_upper", task.getLimitUpper());
+				// XML.element(writer, "limit_lower", task.getLimitLower());
+				// XML.element(writer, "feed", task.getFeed());
+				// XML.element(writer, "feed_upper", task.getFeedUpper());
+				// XML.element(writer, "feed_lower", task.getFeedLower());
+				XML.element(writer, "read_type", task.getReadKind().getValue());
+				XML.element(writer, "write_type", task.getWriteKind().getValue());
+				XML.element(writer, "role_id", task.getRoleId());
+				XML.element(writer, "remark", task.getRemark());
+				XML.element(writer, "created", task.getCreated());
+				XML.element(writer, "updated", task.getUpdated());
+			}
+			XML.elementEnd(writer, "task");
+			XML.elementEnd(writer, "create_task");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void delete_device(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "device", true);
+			JSON.objectBegin(writer, true);
+			{
+				JSON.field(writer, "id", device.getId(), true);
+				JSON.field(writer, "zone_id", device.getZoneId());
+				JSON.field(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				JSON.field(writer, "owner_id", device.getOwnerId());
+				JSON.field(writer, "vendor", device.getVendor().getValue());
+				JSON.field(writer, "kind", device.getKind().getValue());
+				JSON.field(writer, "link", device.getLink().getValue());
+				JSON.field(writer, "sn", device.getSn());
+				JSON.field(writer, "name", device.getName());
+				JSON.field(writer, "number", device.getNumber());
+				JSON.field(writer, "password", device.getPassword());
+				JSON.field(writer, "network_ip", device.getNetworkIp());
+				JSON.field(writer, "network_port", device.getNetworkPort());
+				JSON.field(writer, "serial_port", device.getSerialPort());
+				JSON.field(writer, "serial_baud_rate", device.getSerialBaudRate());
+				JSON.field(writer, "load", device.getLoad());
+				JSON.field(writer, "power", device.getPower());
+				JSON.field(writer, "mutual", device.getMutual());
+				JSON.field(writer, "delay", device.getDelay());
+				JSON.field(writer, "remark", device.getRemark());
+				JSON.field(writer, "address", device.getAddress());
+				JSON.field(writer, "installed", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				JSON.field(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				JSON.field(writer, "indicate", device.getIndicate());
+				JSON.field(writer, "alarm", device.getStatus().name());
+				JSON.field(writer, "check_phase", device.getPhaseCheck());
+				JSON.field(writer, "power_phase", device.getPhasePower());
+				JSON.arrayBegin(writer, "features", false);
+				Boolean f = true;
+				Feature[] feature = device.getFeatures();
+				if (feature != null) {
+					for (int i = 0; i < feature.length; i++) {
+						JSON.objectBegin(writer, f);
+						{
+							JSON.field(writer, "name", feature[i].getName(), true);
+							JSON.field(writer, "text", feature[i].getText());
+							JSON.field(writer, "alarm", feature[i].getAlarm() == null ? "null" : feature[i].getAlarm().toString());
+							JSON.field(writer, "index", feature[i].INDEX);
+							JSON.field(writer, "value", feature[i].getValue());
+							JSON.field(writer, "primary", feature[i].PRIMARY);
+							JSON.field(writer, "read_only", feature[i].READ_ONLY);
+							JSON.field(writer, "maximum", feature[i].MAXIMUM);
+							JSON.field(writer, "minimum", feature[i].MINIMUM);
+							JSON.field(writer, "step", feature[i].STEP);
+							JSON.field(writer, "type", feature[i].TYPE);
+						}
+						JSON.objectEnd(writer);
+						if (f) {
+							f = false;
+						}
+					}
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", device.getCreated());
+				JSON.field(writer, "updated", device.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_device");
+			XML.elementBegin(writer, "device");
+			{
+				XML.element(writer, "id", device.getId());
+				XML.element(writer, "zone_id", device.getZoneId());
+				XML.element(writer, "relay_id", device.getRelay() == null ? "null" : device.getRelay().getName());
+				XML.element(writer, "owner_id", device.getOwnerId());
+				XML.element(writer, "vendor", device.getVendor().getValue());
+				XML.element(writer, "kind", device.getKind().getValue());
+				XML.element(writer, "link", device.getLink().getValue());
+				XML.element(writer, "sn", device.getSn());
+				XML.element(writer, "name", device.getName());
+				XML.element(writer, "number", device.getNumber());
+				XML.element(writer, "password", device.getPassword());
+				XML.element(writer, "network_ip", device.getNetworkIp());
+				XML.element(writer, "network_port", device.getNetworkPort());
+				XML.element(writer, "serial_port", device.getSerialPort());
+				XML.element(writer, "serial_baud_rate", device.getSerialBaudRate());
+				XML.element(writer, "load", device.getLoad());
+				XML.element(writer, "power", device.getPower());
+				XML.element(writer, "mutual", device.getMutual());
+				XML.element(writer, "delay", device.getDelay());
+				XML.element(writer, "remark", device.getRemark());
+				XML.element(writer, "address", device.getAddress());
+				XML.element(writer, "insDtalled", device.getInstalled() == null ? "null" : String.valueOf(device.getInstalled()));
+				XML.element(writer, "produced", device.getProduced() == null ? "null" : String.valueOf(device.getProduced()));
+				XML.elementBegin(writer, "features");
+				for (int i = 0; i < device.getFeatures().length; i++) {
+					XML.elementBegin(writer, "feature");
+					{
+						XML.element(writer, "index", device.getFeatures()[i].INDEX);
+						XML.element(writer, "maximum", device.getFeatures()[i].MAXIMUM);
+						XML.element(writer, "minimum", device.getFeatures()[i].MINIMUM);
+						XML.element(writer, "step", device.getFeatures()[i].STEP);
+						XML.element(writer, "type", device.getFeatures()[i].TYPE);
+						XML.element(writer, "primary", device.getFeatures()[i].PRIMARY);
+						XML.element(writer, "read_only", device.getFeatures()[i].READ_ONLY);
+						XML.element(writer, "value", device.getFeatures()[i].getValue());
+						XML.element(writer, "name", device.getFeatures()[i].getName());
+						XML.element(writer, "text", device.getFeatures()[i].getText());
+						XML.element(writer, "alarm", device.getFeatures()[i].getAlarm().name());
+					}
+					XML.elementEnd(writer, "feature");
+				}
+				XML.elementEnd(writer, "features");
+				XML.element(writer, "created", device.getCreated());
+				XML.element(writer, "updated", device.getUpdated());
+			}
+			XML.elementEnd(writer, "device");
+			XML.elementEnd(writer, "delete_device");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void delete_user(PrintWriter writer, int type, User user) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "user", true);
+			{
+				JSON.field(writer, "id", user.getId(), true);
+				JSON.field(writer, "email", user.getEmail());
+				JSON.field(writer, "mobile", user.getMobile());
+				JSON.field(writer, "name", user.getName());
+				JSON.field(writer, "password", user.getPassword());
+				JSON.field(writer, "enable", user.getEnable());
+				JSON.field(writer, "phone", user.getPhone());
+				JSON.field(writer, "realname", user.getRealname());
+				JSON.field(writer, "remark", user.getRemark());
+				JSON.field(writer, "zone_id", user.getZoneId());
+				JSON.field(writer, "zone_name", user.getZone().getName());
+				Boolean f = true;
+				JSON.arrayBegin(writer, "roles", false);
+				for (Role role : user.getRoles()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "id", role.getId(), true);
+						JSON.field(writer, "name", role.getName());
+						JSON.field(writer, "remark", role.getRemark());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", user.getCreated());
+				JSON.field(writer, "updated", user.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_user");
+			{
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "name", user.getName());
+					XML.element(writer, "password", user.getPassword());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "zone_name", user.getZone().getName());
+					XML.element(writer, "enable", user.getEnable());
+					XML.elementBegin(writer, "roles");
+					for (Role role : user.getRoles()) {
+						XML.elementBegin(writer, "role");
+						{
+							XML.element(writer, "id", role.getId());
+							XML.element(writer, "name", role.getName());
+							XML.element(writer, "remark", role.getRemark());
+						}
+						XML.elementEnd(writer, "role");
+					}
+					XML.elementEnd(writer, "roles");
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "delete_users");
+		} else {
+			throw new IllegalArgumentException();
+		}
+
+	}
+
+	private void delete_role(PrintWriter writer, int type, Role role) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "role", true);
+			{
+				JSON.field(writer, "id", role.getId(), true);
+				JSON.field(writer, "name", role.getName());
+				JSON.field(writer, "remark", role.getRemark());
+				Boolean f = true;
+				JSON.arrayBegin(writer, "commands", false);
+				for (Integer command : role.getCommands()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "command_number", command, true);
+						JSON.field(writer, "command", command.toString());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", role.getCreated());
+				JSON.field(writer, "updated", role.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_role");
+			{
+				XML.elementBegin(writer, "role");
+				{
+					XML.element(writer, "id", role.getId());
+					XML.element(writer, "name", role.getName());
+					XML.element(writer, "remark", role.getRemark());
+					XML.elementBegin(writer, "commands");
+					{
+						for (Integer command : role.getCommands()) {
+							XML.element(writer, "command_number", command);
+							XML.element(writer, "command", command.toString());
+						}
+					}
+					XML.elementEnd(writer, "commands");
+				}
+				XML.elementEnd(writer, "role");
+			}
+			XML.elementEnd(writer, "delete_role");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void delete_zone(PrintWriter writer, int type, Zone zone) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "zone", true);
+			{
+				JSON.field(writer, "id", zone.getId(), true);
+				JSON.field(writer, "parent", zone.getParentId());
+				JSON.field(writer, "name", zone.getName());
+				JSON.field(writer, "remark", zone.getRemark());
+				JSON.field(writer, "created", zone.getCreated());
+				JSON.field(writer, "updated", zone.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_zone");
+			XML.elementBegin(writer, "zone");
+			{
+				XML.element(writer, "id", zone.getId());
+				XML.element(writer, "parent", zone.getParentId());
+				XML.element(writer, "name", zone.getName());
+				XML.element(writer, "remark", zone.getRemark());
+				XML.element(writer, "created", zone.getCreated());
+				XML.element(writer, "updated", zone.getUpdated());
+			}
+			XML.elementEnd(writer, "zone");
+			XML.elementEnd(writer, "delete_zone");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void delete_task(PrintWriter writer, int type, Task task) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "task", true);
+			{
+				JSON.field(writer, "id", task.getId(), true);
+				JSON.field(writer, "name", task.getName());
+				JSON.field(writer, "start", task.getStart());
+				JSON.field(writer, "stop", task.getStop());
+				JSON.field(writer, "month", task.getMonth());
+				JSON.field(writer, "week", task.getWeek());
+				JSON.field(writer, "day", task.getDay());
+				JSON.field(writer, "interval", task.getInterval());
+				JSON.field(writer, "repeat", task.getRepeat());
+				// JSON.field(writer, "limit_upper", task.getLimitUpper());
+				// JSON.field(writer, "limit_lower", task.getLimitLower());
+				// JSON.field(writer, "feed", task.getFeed());
+				// JSON.field(writer, "feed_upper", task.getFeedUpper());
+				// JSON.field(writer, "feed_lower", task.getFeedLower());
+				JSON.field(writer, "read_type", task.getReadKind().getValue());
+				JSON.field(writer, "write_type", task.getWriteKind().getValue());
+				JSON.field(writer, "role_id", task.getRoleId());
+				JSON.field(writer, "remark", task.getRemark());
+				JSON.field(writer, "created", task.getCreated());
+				JSON.field(writer, "updated", task.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "delete_task");
+			XML.elementBegin(writer, "task");
+			{
+				XML.element(writer, "id", task.getId());
+				XML.element(writer, "name", task.getName());
+				XML.element(writer, "start", task.getStart());
+				XML.element(writer, "stop", task.getStop());
+				XML.element(writer, "month", task.getMonth());
+				XML.element(writer, "week", task.getWeek());
+				XML.element(writer, "day", task.getDay());
+				XML.element(writer, "interval", task.getInterval());
+				XML.element(writer, "repeat", task.getRepeat());
+				// XML.element(writer, "limit_upper", task.getLimitUpper());
+				// XML.element(writer, "limit_lower", task.getLimitLower());
+				// XML.element(writer, "feed", task.getFeed());
+				// XML.element(writer, "feed_upper", task.getFeedUpper());
+				// XML.element(writer, "feed_lower", task.getFeedLower());
+				XML.element(writer, "read_type", task.getReadKind().getValue());
+				XML.element(writer, "write_type", task.getWriteKind().getValue());
+				XML.element(writer, "role_id", task.getRoleId());
+				XML.element(writer, "remark", task.getRemark());
+				XML.element(writer, "created", task.getCreated());
+				XML.element(writer, "updated", task.getUpdated());
+			}
+			XML.elementEnd(writer, "task");
+			XML.elementEnd(writer, "delete_task");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void update_user(PrintWriter writer, int type, User user) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "user", true);
+			{
+				JSON.field(writer, "id", user.getId(), true);
+				JSON.field(writer, "zone_id", user.getZoneId());
+				JSON.field(writer, "zone_name", user.getZone() == null ? "null" : user.getZone().getName());
+				JSON.field(writer, "name", user.getName());
+				JSON.field(writer, "enable", user.getEnable());
+				JSON.field(writer, "realname", user.getRealname());
+				JSON.field(writer, "mobile", user.getMobile());
+				JSON.field(writer, "phone", user.getPhone());
+				JSON.field(writer, "email", user.getEmail());
+				JSON.field(writer, "remark", user.getRemark());
+				JSON.field(writer, "created", user.getCreated());
+				JSON.field(writer, "updated", user.getUpdated());
+
+				Boolean f = true;
+				JSON.arrayBegin(writer, "roles", false);
+				for (Role role : user.getRoles()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "id", role.getId(), true);
+						JSON.field(writer, "name", role.getName());
+						JSON.field(writer, "remark", role.getRemark());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_user");
+			{
+				XML.elementBegin(writer, "user");
+				{
+					XML.element(writer, "id", user.getId());
+					XML.element(writer, "zone_id", user.getZoneId());
+					XML.element(writer, "zone_name", user.getZone().getName());
+					XML.element(writer, "name", user.getName());
+					XML.element(writer, "enable", user.getEnable());
+					XML.element(writer, "realname", user.getRealname());
+					XML.element(writer, "mobile", user.getMobile());
+					XML.element(writer, "phone", user.getPhone());
+					XML.element(writer, "email", user.getEmail());
+					XML.element(writer, "remark", user.getRemark());
+					XML.element(writer, "created", user.getCreated());
+					XML.element(writer, "updated", user.getUpdated());
+					XML.elementBegin(writer, "roles");
+					{
+						for (Role role : user.getRoles()) {
+							XML.elementBegin(writer, "role");
+							{
+								XML.element(writer, "id", role.getId());
+								XML.element(writer, "name", role.getName());
+								XML.element(writer, "remark", role.getRemark());
+							}
+							XML.elementEnd(writer, "role");
+						}
+					}
+					XML.elementEnd(writer, "roles");
+				}
+				XML.elementEnd(writer, "user");
+			}
+			XML.elementEnd(writer, "update_users");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void update_role(PrintWriter writer, int type, Role role) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "role", true);
+			{
+				JSON.field(writer, "id", role.getId(), true);
+				JSON.field(writer, "name", role.getName());
+				JSON.field(writer, "remark", role.getRemark());
+				Boolean f = true;
+				JSON.arrayBegin(writer, "commands", false);
+				for (Integer command : role.getCommands()) {
+					JSON.objectBegin(writer, f);
+					{
+						JSON.field(writer, "command_number", command, true);
+						JSON.field(writer, "command", command.toString());
+					}
+					JSON.objectEnd(writer);
+					if (f)
+						f = false;
+				}
+				JSON.arrayEnd(writer);
+				JSON.field(writer, "created", role.getCreated());
+				JSON.field(writer, "updated", role.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_role");
+			{
+				XML.elementBegin(writer, "role");
+				{
+					XML.element(writer, "id", role.getId());
+					XML.element(writer, "name", role.getName());
+					XML.element(writer, "remark", role.getRemark());
+					XML.elementBegin(writer, "commands");
+					{
+						for (Integer command : role.getCommands()) {
+							XML.element(writer, "command_number", command);
+							XML.element(writer, "command", command.toString());
+						}
+					}
+					XML.elementEnd(writer, "commands");
+				}
+				XML.elementEnd(writer, "role");
+			}
+			XML.elementEnd(writer, "update_role");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void update_zone(PrintWriter writer, int type, Zone zone) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "zone", true);
+			{
+				JSON.field(writer, "id", zone.getId(), true);
+				JSON.field(writer, "parent", zone.getParentId());
+				JSON.field(writer, "name", zone.getName());
+				JSON.field(writer, "remark", zone.getRemark());
+				JSON.field(writer, "created", zone.getCreated());
+				JSON.field(writer, "updated", zone.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_zone");
+			XML.elementBegin(writer, "zone");
+			{
+				XML.element(writer, "id", zone.getId());
+				XML.element(writer, "parent", zone.getParentId());
+				XML.element(writer, "name", zone.getName());
+				XML.element(writer, "remark", zone.getRemark());
+				XML.element(writer, "created", zone.getCreated());
+				XML.element(writer, "updated", zone.getUpdated());
+			}
+			XML.elementEnd(writer, "zone");
+			XML.elementEnd(writer, "update_zone");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void update_task(PrintWriter writer, int type, Task task) {
+		if (CODE_JSON == type) {
+			JSON.begin(writer);
+			JSON.objectBegin(writer, "task", true);
+			{
+				JSON.field(writer, "id", task.getId(), true);
+				JSON.field(writer, "name", task.getName());
+				JSON.field(writer, "start", task.getStart());
+				JSON.field(writer, "stop", task.getStop());
+				JSON.field(writer, "month", task.getMonth());
+				JSON.field(writer, "week", task.getWeek());
+				JSON.field(writer, "day", task.getDay());
+				JSON.field(writer, "interval", task.getInterval());
+				JSON.field(writer, "repeat", task.getRepeat());
+				// JSON.field(writer, "limit_upper", task.getLimitUpper());
+				// JSON.field(writer, "limit_lower", task.getLimitLower());
+				// JSON.field(writer, "feed", task.getFeed());
+				// JSON.field(writer, "feed_upper", task.getFeedUpper());
+				// JSON.field(writer, "feed_lower", task.getFeedLower());
+				JSON.field(writer, "read_type", task.getReadKind().getValue());
+				JSON.field(writer, "write_type", task.getWriteKind().getValue());
+				JSON.field(writer, "role_id", task.getRoleId());
+				JSON.field(writer, "remark", task.getRemark());
+				JSON.field(writer, "created", task.getCreated());
+				JSON.field(writer, "updated", task.getUpdated());
+			}
+			JSON.objectEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "update_task");
+			XML.elementBegin(writer, "task");
+			{
+				XML.element(writer, "id", task.getId());
+				XML.element(writer, "name", task.getName());
+				XML.element(writer, "start", task.getStart());
+				XML.element(writer, "stop", task.getStop());
+				XML.element(writer, "month", task.getMonth());
+				XML.element(writer, "week", task.getWeek());
+				XML.element(writer, "day", task.getDay());
+				XML.element(writer, "interval", task.getInterval());
+				XML.element(writer, "repeat", task.getRepeat());
+				// XML.element(writer, "limit_upper", task.getLimitUpper());
+				// XML.element(writer, "limit_lower", task.getLimitLower());
+				// XML.element(writer, "feed", task.getFeed());
+				// XML.element(writer, "feed_upper", task.getFeedUpper());
+				// XML.element(writer, "feed_lower", task.getFeedLower());
+				XML.element(writer, "read_type", task.getReadKind().getValue());
+				XML.element(writer, "write_type", task.getWriteKind().getValue());
+				XML.element(writer, "role_id", task.getRoleId());
+				XML.element(writer, "remark", task.getRemark());
+				XML.element(writer, "created", task.getCreated());
+				XML.element(writer, "updated", task.getUpdated());
+			}
+			XML.elementEnd(writer, "task");
+			XML.elementEnd(writer, "update_task");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void set_device_status(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "device_status", true);
+			for (int index = 0; index < device.getFeatures().length; index++) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "name", device.getFeature(index).getName(), true);
+					if (!device.getFeature(index).getName().equals("开度")) {
+						JSON.field(writer, "text", device.getFeature(index).getText());
+						JSON.field(writer, "value", device.getFeature(index).getValue());
+						JSON.field(writer, "alarm", device.getFeature(index).getAlarm().toString());
+						JSON.field(writer, "index", device.getFeature(index).INDEX);
+						JSON.field(writer, "maximum", device.getFeature(index).MAXIMUM);
+						JSON.field(writer, "minimum", device.getFeature(index).MINIMUM);
+						JSON.field(writer, "step", device.getFeature(index).STEP);
+						JSON.field(writer, "type", device.getFeature(index).TYPE);
+						JSON.field(writer, "primary", device.getFeature(index).PRIMARY);
+						JSON.field(writer, "read_only", device.getFeature(index).READ_ONLY);
+					}
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "set_device_status");
+			for (int index = 0; index < device.getFeatures().length; index++) {
+				XML.elementBegin(writer, "device_statu");
+				{
+					XML.element(writer, "name", device.getFeature(index).getName());
+					if (!device.getFeature(index).getName().equals("开度")) {
+						XML.element(writer, "text", device.getFeature(index).getText());
+						XML.element(writer, "value", device.getFeature(index).getValue());
+						XML.element(writer, "alarm", device.getFeature(index).getAlarm().toString());
+						XML.element(writer, "index", device.getFeature(index).INDEX);
+						XML.element(writer, "maximum", device.getFeature(index).MAXIMUM);
+						XML.element(writer, "minimum", device.getFeature(index).MINIMUM);
+						XML.element(writer, "step", device.getFeature(index).STEP);
+						XML.element(writer, "type", device.getFeature(index).TYPE);
+						XML.element(writer, "primary", device.getFeature(index).PRIMARY);
+						XML.element(writer, "read_only", device.getFeature(index).READ_ONLY);
+					}
+				}
+				XML.elementEnd(writer, "device_statu");
+			}
+			XML.elementEnd(writer, "set_device_status");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	private void get_device_status(PrintWriter writer, int type, Device device) {
+		if (CODE_JSON == type) {
+			Boolean first = true;
+			JSON.begin(writer);
+			JSON.arrayBegin(writer, "device_status", true);
+			for (int index = 0; index < device.getFeatures().length; index++) {
+				JSON.objectBegin(writer, first);
+				{
+					JSON.field(writer, "name", device.getFeature(index).getName(), true);
+					if (!device.getFeature(index).getName().equals("开度")) {
+						JSON.field(writer, "text", device.getFeature(index).getText());
+						JSON.field(writer, "value", device.getFeature(index).getValue());
+						JSON.field(writer, "alarm", device.getFeature(index).getAlarm().toString());
+						JSON.field(writer, "index", device.getFeature(index).INDEX);
+						JSON.field(writer, "maximum", device.getFeature(index).MAXIMUM);
+						JSON.field(writer, "minimum", device.getFeature(index).MINIMUM);
+						JSON.field(writer, "step", device.getFeature(index).STEP);
+						JSON.field(writer, "type", device.getFeature(index).TYPE);
+						JSON.field(writer, "primary", device.getFeature(index).PRIMARY);
+						JSON.field(writer, "read_only", device.getFeature(index).READ_ONLY);
+					}
+				}
+				JSON.objectEnd(writer);
+				if (first)
+					first = false;
+			}
+			JSON.arrayEnd(writer);
+			JSON.end(writer);
+		} else if (CODE_XML == type) {
+			XML.document(writer);
+			XML.elementBegin(writer, "get_device_status");
+			for (int index = 0; index < device.getFeatures().length; index++) {
+				XML.elementBegin(writer, "device_statu");
+				{
+					XML.element(writer, "name", device.getFeature(index).getName());
+					XML.element(writer, "text", device.getFeature(index).getText());
+					XML.element(writer, "value", device.getFeature(index).getValue());
+					XML.element(writer, "alarm", device.getFeature(index).getAlarm().toString());
+					XML.element(writer, "index", device.getFeature(index).INDEX);
+					XML.element(writer, "maximum", device.getFeature(index).MAXIMUM);
+					XML.element(writer, "minimum", device.getFeature(index).MINIMUM);
+					XML.element(writer, "step", device.getFeature(index).STEP);
+					XML.element(writer, "type", device.getFeature(index).TYPE);
+					XML.element(writer, "primary", device.getFeature(index).PRIMARY);
+					XML.element(writer, "read_only", device.getFeature(index).READ_ONLY);
+				}
+				XML.elementEnd(writer, "device_statu");
+			}
+			XML.elementEnd(writer, "get_device_status");
+		} else {
+			throw new IllegalArgumentException();
+		}
+	}
+}

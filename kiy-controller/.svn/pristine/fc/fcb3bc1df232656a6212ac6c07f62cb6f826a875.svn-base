@@ -1,0 +1,289 @@
+package com.kiy.controller.view;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.controller.F;
+
+/**
+ * 虚拟表格类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public abstract class VTable<T> {
+
+	private final List<T> list;
+	private final Table table;
+	private boolean update;
+
+	public VTable(Table t) {
+		if (t == null)
+			throw new NullPointerException("Table cannot be null");
+
+		if (t.isDisposed())
+			throw new IllegalArgumentException("Table is disposed");
+
+		if (!F.contains(t.getStyle(), SWT.VIRTUAL))
+			throw new IllegalArgumentException("Table must be SWT.VIRTUAL");
+
+		table = t;
+		list = new ArrayList<>();
+
+		Listener virtualListener = new Listener() {
+			@Override
+			public void handleEvent(Event e) {
+				if (table.isDisposed())
+					return;
+
+				if (e.index < 0 || e.index >= list.size())
+					return;
+
+				row((TableItem) e.item, list.get(e.index));
+			}
+		};
+
+		Listener columnListener = new Listener() {
+			@Override
+			public void handleEvent(Event e) {
+				if (table.isDisposed()) {
+					return;
+				}
+				TableColumn _new = (TableColumn) e.widget;
+				TableColumn _old = table.getSortColumn();
+				if (_new == null && _old == null)
+					return;
+
+				int dir = table.getSortDirection();
+				if (_new == null) {
+					_new = _old;
+				} else if (_old == _new) {
+					dir = dir == SWT.UP ? SWT.DOWN : SWT.UP;
+					table.setSortDirection(dir);
+				} else {
+					dir = SWT.UP;
+					table.setSortColumn(_new);
+					table.setSortDirection(dir);
+				}
+				column(_new, dir);
+			}
+		};
+
+		table.addListener(SWT.SetData, virtualListener);
+		for (int index = 0; index < table.getColumnCount(); index++) {
+			table.getColumn(index).addListener(SWT.Selection, columnListener);
+		}
+	}
+
+	
+	/**
+	 * 开始表格数据更新
+	 */
+	public void beginUpdate() {
+		update = true;
+		table.setItemCount(0);
+	}
+
+	/**
+	 * 结束表格数据更新
+	 */
+	public void endUpdate() {
+		update = false;
+		table.clearAll();
+		table.setItemCount(list.size());
+	}
+
+	/**
+	 * 添加多个对象到表格
+	 * 
+	 * @param c
+	 */
+	public void add(Collection<? extends T> c) {
+		list.addAll(c);
+		if (!update) {
+			table.clearAll();
+			table.setItemCount(list.size());
+		}
+	}
+
+	/**
+	 * 添加单个对象到表格
+	 * 
+	 * @param t
+	 */
+	public void add(T t) {
+		list.add(t);
+		if (!update) {
+			table.setItemCount(list.size());
+		}
+	}
+
+	/**
+	 * 移除一个对象
+	 * 
+	 * @param t
+	 */
+	public void remove(T t) {
+		list.remove(t);
+		if (!update) {
+			table.clearAll();
+			table.setItemCount(list.size());
+		}
+	}
+	
+	/**
+	 * 更新一个对象
+	 * 
+	 * @param t
+	 */
+	public void refresh(T t) {
+		for (int i = 0; i < list.size(); i++) {
+			if (t.equals(list.get(i))) {
+				list.set(i, t);
+				refresh();
+			}
+		}
+	}
+	
+	
+	/**
+	 * 移除一个集合
+	 * 
+	 * @param t
+	 */
+	public void remove (Collection<T> t) {
+		list.removeAll(t);
+		if (!update) {
+			table.clearAll();
+			table.setItemCount(list.size());
+		}
+	}
+
+	/**
+	 * 清除所有对象
+	 */
+	public void clear() {
+		list.clear();
+		if (!update) {
+			table.removeAll();
+			table.setItemCount(list.size());
+		}
+	}
+
+	/**
+	 * 获取对象数量
+	 * 
+	 * @return
+	 */
+	public int getCount() {
+		return list.size();
+	}
+
+	/**
+	 * 获取是否有选中
+	 * 
+	 * @return
+	 */
+	public boolean hasSelection() {
+		return table.getSelectionCount() > 0;
+	}
+
+	/**
+	 * 获取选中项
+	 * 
+	 * @return
+	 */
+	public T getSelection() {
+		if (table.getSelectionIndex()==-1) {
+			return null;
+		}
+		return list.get(table.getSelectionIndex());
+	}
+
+	
+	/**
+	 * 刷新整个表格
+	 */
+	public void refresh() {
+		table.clearAll();
+		table.setItemCount(list.size());
+	}
+	
+	/**
+	 * 设置选中项
+	 * 
+	 * @param num
+	 */
+	public void setSelect(int num) {
+		table.setFocus();
+		table.select(num);
+	}
+
+	/**
+	 * 返回table是否被选中
+	 * 
+	 * @return
+	 */
+	public boolean isFocus() {
+		return table.isFocusControl();
+	}
+
+	/**
+	 * 获取多个选中项
+	 * 
+	 * @return
+	 */
+	public List<T> getSelections() {
+		int[] indexs = table.getSelectionIndices();
+		List<T> items = new ArrayList<>(indexs.length);
+		for (int index = 0; index < indexs.length; index++)
+			items.add(list.get(indexs[index]));
+		return items;
+	}
+
+	/**
+	 * 获取列索引
+	 * 
+	 * @param column
+	 * @return
+	 */
+	public int getColumnIndex(TableColumn column) {
+		return table.indexOf(column);
+	}
+
+	/**
+	 * 使用比较器排序
+	 * 
+	 * @param c
+	 */
+	public void sort(Comparator<T> c) {
+		Collections.sort(list, c);
+		table.clearAll();
+	}
+
+	/**
+	 * 行显示
+	 * 
+	 * @param item 空白的未赋值TableItem对象
+	 * @param T 实体对象
+	 */
+	public abstract void row(TableItem item, T entity);
+
+	/**
+	 * 列排序
+	 * 
+	 * @param column 排序的列
+	 * @param direction 排序方向 SWT.DOWN ,SWT.UP
+	 */
+	public abstract void column(TableColumn column, int direction);
+}

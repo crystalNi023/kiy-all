@@ -1,0 +1,307 @@
+CREATE SCHEMA `kiy-servo` DEFAULT CHARACTER SET utf8;
+
+USE `kiy-servo`;
+
+CREATE TABLE `users` (
+    `id` CHAR(36) NOT NULL,
+    `zone` CHAR(36) NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `password` VARCHAR(32) NOT NULL,
+    `enable` BIT(1) NOT NULL DEFAULT 1,
+    `realname` VARCHAR(32) NULL,
+    `nickname` VARCHAR(32) NULL,
+    `mobile` VARCHAR(32) NULL,
+    `phone` VARCHAR(32) NULL,
+    `email` VARCHAR(64) NULL,
+    `icon_url` VARCHAR(128) NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `uq_users_name` (`name` ASC),
+    INDEX `ix_users_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `roles` (
+    `id` CHAR(36) NOT NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `uq_roles_name` (`name` ASC),
+    INDEX `ix_roles_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+  
+CREATE TABLE `user_roles` (
+    `role` CHAR(36) NOT NULL,
+    `user` CHAR(36) NOT NULL,
+    `created` DATETIME NOT NULL,
+    PRIMARY KEY (`role` , `user`),
+    INDEX `ix_user_roles_created` (`created` ASC),
+    INDEX `fk_user_roles_user` (`user` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `role_powers` (
+    `role` CHAR(36) NOT NULL,
+    `command` INT UNSIGNED NOT NULL,
+    `created` DATETIME NOT NULL,
+    PRIMARY KEY (`role` , `command`),
+    INDEX `ix_role_powers_created` (`created` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `zones` (
+    `id` CHAR(36) NOT NULL,
+    `parent` CHAR(36) NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_zones_updated` (`updated` ASC),
+    INDEX `ix_zones_parent` (`parent` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `devices` (
+    `id` CHAR(36) NOT NULL,
+    `zone` CHAR(36) NULL,
+    `relay` CHAR(36) NULL,
+    `owner` CHAR(36) NULL,
+    `vendor` INT NOT NULL,
+    `kind` INT NOT NULL,
+    `model` INT NOT NULL,
+    `link` INT NOT NULL,
+    `use` INT NULL,
+    `sn` VARCHAR(64) NULL,
+    `name` VARCHAR(32) NULL,
+    `number` VARCHAR(32) NULL,
+    `username` VARCHAR(32) NULL,
+    `password` VARCHAR(32) NULL,
+    `network_ip` VARCHAR(32) NULL,
+    `network_port` INT NULL,
+    `serial_port` VARCHAR(32) NULL,
+    `serial_baud_rate` INT NULL,
+    `load` INT NOT NULL,
+    `power` INT NOT NULL,
+    `mutual` FLOAT NOT NULL,
+    `delay` INT NOT NULL,
+    `installed` DATETIME DEFAULT NULL,
+	`produced` DATETIME DEFAULT NULL,
+	`longitude` DOUBLE DEFAULT '0',
+	`latitude` DOUBLE DEFAULT '0',
+	`altitude` FLOAT DEFAULT '0',
+	`phase_check` tinyint(1) DEFAULT '0',
+	`phase_power` tinyint(1) DEFAULT '0',
+    `address` VARCHAR(64) NULL,
+    `notice` BIT(1) NOT NULL DEFAULT b'1',
+    `detect` BIT(1) NOT NULL DEFAULT b'1',
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_devices_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+  
+CREATE TABLE `device_status` (
+    `id` CHAR(36) NOT NULL,
+    `device` CHAR(36) NOT NULL,
+    `status` INT(11) NOT NULL DEFAULT '0',
+ 	`origin` INT(11) NOT NULL,
+ 	`indicate` VARCHAR(32) NOT NULL,
+    `s01` INT NOT NULL,
+    `s02` INT NOT NULL,
+    `s03` INT NOT NULL,
+    `s04` INT NOT NULL,
+    `s05` INT NOT NULL,
+    `s06` INT NOT NULL,
+    `s07` INT NOT NULL,
+    `s08` INT NOT NULL,
+    `s09` INT NOT NULL,
+    `s10` INT NOT NULL,
+    `s11` INT NOT NULL,
+    `s12` INT NOT NULL,
+    `s13` INT NOT NULL,
+    `s14` INT NOT NULL,
+    `s15` INT NOT NULL,
+    `s16` INT NOT NULL,
+    `s17` INT NOT NULL,
+    `s18` INT NOT NULL,
+    `s19` INT NOT NULL,
+    `s20` INT NOT NULL,
+    `s21` INT NOT NULL,
+    `s22` INT NOT NULL,
+    `s23` INT NOT NULL,
+    `s24` INT NOT NULL,
+    `s25` INT NOT NULL,
+    `s26` INT NOT NULL,
+    `s27` INT NOT NULL,
+    `s28` INT NOT NULL,
+    `s29` INT NOT NULL,
+    `s30` INT NOT NULL,
+    `s31` INT NOT NULL,
+    `s32` INT NOT NULL,
+    `s33` INT NOT NULL,
+    `s34` INT NOT NULL,
+    `s35` INT NOT NULL,
+    `s36` INT NOT NULL,
+    `s37` INT NOT NULL,
+    `s38` INT NOT NULL,
+    `s39` INT NOT NULL,
+    `s40` INT NOT NULL,
+    `s41` INT NOT NULL,
+    `s42` INT NOT NULL,
+    `s43` INT NOT NULL,
+    `s44` INT NOT NULL,
+    `s45` INT NOT NULL,
+    `s46` INT NOT NULL,
+    `s47` INT NOT NULL,
+    `s48` INT NOT NULL,
+    `s49` INT NOT NULL,
+    `s50` INT NOT NULL,
+    `s51` INT NOT NULL,
+    `s52` INT NOT NULL,
+    `s53` INT NOT NULL,
+    `s54` INT NOT NULL,
+    `s55` INT NOT NULL,
+    `s56` INT NOT NULL,
+    `s57` INT NOT NULL,
+    `s58` INT NOT NULL,
+    `s59` INT NOT NULL,
+    `s60` INT NOT NULL,
+    `s61` INT NOT NULL,
+    `s62` INT NOT NULL,
+    `s63` INT NOT NULL,
+    `s64` INT NOT NULL,
+    `created` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_device_records_created` (`created` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+  
+CREATE TABLE `tasks` (
+  `id` CHAR(36) NOT NULL,
+  `name` VARCHAR(32) NOT NULL,
+  `start` DATETIME NOT NULL,
+  `stop` DATETIME NOT NULL,
+  `month` INT(11) NOT NULL,
+  `week` INT(11) NOT NULL,
+  `day` INT(11) NOT NULL,
+  `interval` INT(11) NOT NULL,
+  `repeat` INT(11) NOT NULL,
+  `read_type` INT(11) NOT NULL,
+  `write_type` INT(11) NOT NULL,
+  `read_feature` INT(11) DEFAULT NULL,
+  `write_feature` INT(11) DEFAULT NULL,
+  `limit_lower` INT(11) DEFAULT NULL,
+  `limit_upper` INT(11) DEFAULT NULL,
+  `feed` INT(11) DEFAULT NULL,
+  `feed_lower` INT(11) DEFAULT NULL,
+  `feed_upper` INT(11) DEFAULT NULL,
+  `role` char(36) DEFAULT NULL,
+  `remark` VARCHAR(128) DEFAULT NULL,
+  `enable` BIT(1) NOT NULL DEFAULT b'1',
+  `created` DATETIME NOT NULL,
+  `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_tasks_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `task_devices` (
+  `task` CHAR(36) NOT NULL,
+  `device` CHAR(36) NOT NULL,
+  `rw` TINYINT(1) NOT NULL,
+  `created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `task_records` (
+    `id` CHAR(36) NOT NULL,
+    `task` CHAR(36) NOT NULL,
+    `plan` DATETIME NOT NULL,
+    `time` INT NOT NULL,
+    `read_type` INT NOT NULL,
+    `read_count` INT NOT NULL,
+    `write_type` INT NOT NULL,
+    `write_count` INT NOT NULL,
+    `limit_upper` INT NOT NULL,
+    `limit_lower` INT NOT NULL,
+    `feed` FLOAT NOT NULL,
+    `feed_upper` FLOAT NOT NULL,
+    `feed_lower` FLOAT NOT NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_tasks_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `maintains` (
+    `id` CHAR(36) NOT NULL,
+    `device` CHAR(36) NOT NULL,
+    `repair` INT NOT NULL,
+    `sn` VARCHAR(64) NULL,
+    `load` INT NOT NULL,
+    `power` INT NOT NULL,
+    `radix` INT NOT NULL,
+    `energy_balance` INT NOT NULL,
+    `mutual` FLOAT NOT NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    `updated` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_maintains_updated` (`updated` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `deletes` (
+    `id` CHAR(36) NOT NULL,
+    `type` VARCHAR(32) NOT NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `created` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_deletes_created` (`created` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `logs` (
+    `id` CHAR(36) NOT NULL,
+    `user` CHAR(36) NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `command` INT NOT NULL,
+    `status` INT NOT NULL,
+    `time` INT NOT NULL,
+    `parameter` VARCHAR(1024) NULL,
+    `remark` VARCHAR(128) NULL,
+    `created` DATETIME NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `ix_logs_created` (`created` ASC)
+)  ENGINE=INNODB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `notice` (
+  `id` CHAR(36) NOT NULL,
+  `device` CHAR(36)  NULL,
+  `user` CHAR(36)  NULL,
+  `content` varchar(128)  NULL,
+  `created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `ix_notice_created` (`created` ASC)
+) ENGINE=InnoDB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `scenes` (
+  `id` CHAR(36) NOT NULL,
+  `name` VARCHAR(32) NOT NULL,
+  `switch_status` BIT(1) NOT NULL DEFAULT b'1',
+  `remark` VARCHAR(128)  NULL,
+  `created` DATETIME NOT NULL,
+  `updated` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `ix_scenes_updated` (`updated` ASC)
+) ENGINE=InnoDB DEFAULT CHARACTER SET=UTF8;
+
+CREATE TABLE `scene_devices` (
+  `scene` CHAR(36) NOT NULL,
+  `device` CHAR(36) NOT NULL,
+  `switch_status` BIT(1) NOT NULL DEFAULT b'1',
+  `feature_index` INT(11) NOT NULL,
+  `feature_value` INT(11) NOT NULL,
+  `created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `fk_scene_device_device_idx` (`device` ASC),
+  INDEX `fk_scene_device_scene_idx` (`scene` ASC)
+) ENGINE=InnoDB DEFAULT CHARACTER SET=UTF8;
+

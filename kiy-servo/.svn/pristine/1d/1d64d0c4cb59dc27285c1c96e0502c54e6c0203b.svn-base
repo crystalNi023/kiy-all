@@ -1,0 +1,829 @@
+/**
+ * 2017年3月10日
+ */
+package com.kiy.servo.job;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.Notice;
+import com.kiy.common.Role;
+import com.kiy.common.Task;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Day;
+import com.kiy.common.Types.Month;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.Types.Status;
+import com.kiy.common.Types.Use;
+import com.kiy.common.Types.Week;
+import com.kiy.common.User;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.ReadDeviceStatus.Builder;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.servo.Executor;
+import com.kiy.servo.Log;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.cruise.MessageDevice;
+import com.kiy.servo.cruise.MessageDeviceDeque;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.driver.Driver;
+import com.kiy.servo.driver.DriverAdpater;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+import com.kiy.servo.notice.SMS;
+
+/**
+ * 计划任务
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Scheduler implements Runnable {
+
+	private Task task;
+	private ScheduledFuture<?> future;
+
+	public Scheduler(Task t) {
+		if (t == null)
+			throw new NullPointerException("Task");
+
+		task = t;
+	}
+
+	public void start() {
+		if(!task.getEnable()){
+			return;
+		}
+		
+		// 当前时间
+		Calendar current = Calendar.getInstance();
+
+		// 当前时间戳
+		long delay = current.getTimeInMillis();
+
+		// 结束日期时间
+		if (task.getStop().compareTo(current.getTime()) < 0) {
+			Strategy.delete(task);
+			Log.info("TASK: " + task.getName() + " EXPIRED");
+			return;
+		}
+
+		// 如果未到开始时间
+		if (current.before(task.getStart())) {
+			// 修订为开始时间
+			current.setTime(task.getStart());
+		} else {
+			// 已过开始时间
+			Calendar begin = Calendar.getInstance();
+			begin.setTime(task.getStart());
+			// 设置开始时间为当前时间同一天
+			begin.set(current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DATE));
+
+			Calendar end = Calendar.getInstance();
+			end.setTime(task.getStop());
+			// 设置结束时间为当前时间同一天
+			end.set(current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DATE));
+			
+			
+			if (current.before(begin)) {
+				// 未到开始点
+				current = begin;
+			} else {
+				// 已过开始点
+				if (task.getRepeat() > 0) {
+					// 有重复执行
+					// 计算到达最近执行点所需的时间
+					long temp = task.getRepeat() * 1000L;
+					temp = temp - (current.getTimeInMillis() - begin.getTimeInMillis()) % temp;
+					current.add(Calendar.MILLISECOND, (int) temp);
+
+					if (current.before(end)) {
+						//
+					} else {
+						// 当天不够执行(推迟到下一天)
+						begin.add(Calendar.DATE, 1);
+						current = begin;
+					}
+				} else {
+					// 无重复执行(推迟到下一天)
+					begin.add(Calendar.DATE, 1);
+					current = begin;
+				}
+			}
+		}
+
+		
+		// 结束日期时间
+		if (task.getStop().compareTo(current.getTime()) < 0) {
+			Strategy.delete(task);
+			Log.info("TASK: " + task.getName() + " EXPIRED");
+			return;
+		}
+
+		// 根据当前时间推算下一次执行天
+		// 理论上Month和Week参数不会同时有效
+		if (task.getMonth() != 0) {
+			// 月
+			while (true) {
+				if (deduceMonth(task, current))
+					break;
+			}
+		} else if (task.getWeek() != 0) {
+			// 周
+			while (true) {
+				if (deduceWeek(task, current))
+					break;
+				current.add(Calendar.DAY_OF_MONTH, task.getInterval());
+			}
+		} else {
+			// 天
+			current.add(Calendar.DAY_OF_MONTH, task.getInterval());
+		}
+
+		
+		// 结束日期时间
+		if (task.getStop().compareTo(current.getTime()) < 0) {
+			Strategy.delete(task);
+			Log.info("TASK: " + task.getName() + " EXPIRED");
+			return;
+		}
+		
+		
+		// 执行完时间戳
+		long now = current.getTimeInMillis();
+		
+		delay =  now - delay;
+		if (delay >= 0) {
+			future = Executor.getScheduledExecutorService().schedule(this, delay, TimeUnit.MILLISECONDS);
+		}
+
+//		Log.info("TASK: " + task.getName() + " SCHEDULED[" + Tool.dateFormat(current.getTime()) + "] DELAY[" + delay + "]");
+	}
+
+	private boolean deduceWeek(Task t, Calendar c) {
+		if (t.getWeek() != 0) {
+			c.getFirstDayOfWeek();
+			switch (c.get(Calendar.DAY_OF_WEEK)) {
+				case Calendar.SUNDAY:
+					if (t.containsWeek(Week.SUNDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.MONDAY:
+					if (t.containsWeek(Week.MONDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.TUESDAY:
+					if (t.containsWeek(Week.TUESDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.WEDNESDAY:
+					if (t.containsWeek(Week.WEDNESDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.THURSDAY:
+					if (t.containsWeek(Week.THURSDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.FRIDAY:
+					if (t.containsWeek(Week.FRIDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+				case Calendar.SATURDAY:
+					if (t.containsWeek(Week.SATURDAY))
+						return true;
+					c.add(Calendar.DAY_OF_WEEK, 1);
+			}
+		}
+		return false;
+	}
+
+	private boolean deduceMonth(Task t, Calendar c) {
+		switch (c.get(Calendar.MONTH)) {
+			case Calendar.JANUARY:
+				if (task.containsMonth(Month.JANUARY)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.FEBRUARY:
+				if (task.containsMonth(Month.FEBRUARY)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.MARCH:
+				if (task.containsMonth(Month.MARCH)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.APRIL:
+				if (task.containsMonth(Month.APRIL)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.MAY:
+				if (task.containsMonth(Month.MAY)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.JUNE:
+				if (task.containsMonth(Month.JUNE)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.JULY:
+				if (task.containsMonth(Month.JULY)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.AUGUST:
+				if (task.containsMonth(Month.AUGUST)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.SEPTEMBER:
+				if (task.containsMonth(Month.SEPTEMBER)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.OCTOBER:
+				if (task.containsMonth(Month.OCTOBER)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.NOVEMBER:
+				if (task.containsMonth(Month.NOVEMBER)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+			case Calendar.DECEMBER:
+				if (task.containsMonth(Month.DECEMBER)) {
+					if (deduceDay(task, c))
+						return true;
+				} else
+					c.add(Calendar.MONTH, 1);
+		}
+		return false;
+	}
+
+	private boolean deduceDay(Task t, Calendar c) {
+		switch (c.get(Calendar.DAY_OF_MONTH)) {
+			case 1:
+				if (t.containsDay(Day.D1))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 2:
+				if (t.containsDay(Day.D2))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 3:
+				if (t.containsDay(Day.D3))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 4:
+				if (t.containsDay(Day.D4))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 5:
+				if (t.containsDay(Day.D5))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 6:
+				if (t.containsDay(Day.D6))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 7:
+				if (t.containsDay(Day.D7))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 8:
+				if (t.containsDay(Day.D8))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 9:
+				if (t.containsDay(Day.D9))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 10:
+				if (t.containsDay(Day.D10))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 11:
+				if (t.containsDay(Day.D11))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 12:
+				if (t.containsDay(Day.D12))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 13:
+				if (t.containsDay(Day.D13))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 14:
+				if (t.containsDay(Day.D14))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 15:
+				if (t.containsDay(Day.D15))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 16:
+				if (t.containsDay(Day.D16))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 17:
+				if (t.containsDay(Day.D17))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 18:
+				if (t.containsDay(Day.D18))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 19:
+				if (t.containsDay(Day.D19))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 20:
+				if (t.containsDay(Day.D20))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 21:
+				if (t.containsDay(Day.D21))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 22:
+				if (t.containsDay(Day.D22))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 23:
+				if (t.containsDay(Day.D23))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 24:
+				if (t.containsDay(Day.D24))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 25:
+				if (t.containsDay(Day.D25))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 26:
+				if (t.containsDay(Day.D26))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 27:
+				if (t.containsDay(Day.D27))
+					return true;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 28:
+				if (t.containsDay(Day.D28))
+					return true;
+				if (c.getActualMaximum(Calendar.DATE) == 28)
+					if (t.containsDay(Day.LAST))
+						return true;
+					else
+						break;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 29:
+				if (t.containsDay(Day.D29))
+					return true;
+				if (c.getActualMaximum(Calendar.DATE) == 29)
+					if (t.containsDay(Day.LAST))
+						return true;
+					else
+						break;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 30:
+				if (t.containsDay(Day.D30))
+					return true;
+				if (c.getActualMaximum(Calendar.DATE) == 30)
+					if (t.containsDay(Day.LAST))
+						return true;
+					else
+						break;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+			case 31:
+				if (t.containsDay(Day.D31))
+					return true;
+				if (c.getActualMaximum(Calendar.DATE) == 31)
+					if (t.containsDay(Day.LAST))
+						return true;
+					else
+						break;
+				c.add(Calendar.DAY_OF_MONTH, 1);
+		}
+		return false;
+	}
+
+	public void stop() {
+		if (future != null) {
+			future.cancel(true);
+			future = null;
+		}
+	}
+
+	@Override
+	public void run() {
+
+//		if (Config.DEBUG)
+//			Log.info("TASK: " + task.getName() + " RUN");
+
+		boolean lower = false;
+		boolean upper = false;
+		
+		// 获取所有需要检测(读)的设备
+		Set<Device> rds = task.getReadDevices();
+		// 获取所有需要控制(写)的设备
+		Set<Device> wds = task.getWriteDevices();
+		
+		// 保存设备状态缓存
+		if (task.isEmptyForDeviceCache()) {
+			task.setDeviceCache(rds);
+		}
+
+		if (rds != null && !rds.isEmpty()) {
+			// 遍历所有被读设备
+			for (Device rd : rds) {
+				DriverAdpater ra = Driver.getAdpater(rd);
+				if (ra == null) {
+					rd.setStatus(Status.C_RELAY);
+					sendGetStatusForUpdate(task,rd);
+					continue;
+				}
+				if (!ra.isActive()) {
+					rd.setStatus(Status.OFFLINE);
+					sendGetStatusForUpdate(task,rd);
+					continue;
+				}
+
+				if(rd.getDetect()){
+					MessageDeviceDeque.getInstance().add(new MessageDevice(ra, rd, false, false));
+					
+					//判断阀值
+					Feature feature = rd.getFeature(task.getReadFeature());
+					if(feature.getValue()<=task.getLimitLower()) {
+						lower = true;
+						rd.setStatus(Status.THRESHOLD);
+						if(rd.getNotice()) {
+							long lastPush = task.getLastPush(); /*上一次推送时间*/
+							if (lastPush == 0) {
+								/*证明设备在正常状态下 为有推送，这是第一次检测到报警信息*/
+								task.setFristPush(System.currentTimeMillis());
+								task.setLastPush(System.currentTimeMillis());
+								sendThreshold(rd,true);
+							}else {/*不是第一次时，推送20秒推送一次，短信10分钟发送一次*/
+								long currentTimeMillis = System.currentTimeMillis();
+								if (currentTimeMillis-task.getFristPush()>=600000) { /*10分钟发送短信*/
+//									Log.debug("检测到报警超过 两分钟 发送 短信 ");
+									task.setFristPush(System.currentTimeMillis());
+									try {
+										Role role = task.getRole();
+										Set<User> users = role.getUsers();
+										Set<String> set = new HashSet<>();
+										for (User user : users) {
+											set.add(user.getMobile());
+										}
+										sendSMS(rd, set);
+									} catch (Exception e) {
+										Log.debug(e);
+									}
+								}
+								if(currentTimeMillis-task.getLastPush()>=20000){
+									sendThreshold(rd,true);
+									task.setLastPush(System.currentTimeMillis());
+								}else {
+									// 距离上一次推送 小于10秒钟 不推送
+								}
+							}
+						}
+					}
+					
+					if(feature.getValue()>=task.getLimitUpper()) {
+						upper = true;
+						rd.setStatus(Status.THRESHOLD);
+						if(rd.getNotice()) {
+							long lastPush = task.getLastPush(); /*上一次推送时间*/
+							if (lastPush == 0) {
+								/*证明设备在正常状态下 为有推送，这是第一次检测到报警信息*/
+								task.setFristPush(System.currentTimeMillis());
+								task.setLastPush(System.currentTimeMillis());
+								sendThreshold(rd,false);
+							}else {/*不是第一次时，推送20秒推送一次，短信10分钟发送一次*/
+								long currentTimeMillis = System.currentTimeMillis();
+								if (currentTimeMillis-task.getFristPush()>=600000) { 
+//									Log.debug("检测到报警超过 两分钟 发送 短信 ");
+									task.setFristPush(System.currentTimeMillis());
+									try {
+										Role role = task.getRole();
+										if (role!=null ) {
+											Set<User> users = role.getUsers();
+											Set<String> set = new HashSet<>();
+											for (User user : users) {
+												if (!Tool.isEmpty(user.getMobile())) {
+													set.add(user.getMobile());
+												}
+											}
+											sendSMS(rd, set);
+										}
+									} catch (Exception e) {
+										Log.error(e);
+									}
+								} 
+								if(currentTimeMillis-task.getLastPush()>=20000){
+									sendThreshold(rd,false);
+									task.setLastPush(System.currentTimeMillis());
+									
+								}else {
+									// 距离上一次推送 小于10秒钟 不推送
+								}
+							}
+						}
+					}
+				}else{
+					rd.setStatus(Status.OFFLINE);
+				}
+				
+				// 发送设备状态
+				sendGetStatusForUpdate(task,rd);
+				
+				if(lower&&upper) {
+					sendConflict();
+				}
+
+				// 控制设备
+				if (lower || upper) {
+					if (wds != null && !wds.isEmpty()) {
+						for (Device wd : wds) {
+							DriverAdpater wa = Driver.getAdpater(wd);
+							if (wa == null) {
+								wd.setStatus(Status.C_RELAY);
+								sendSetStatus(rd);
+								continue;
+							}
+							if (!wa.isActive()) {
+								wd.setStatus(Status.OFFLINE);
+								sendSetStatus(rd);
+								continue;
+							}
+
+							Feature wf = null;
+							
+							wf = wd.getFeature(task.getWriteFeature());
+							if (lower)
+								wf.setValue(task.getFeedLower());
+							if (upper){
+								wf.setValue(task.getFeedUpper());
+							}
+							
+							if(wd.getDetect()){
+								if (lower) {
+									if(task.getOperationStatus()!=Task.ALARM_LOWER){/*上一次检测到的设备状态不是达到阈值下限时，也就是说当设备检测到的状态改变时触发对应的控制指令，减少不需要的设备通讯*/
+										// 设置状态
+										MessageDeviceDeque.getInstance().add(new MessageDevice(wa, wd, true, true));
+										// 发送状态
+										sendSetStatus(wd);
+									}else {
+										// 状态为改变，不进行控制操作
+									}
+								}else if (upper) {
+									if(task.getOperationStatus()!=Task.ALARM_UPPER){/*上一次检测到的设备状态不是达到阈值上限时，也就是说当设备检测到的状态改变时触发对应的控制指令，减少不需要的设备通讯*/
+										// 设置状态
+										MessageDeviceDeque.getInstance().add(new MessageDevice(wa, wd, true, true));
+										// 发送状态
+										sendSetStatus(wd);
+									}else {
+										// 状态为改变，不进行控制操作
+									}
+								}
+							
+							}else{
+								rd.setStatus(Status.OFFLINE);
+							}
+						
+							
+						}
+						
+						if (lower)
+							task.setOperationStatus(Task.ALARM_LOWER);
+						if (upper){
+							task.setOperationStatus(Task.ALARM_UPPER);
+						}
+						
+					}
+				}
+			}
+		}
+		// 1.没有超出上限，没有超出下限，恢复默认控制状态
+		// 2.没有设置监测设备，按默认动作控制状态
+		if (!lower && !upper && wds != null && !wds.isEmpty())
+		{
+			for (Device wd : wds) {
+				DriverAdpater a = Driver.getAdpater(wd);
+				if (a != null) {
+					Feature wf = null;
+					if(wd.getDetect()){
+						wf = wd.getFeature(task.getWriteFeature());
+						wf.setValue(task.getFeed());
+						if(task.getOperationStatus()!=Task.NORMAL){/*上一次检测到的设备状态不是达到阈值下限时，也就是说当设备检测到的状态改变时触发对应的控制指令，减少不需要的设备通讯*/
+							// 设置状态
+							MessageDeviceDeque.getInstance().add(new MessageDevice(a, wd, true, true));
+							sendSetStatus(wd);
+						}else {
+							if (task.getFristPush()==0) {
+								MessageDeviceDeque.getInstance().add(new MessageDevice(a, wd, true, true));
+								sendSetStatus(wd);
+								task.setFristPush(1);
+							}
+						}
+					}else{
+						wd.setStatus(Status.OFFLINE);
+					}
+				}
+			}
+			task.setOperationStatus(Task.NORMAL);
+			task.setLastPush(0);
+			task.setFristPush(1);
+		}
+
+		start();
+	}
+	
+	private void sendSMS(Device d,Set<String> mobiles){
+		StringBuilder sb = new StringBuilder();
+		ArrayList<String> arrayList = new ArrayList<>();
+		arrayList.addAll(mobiles);
+		for (int i = 0; i < arrayList.size(); i++) {
+			if (i == arrayList.size()-1) {
+				sb.append(arrayList.get(i));
+			}else {
+				sb.append(arrayList.get(i));
+				sb.append(",");
+			}
+		}
+		
+		switch (d.getKind()) {
+			case SENSOR_SMOKE:
+				SMS.sendSMSAlarm("火灾异常", sb.toString());
+				break;
+			case SENSOR_SWITCHING_OPEN:
+			case SENSOR_SWITCHING_OFF:	
+				if(d.getUse()==Use.SENSOR_WATER){
+					SMS.sendSMSAlarm("漏水异常", sb.toString());
+				}else if(d.getUse()==Use.SENSOR_DOOR) {
+					SMS.sendSMSAlarm("入户门一直为打开状态", sb.toString());
+				}else {
+					SMS.sendSMSAlarm("设备"+d.getName()+"处于异常状态", sb.toString());	
+				}
+				break;
+			case SENSOR_PM:
+				SMS.sendSMSAlarm("PM2.5/PM10超标", sb.toString());
+				break;
+			case SENSOR_METHANE:
+				SMS.sendSMSAlarm("甲烷超标", sb.toString());
+				break;
+			default:
+				SMS.sendSMSAlarm("设备"+d.getName()+"处于异常状态", sb.toString());	
+				break;
+			}
+	}
+
+	/**
+	 * 检测到阈值报警时发送通知
+	 */
+	private void sendThreshold(Device d,boolean isLower) {
+		Message.Builder msg = Message.newBuilder();
+		com.kiy.protocol.Units.MNotice.Builder noticeBuilder = msg.getNoticeBuilder();
+		noticeBuilder.setDeviceId(d.getId());
+		StringBuilder sb = new StringBuilder();
+		switch (d.getKind()) {
+		case SENSOR_SMOKE:
+			sb.append("检测到火灾异常请及时检查并处理。");
+			break;
+		case SENSOR_SWITCHING_OPEN:
+		case SENSOR_SWITCHING_OFF:	
+			sb.append(d.getName());
+			if(d.getUse()==Use.SENSOR_WATER){
+				sb.append("检测到漏水异常，请及时检查并处理");
+			}else if(d.getUse()==Use.SENSOR_GLASSES_BROKEN){
+				sb.append("检测到玻璃破碎异常，请及时检查并处理");
+			}else if(d.getUse()==Use.SENSOR_HUMAN_INFRARED||d.getUse()==Use.SENSOR_INFRARED){
+				sb.append("红外线安防红外线感应器检测到入户异常，请及时检查并处理");
+			}else if(d.getUse()==Use.SENSOR_DOOR) {
+				sb.append("检测到入户门一直为打开状态，请及时检查并处理");
+			}
+			break;
+		case SENSOR_PM:
+			sb.append("检测到室内PM2.5/PM10超标，请及时检查并处理。");
+			break;
+		case SENSOR_METHANE:
+			sb.append("检测到甲烷超标，请及时检查并处理。");
+			break;
+		default:
+			sb.append("触发阈值报警");
+			sb.append(isLower?",低于预定阈值":"高于预定阈值");
+			sb.append(isLower?String.valueOf((task.getLimitLower()/d.getFeature(task.getReadFeature()).OMITTED_VALUE)):String.valueOf((task.getLimitUpper()/d.getFeature(task.getReadFeature()).OMITTED_VALUE)));
+			sb.append("。");	
+			break;
+		}
+		noticeBuilder.setContent(sb.toString());
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+		Notice n = new Notice();
+		n.setDeviceId(d.getId());
+		n.setContent(sb.toString());
+		Data.CreateNotice(n);
+	}
+	
+	
+	private void sendConflict() {
+		Message.Builder msg = Message.newBuilder();
+		com.kiy.protocol.Units.MNotice.Builder noticeBuilder = msg.getNoticeBuilder();
+		noticeBuilder.setContent(task.getName()+"检测值与阈值冲突！");
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+		Notice n = new Notice();
+		n.setContent(task.getName()+"检测值与阈值冲突！");
+		Data.CreateNotice(n);
+	}
+	
+	/**
+	 * 发送读取设备状态消息(有更新才发送，没更新不发生)
+	 */
+	private void sendGetStatusForUpdate(Task t,Device device){
+		
+		if(t.isEmptyForDeviceCache()){
+			return;
+		}
+		
+		if (t.isUpdateDeviceStatus(device)) {
+			sendGetStatus(device);
+			t.updateDeviceCache(device);
+		}
+	}
+	
+	/**
+	 * 发送读取设备状态消息
+	 */
+	private void sendGetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.TASK);
+
+		Message.Builder msg = Message.newBuilder();
+		Builder rdsb = msg.getReadDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = rdsb.getItemBuilder();
+		
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+	
+	/**
+	 * 发送控制设备状态消息
+	 */
+	private void sendSetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.TASK);
+
+		Message.Builder msg = Message.newBuilder();
+		WriteDeviceStatus.Builder wrsb = msg.getWriteDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = wrsb.getItemBuilder();
+		
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		wrsb.setItem(itemBuilder);
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+}

@@ -1,0 +1,304 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Properties;
+
+import com.kiy.common.Tool;
+
+/**
+ * 服务配置参数
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class Config {
+
+	public static String CONFIG_FILENAME = "config.properties";
+
+	// 服务名称
+	public static String NAME = "Untitled Servo";
+	// 服务线程数
+	public static int THREAD = 1;
+	// 调试模式(将输出调试日志)
+	public static boolean DEBUG = true;
+
+	// 设备服务启用
+	public static boolean DRIVER = true;
+	// 设备中断重启间隔(秒)
+	public static int DRIVER_RESTART = 12;
+	// 设备心跳间隔(秒)
+	public static int DRIVER_HEARTBEAT = 6;
+	// 设备指令间隔(秒)
+	public static int DRIVER_INTERVAL = 3000;
+	// 设备通信超时(秒)
+	public static int DRIVER_TIMEOUT = 3;
+	// 设备通信系数
+	public static int DRIVER_DELAY = 128;
+
+	// 主控服务启用
+	public static boolean MASTER = true;
+	// 主控服务地址
+	public static String MASTER_IP;
+	// 主控服务端口
+	public static int MASTER_PORT = 1230;
+
+	// 计划策略启用
+	public static boolean STRATEGY = false;
+	
+	// 设备巡游启动
+	public static boolean CRUISE = false;
+
+	// HTTP服务启用
+	public static boolean HTTP = false;
+	// HTTP服务模式HTTP/HTTPS
+	public static String HTTP_MODE = "HTTP";
+	// HTTP服务地址
+	public static String HTTP_IP;
+	// HTTP服务端口
+	public static int HTTP_PORT = 80;
+	// HTTP服务端口SSL
+	public static int HTTP_SSL_PORT = 443;
+
+	// 数据库启用
+	public static boolean DB = false;
+	// 数据库最大连接数
+	public static int DB_MAX = 3;
+	// 数据库类型
+	public static String DB_TYPE = "MySQL";
+	// 数据库主机
+	public static String DB_URL;
+	// 数据库用户
+	public static String DB_USER;
+	// 数据库密码
+	public static String DB_PASSWORD;
+	// 数据文件
+	public static boolean FILE_DATA;
+	// 文件根目录
+	public static String FILE_DIRECTORY = "data";
+	// 地图文件目录	
+	public static String FILE_DIRECTORY_MAP = "map";
+	// 意见反馈目录
+	public static String FILE_DIRECTORY_FEEDBACK = "feedback";
+	// 用户头像目录
+	public static String FILE_DIRECTORY_ICON= "usrIcon";
+	// 通知服务启用
+	public static boolean NOTICE = false;
+	// 邮件服务主机
+	public static String MAIL_HOST;
+	// 邮件服务端口
+	public static int MAIL_PORT;
+	// 邮件服务用户
+	public static String MAIL_USER;
+	// 邮件服务密码
+	public static String MAIL_PASSWORD;
+
+	// 云服务启用
+	public static boolean CLOUD = false;
+	// 云服务主机
+	public static String CLOUD_HOST = "cloud.cqkiy.com";
+	// 云服务端口
+	public static int CLOUD_PORT = 8230;
+	// 云服务重置间隔
+	public static int CLOUD_RESET = 10;
+	// 云服务标识
+	public static String CLOUD_ID;
+	
+	// 天气接口城市id
+	public static String WEATHER_WEAID;
+	// AQI指数 城市id
+	public static String AQI_WEAID;
+	
+	// 短信服务启用
+	public static boolean SMS = false;
+	
+	public static String getWorkPath() {
+		return System.getProperty("user.dir");
+	}
+
+	public static void load() {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+
+		Properties properties = new Properties();
+		try (FileInputStream input = new FileInputStream(file)) {
+			properties.load(input);
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw new RuntimeException(ex);
+			// 必须成功加载配置文件，否则无法运行
+		}
+
+		NAME = properties.getProperty("NAME");
+		THREAD = Integer.parseInt(properties.getProperty("THREAD"));
+		DEBUG = getBoolean(properties.getProperty("DEBUG"));
+
+		DRIVER = getBoolean(properties.getProperty("DRIVER"));
+		DRIVER_RESTART = Integer.parseInt(properties.getProperty("DRIVER_RESTART"));
+		DRIVER_HEARTBEAT = Integer.parseInt(properties.getProperty("DRIVER_HEARTBEAT"));
+		DRIVER_INTERVAL = Integer.parseInt(properties.getProperty("DRIVER_INTERVAL"));
+		DRIVER_TIMEOUT = Integer.parseInt(properties.getProperty("DRIVER_TIMEOUT"));
+		DRIVER_DELAY = Integer.parseInt(properties.getProperty("DRIVER_DELAY"));
+
+		MASTER = getBoolean(properties.getProperty("MASTER"));
+		MASTER_IP = properties.getProperty("MASTER_IP");
+		MASTER_PORT = Integer.parseInt(properties.getProperty("MASTER_PORT"));
+
+		STRATEGY = getBoolean(properties.getProperty("STRATEGY"));
+		CRUISE = getBoolean(properties.getProperty("CRUISE"));
+
+		HTTP = getBoolean(properties.getProperty("HTTP"));
+		HTTP_MODE = properties.getProperty("HTTP_MODE");
+		HTTP_IP = properties.getProperty("HTTP_IP");
+		HTTP_PORT = Integer.parseInt(properties.getProperty("HTTP_PORT"));
+		HTTP_SSL_PORT = Integer.parseInt(properties.getProperty("HTTP_SSL_PORT"));
+
+		DB = getBoolean(properties.getProperty("DB"));
+
+		DB_MAX = Integer.parseInt(properties.getProperty("DB_MAX"));
+		DB_TYPE = properties.getProperty("DB_TYPE");
+		DB_URL = properties.getProperty("DB_URL");
+		DB_USER = properties.getProperty("DB_USER");
+		DB_PASSWORD = properties.getProperty("DB_PASSWORD");
+
+		FILE_DATA = getBoolean(properties.getProperty("FILE_DATA"));
+
+		NOTICE = getBoolean(properties.getProperty("NOTICE"));
+		MAIL_HOST = properties.getProperty("MAIL_HOST");
+		if(properties.getProperty("MAIL_PORT")!=null){
+			MAIL_PORT = Integer.parseInt(properties.getProperty("MAIL_PORT"));
+		}
+		MAIL_USER = properties.getProperty("MAIL_USER");
+		MAIL_PASSWORD = properties.getProperty("MAIL_PASSWORD");
+
+		CLOUD = getBoolean(properties.getProperty("CLOUD"));
+		CLOUD_HOST = properties.getProperty("CLOUD_HOST");
+		CLOUD_PORT = Integer.parseInt(properties.getProperty("CLOUD_PORT"));
+		CLOUD_RESET = Integer.parseInt(properties.getProperty("CLOUD_RESET"));
+		CLOUD_ID = properties.getProperty("CLOUD_ID");
+		
+		WEATHER_WEAID = properties.getProperty("WEATHER_WEAID");
+		AQI_WEAID = properties.getProperty("AQI_WEAID");
+		
+		SMS = getBoolean(properties.getProperty("SMS"));
+	}
+
+	public static void check() {
+		// 检查配置文件配置项是否完整
+		if (Tool.isEmpty(NAME)) {
+			// 必须设置名称
+			throw new IllegalArgumentException("Config error NAME");
+		}
+
+		if (THREAD < 0 || THREAD > 512) {
+			// 至少为0 ~ 512
+			throw new IllegalArgumentException("Config error THREAD, The value should be between 0~512");
+		}
+
+		if (DB) {
+			if (DB_MAX < 1)
+				// 数据库连接至少为1
+				throw new IllegalArgumentException("Config error DB_MAX");
+			if (Tool.isEmpty(DB_TYPE))
+				// 数据库类型不能为空
+				throw new IllegalArgumentException("Config error DB_TYPE");
+			if (Tool.isEmpty(DB_URL))
+				// 数据库连接字符串不能为空
+				throw new IllegalArgumentException("Config error DB_URL");
+		}
+
+		if (HTTP) {
+			if (HTTP_PORT < 0 || HTTP_PORT > 65535)
+				// HTTP服务端口必须在有效范围内
+				throw new IllegalArgumentException("Config error HTTP_PORT");
+		}
+	}
+
+	public static void save() throws IOException {
+		File file = new File(CONFIG_FILENAME);
+		if (!file.exists())
+			file = new File(getWorkPath() + File.separatorChar + CONFIG_FILENAME);
+
+		Properties properties = new Properties();
+
+		properties.setProperty("NAME", NAME);
+		properties.setProperty("THREAD", Integer.toString(THREAD));
+		properties.setProperty("DEBUG", toBoolean(DEBUG));
+
+		properties.setProperty("DRIVER", toBoolean(DRIVER));
+		properties.setProperty("DRIVER_RESTART", Integer.toString(DRIVER_RESTART));
+		properties.setProperty("DRIVER_HEARTBEAT", Integer.toString(DRIVER_HEARTBEAT));
+		properties.setProperty("DRIVER_INTERVAL", Integer.toString(DRIVER_INTERVAL));
+		properties.setProperty("DRIVER_TIMEOUT", Integer.toString(DRIVER_TIMEOUT));
+		properties.setProperty("DRIVER_DELAY", Integer.toString(DRIVER_DELAY));
+
+		properties.setProperty("MASTER", toBoolean(MASTER));
+		properties.setProperty("MASTER_IP", MASTER_IP);
+		properties.setProperty("MASTER_PORT", Integer.toString(MASTER_PORT));
+
+		properties.setProperty("STRATEGY", toBoolean(STRATEGY));
+		properties.setProperty("CRUISE", toBoolean(CRUISE));
+
+		properties.setProperty("HTTP", toBoolean(HTTP));
+		properties.setProperty("HTTP_MODE", HTTP_MODE);
+		properties.setProperty("HTTP_IP", HTTP_IP);
+		properties.setProperty("HTTP_PORT", Integer.toString(HTTP_PORT));
+		properties.setProperty("HTTP_SSL_PORT", Integer.toString(HTTP_SSL_PORT));
+
+		properties.setProperty("DB", toBoolean(DB));
+		properties.setProperty("DB_MAX", Integer.toString(DB_MAX));
+		properties.setProperty("DB_TYPE", DB_TYPE);
+		properties.setProperty("DB_URL", DB_URL);
+		properties.setProperty("DB_USER", DB_USER);
+		properties.setProperty("DB_PASSWORD", DB_PASSWORD);
+		properties.setProperty("DATA_FILE", toBoolean(FILE_DATA));
+
+		properties.setProperty("NOTICE", toBoolean(NOTICE));
+		properties.setProperty("MAIL_HOST", MAIL_HOST);
+		properties.setProperty("MAIL_PORT", Integer.toString(MAIL_PORT));
+		properties.setProperty("MAIL_USER", MAIL_USER);
+		properties.setProperty("MAIL_PASSWORD", MAIL_PASSWORD);
+
+		properties.setProperty("CLOUD", toBoolean(CLOUD));
+		properties.setProperty("CLOUD_HOST", CLOUD_HOST);
+		properties.setProperty("CLOUD_PORT", Integer.toString(CLOUD_PORT));
+		properties.setProperty("CLOUD_RESET", Integer.toString(CLOUD_RESET));
+		properties.setProperty("CLOUD_ID", CLOUD_ID);
+		
+		properties.setProperty("WEATHER_WEAID", WEATHER_WEAID);
+		properties.setProperty("AQI_WEAID", AQI_WEAID);
+
+		properties.setProperty("SMS", toBoolean(CLOUD));
+		
+		try (FileOutputStream output = new FileOutputStream(file);) {
+			properties.store(output, "SAVED BY SERVICE");
+		} catch (IOException ex) {
+			Log.error(ex);
+			throw ex;
+		}
+	}
+
+	public static boolean getBoolean(String value) {
+		if (value == null)
+			return false;
+		else if ("YES".equalsIgnoreCase(value))
+			return true;
+		else if ("ON".equalsIgnoreCase(value))
+			return true;
+		else
+			return false;
+	}
+
+	public static String toBoolean(boolean value) {
+		if (value)
+			return "ON";
+		else
+			return "OFF";
+	}
+}

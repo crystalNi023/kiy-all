@@ -1,0 +1,83 @@
+/**
+G * 2017年2月20日
+ */
+package com.kiy.servo.master;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.group.ChannelGroup;
+
+import com.kiy.common.User;
+import com.kiy.protocol.Messages;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.Processer;
+import com.kiy.servo.data.Data;
+
+/**
+ * 主控服务业务类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class MasterHandler extends SimpleChannelInboundHandler<Messages.Message> {
+
+	private final ChannelGroup group;
+	private final Processer processer;
+
+	public MasterHandler(ChannelGroup g) {
+		processer = new Processer(true);
+		group = g;
+	}
+
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) {
+		group.add(ctx.channel());
+
+		String name = Config.NAME;
+		Message msg = Message.newBuilder().setConnect(Messages.Connect.newBuilder().setName(name)).build();
+		ctx.channel().writeAndFlush(msg);
+	}
+
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, Message request) throws Exception {
+		long time = System.currentTimeMillis();
+
+		if (Config.DEBUG)
+			Log.debug("MASTER REQ " +request.toString());
+
+		User user = ctx.channel().attr(Processer.USER).get();
+		Message.Builder response = request.toBuilder();
+		int r = processer.handler(ctx.channel(), user, request, response);
+
+		Message m_response = response.build();
+		if (r == Processer.NONE) {
+			// 什么也不做
+		} else if (r == Processer.SINGLE) {
+			ctx.channel().writeAndFlush(m_response);
+		} else if (r == Processer.MULTIPLE) {
+			group.writeAndFlush(m_response, MatcherLogon.Logon);
+		} else {
+			Log.error(request.getActionCase() + "Processer result tag error");
+		}
+		
+		if (Config.DEBUG)
+			Log.debug("MASTER RSP " + m_response.toString());
+
+		// 记录日志
+		Data.CreateLog(user, request, m_response, System.currentTimeMillis() - time);
+
+		if (Config.DEBUG)
+			Log.debug("TIME:" + (System.currentTimeMillis() - time));
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+		// 出现异常时,记录错误关闭通道
+		Log.error(cause);
+		group.remove(ctx.channel());
+		ctx.channel().disconnect();
+		ctx.channel().close();
+	}
+}

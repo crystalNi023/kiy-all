@@ -1,0 +1,72 @@
+package com.kiy.servo.cruise;
+
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentLinkedDeque;
+
+import com.sun.xml.internal.bind.v2.schemagen.xmlschema.List;
+
+/**
+ * 设备消息队列
+ * 
+ * @author HLX Tel:18996470535
+ * @date 2018年4月17日 Copyright:Copyright(c) 2018
+ */
+public class MessageDeviceDeque implements Runnable {
+
+	private static final Object Object = null;
+	private ConcurrentLinkedDeque<MessageDevice> deque;
+
+	
+	private MessageDeviceDeque() {
+		deque = new ConcurrentLinkedDeque<MessageDevice>();
+	}
+
+
+	public volatile static MessageDeviceDeque messageDeviceDeque;
+
+	public static MessageDeviceDeque getInstance() {
+		if (messageDeviceDeque == null) {
+			synchronized (MessageDeviceDeque.class){
+				if (messageDeviceDeque == null) {
+					messageDeviceDeque = new MessageDeviceDeque();
+				}
+			}
+		}
+		return messageDeviceDeque;
+		
+	}
+
+	@Override
+	public void run() {
+		while (true) {
+			MessageDevice poll = deque.poll();
+			if (poll != null) {
+//				Log.debug("取出消息执行 当前剩余排队消息 " + deque.size());
+				poll.execute();
+			}
+		}
+	}
+
+	public void start() {
+		run();
+	}
+
+	/**
+	 * 
+	 * @param messageDevice
+	 */
+	public void add(MessageDevice messageDevice) {
+		if (messageDevice.isWriteDevice()) {
+			deque.addFirst(messageDevice);
+//			Log.debug("消息插入队列成功 插入到顶部 deque size " + deque.size());
+		} else {
+			boolean contains = deque.contains(messageDevice);
+			if (!contains) {
+				deque.addLast(messageDevice);
+//				Log.debug("消息插入队列成功 插入到尾部 deque size " + deque.size());
+			}
+
+		}
+	}
+
+}

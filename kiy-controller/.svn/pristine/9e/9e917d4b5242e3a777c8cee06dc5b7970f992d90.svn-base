@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div>
+<h1>查看设备历史状态</h1>
+<hr>
+<p>首先在<a href="parameterList.html">结构视图</a>中或<a href="parameterList.html">状态视图</a>中选择你要查看历史状态的设备，
+选择[伺服器]->[历史状态]或者在<a href="parameterList.html">结构视图</a>里点击右键->[历史状态]就可以查看设备的历史状态。如下图所示。
+<img src="queryDeviceHistoryStatus_1.png" />
+<p><a href="queryDeviceMaintain.html">上一页</a>  <a href="setDeviceStatus.html">下一页</a></p>
+</div>
+</body>
+</html>

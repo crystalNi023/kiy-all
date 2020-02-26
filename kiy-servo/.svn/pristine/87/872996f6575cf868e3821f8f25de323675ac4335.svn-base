@@ -1,0 +1,106 @@
+/**
+ * 2017年6月18日
+ */
+package com.kiy.servo.driver.rs485;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Status;
+import com.kiy.servo.Config;
+import com.kiy.servo.driver.SerialPortAdpater;
+
+/**
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class MudbusSerialPort extends SerialPortAdpater {
+	
+	private Set<Model> getSTATUS_0x01 = new HashSet<>();
+	private Set<Model> getSTATUS_0x02 = new HashSet<>();
+	private Set<Model> getSTATUS_0x04 = new HashSet<>();
+	private Set<Model> setSTATUS_0x05 = new HashSet<>();
+	private Set<Model> setSTATUS_0x10 = new HashSet<>();
+	
+	public MudbusSerialPort(Device d) {
+		super(d);
+		coder = new MudbusCoder();
+		data_bits = 8;
+		stop_bits = 1;
+		parity_check = 0;
+		
+		getSTATUS_0x01.add(Model.MB_0014);
+		
+		getSTATUS_0x02.add(Model.MB_0007);
+		getSTATUS_0x02.add(Model.MB_0013);
+		getSTATUS_0x02.add(Model.MB_0016);
+		getSTATUS_0x02.add(Model.MB_0017);
+		getSTATUS_0x02.add(Model.MB_0018);
+		getSTATUS_0x02.add(Model.MB_0019);
+		
+		getSTATUS_0x04.add(Model.MB_0003);
+		
+		setSTATUS_0x05.add(Model.MB_0014);
+		
+		setSTATUS_0x10.add(Model.MB_0015);
+	}
+
+	@Override
+	public void initialize() {
+	}
+
+	@Override
+	public synchronized void getStatus(Device d) {
+		if (device.equals(d)) {
+			d.setStatus(isActive() ? Status.NONE : Status.OFFLINE);
+			return;
+		}
+		
+		if (System.currentTimeMillis() - d.getTickStatus() > Config.DRIVER_INTERVAL * 1000) {
+			Model model = d.getModel();
+			
+			if (getSTATUS_0x01.contains(model)) {
+				send(d, MudbusCoder.STATUS_0x01, 0);
+			}else if (getSTATUS_0x02.contains(model)) {
+				send(d, MudbusCoder.STATUS_0x02, 0);
+			}else if(getSTATUS_0x04.contains(model)){
+				send(d, MudbusCoder.STATUS_0x04, 0);
+			}else if(model == Model.MB_0015){
+				 return;
+			}else {
+				send(d, MudbusCoder.STATUS_0x03, 0);
+			}
+			
+			d.setTickStatus(System.currentTimeMillis());
+		}
+	}
+
+	@Override
+	public synchronized void setStatus(Device d) {
+		if (device.equals(d)) {
+			d.setStatus(isActive() ? Status.NONE : Status.OFFLINE);
+			return;
+		}
+		Model model = d.getModel();
+		
+		if (setSTATUS_0x05.contains(model)) {
+			send(d, MudbusCoder.STATUS_0x05, 0);
+		}else if(setSTATUS_0x10.contains(model)){
+			send(d, MudbusCoder.STATUS_0x10, 0);
+		}else {
+			// 无处理
+		}
+		
+		d.setTickStatus(System.currentTimeMillis());
+	}
+
+	@Override
+	public synchronized void getConfig(Device d) {
+	}
+
+	@Override
+	public synchronized void setConfig(Device d) {
+	}
+}

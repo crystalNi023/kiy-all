@@ -1,0 +1,85 @@
+package com.kiy.controller;
+
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableItem;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+
+/**
+ * 在消息视图中右键设置设备状态
+ * 
+ * @author 35210
+ *
+ */
+public class ASetDeviceStatusOnMessageTable extends A<FMain> {
+	private Table tableNotice;
+	private Table tableMessage;
+
+	public ASetDeviceStatusOnMessageTable(FMain m, Table tableNotice, Table tableMessage) {
+		super(m);
+		this.tableNotice = tableNotice;
+		this.tableMessage = tableMessage;
+	}
+
+	@Override
+	protected void run() {
+		Servo servo = main.getCurrentServo();
+
+		if (tableNotice.isFocusControl()) {
+			// 通知列表展示
+			int selectionIndex = tableNotice.getSelectionIndex();
+			if (selectionIndex != -1/*-1 表格未选中*/) {
+				TableItem item = tableNotice.getItem(selectionIndex);
+				Object data = item.getData();
+				if (data != null) {
+					if (data instanceof Device) {
+						Device d = (Device) data;
+						if (d != null) {
+							FDeviceStatus f = new FDeviceStatus(main.getShell());
+							main.getServerManager().add(f, servo);
+							f.open(d, servo);
+							main.getServerManager().off(f);
+						}
+					} else {
+						// 表格里的数据不是设备而是其他的未知
+					}
+				} else {
+				}
+			} else {
+				// 表格没有选中
+			}
+		} else if (tableMessage.isFocusControl()) {
+			// 消息列表展示
+			int selectionIndex = tableMessage.getSelectionIndex();
+			if (selectionIndex != -1/*-1 表格未选中*/) {
+				TableItem item = tableMessage.getItem(selectionIndex);
+				Object data = item.getData();
+				if (data != null) {
+					if (data instanceof Device) {
+						Device d = (Device) data;
+						if (d != null) {
+							FDeviceStatus f = new FDeviceStatus(main.getShell());
+							main.getServerManager().add(f, servo);
+							f.open(d, servo);
+							main.getServerManager().off(f);
+						}
+					} else {
+						// 其他
+						// System.out.println("不能强转成Device");
+					}
+				} else {
+					// 琛ㄦ牸data涓虹┖
+					// System.out.println("表格数据为空");
+				}
+			} else {
+				// 表格没有选中项
+				// System.out.println("表格没有选中项");
+			}
+		} else {
+			// 无操作
+			// System.out.println("莫名其秒");
+		}
+	}
+
+}

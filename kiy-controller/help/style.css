@@ -1,0 +1,49 @@
+@charset "utf-8";
+* {
+	font-family: "微软雅黑";
+	font-size: 14px;
+}
+body{
+	padding: 0px;
+	margin: 0px;
+}
+div{
+	margin: 0px;
+	padding: 18px;
+}
+h1 {
+	font-size: 26px;
+	line-height: 52px;
+	color: #444;
+}
+h2 {
+	font-size: 18px;
+	line-height: 36px;
+	color: #444;
+}
+h3 {
+	font-size: 14px;
+	line-height: 28px;
+	color: #444;
+}
+hr{
+	height: 1px;
+	padding: 0px;
+	border: none;
+	background-color: #CCC;
+}
+p{
+	text-indent: 2em;
+	font-size: 14px;
+	line-height: 28px;
+	color: #666;
+}
+a{
+	font-size: 14px;
+	line-height: 28px;
+	color: #0081E6;
+}
+img{
+	clear: both;
+	max-width:100%;
+}

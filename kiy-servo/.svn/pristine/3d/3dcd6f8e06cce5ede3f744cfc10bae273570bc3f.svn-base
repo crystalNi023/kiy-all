@@ -1,0 +1,156 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.driver;
+
+import java.util.Enumeration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.servo.Config;
+import com.kiy.servo.Log;
+import com.kiy.servo.data.Data;
+
+/**
+ * 硬件设备通信服务主类
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class Driver {
+
+	private static Map<Device, DriverAdpater> clients;
+
+	private Driver() {
+	}
+
+	public static void initialize() {
+		if (!Config.DRIVER) {
+			Log.info("Driver disabled");
+			return;
+		}
+
+		Log.info("Driver initialize ...");
+
+		clients = new ConcurrentHashMap<Device, DriverAdpater>();
+
+		Servo servo = Data.getServo();
+		Enumeration<Device> e = servo.eDevices();
+		while (e.hasMoreElements()) {
+			create(e.nextElement(), false);
+		}
+		Log.info("Driver initialized");
+	}
+
+	public static void create(Device d, boolean start) {
+		if (clients == null)
+			return;
+
+		if (d == null)
+			return;
+
+		if (!d.isAdpater())
+			return;
+
+		DriverAdpater client = clients.get(d);
+		if (client != null)
+			return;
+
+		Log.info("Driver create " + d.getName() + "(KIND: " + d.getKind() + ",LINK: " + d.getLink() + ")");
+
+		client = DriverAdpaterFactory.create(d);
+		if (client == null) {
+			// 设备客户端创建失败
+			Log.error("Device no adpater " + d.getName() + "(KIND: " + d.getKind() + ",LINK: " + d.getLink() + ")");
+			return;
+		}
+
+		client.initialize();
+		clients.put(d, client);
+
+		if (start)
+			client.start();
+	}
+
+	public static void update(Device d) {
+		if (clients == null)
+			return;
+
+		if (d == null)
+			return;
+
+		DriverAdpater client = clients.get(d);
+		if (client == null)
+			return;
+
+		Log.info("Driver reset" + d.getName() + "(KIND: " + d.getKind() + ",LINK: " + d.getLink() + ")");
+
+		client.reset();
+	}
+
+	public static void delete(Device d) {
+		if (clients == null)
+			return;
+
+		if (d == null)
+			return;
+
+		DriverAdpater client = clients.remove(d);
+		if (client == null)
+			return;
+
+		Log.info("Driver delete" + d.getName() + "(KIND: " + d.getKind() + ",LINK: " + d.getLink() + ")");
+
+		client.stop();
+		client.destroy();
+	}
+
+	public static DriverAdpater getAdpater(Device d) {
+		Device relay = d.getRootRelay();
+		DriverAdpater client = clients.get(relay);
+		return client;
+	}
+
+	public static void start() {
+		if (clients == null)
+			return;
+
+		Log.info("Driver start ...");
+
+		for (Map.Entry<Device, DriverAdpater> entry : clients.entrySet()) {
+			entry.getValue().start();
+		}
+
+		Log.info("Driver started");
+	}
+
+	public static void stop() {
+		if (clients == null)
+			return;
+
+		Log.info("Driver stop ...");
+
+		for (Map.Entry<Device, DriverAdpater> entry : clients.entrySet()) {
+			entry.getValue().stop();
+		}
+
+		Log.info("Driver stopped");
+	}
+
+	public static synchronized void destroy() {
+		if (clients == null)
+			return;
+
+		Log.info("Driver destroy ...");
+
+		for (Map.Entry<Device, DriverAdpater> entry : clients.entrySet()) {
+			entry.getValue().destroy();
+		}
+		clients.clear();
+		clients = null;
+
+		Log.info("Driver destroyed");
+	}
+}

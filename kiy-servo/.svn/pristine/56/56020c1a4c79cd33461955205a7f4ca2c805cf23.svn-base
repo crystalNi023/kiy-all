@@ -1,0 +1,343 @@
+/**
+ * 2017年2月16日
+ */
+package com.kiy.servo.data;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+
+import com.kiy.common.Device;
+import com.kiy.common.FeedBack;
+import com.kiy.common.Maintain;
+import com.kiy.common.Notice;
+import com.kiy.common.Role;
+import com.kiy.common.Sence;
+import com.kiy.common.Servo;
+import com.kiy.common.Task;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.ULog;
+import com.kiy.common.User;
+import com.kiy.common.Zone;
+import com.kiy.protocol.Messages.Message;
+
+/**
+ * Oracle数据库操作
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public class DBOracle extends DataBank {
+
+	/**
+	 * @param c
+	 */
+	public DBOracle(DBConnection c) {
+		super(c);
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#refresh(com.kiy.common.Servo)
+	 */
+	@Override
+	public void refresh(Servo s) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#SelectDeletes(java.util.Date)
+	 */
+	@Override
+	public Set<String> SelectDeletes(Date d) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#QueryDeviceStatus(com.kiy.common.Device, java.util.Date, java.util.Date)
+	 */
+	@Override
+	public List<Device> QueryDeviceStatus(Device u, Date begin, Date end) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#QueryDeviceMaintain(java.lang.String, java.util.Date, java.util.Date)
+	 */
+	@Override
+	public List<Maintain> QueryDeviceMaintain(String id, Date begin, Date end) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#QueryLog(java.lang.String, java.util.Date, java.util.Date)
+	 */
+	@Override
+	public List<ULog> QueryLog(String id, Date begin, Date end) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#MoveZone(com.kiy.common.Zone)
+	 */
+	@Override
+	public boolean MoveZone(Zone u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#MoveDevice(com.kiy.common.Device)
+	 */
+	@Override
+	public boolean MoveDevice(Device u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#MovePosition(com.kiy.common.Device)
+	 */
+	@Override
+	public boolean MovePosition(Device u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateUser(com.kiy.common.User)
+	 */
+	@Override
+	public boolean CreateUser(User u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateRole(com.kiy.common.Role)
+	 */
+	@Override
+	public boolean CreateRole(Role u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateZone(com.kiy.common.Zone)
+	 */
+	@Override
+	public boolean CreateZone(Zone u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateTask(com.kiy.common.Task)
+	 */
+	@Override
+	public boolean CreateTask(Task u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateDevice(com.kiy.common.Device)
+	 */
+	@Override
+	public boolean CreateDevice(Device u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateDeviceStatus(com.kiy.common.Device, com.kiy.common.Types.Origin)
+	 */
+	@Override
+	public boolean CreateDeviceStatus(Device u, Origin o) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateMaintain(com.kiy.common.Maintain)
+	 */
+	@Override
+	public boolean CreateMaintain(Maintain u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateUser(com.kiy.common.User)
+	 */
+	@Override
+	public boolean UpdateUser(User u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateRole(com.kiy.common.Role)
+	 */
+	@Override
+	public boolean UpdateRole(Role u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateZone(com.kiy.common.Zone)
+	 */
+	@Override
+	public boolean UpdateZone(Zone u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateTask(com.kiy.common.Task)
+	 */
+	@Override
+	public boolean UpdateTask(Task u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateDevice(com.kiy.common.Device)
+	 */
+	@Override
+	public boolean UpdateDevice(Device u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#UpdateMaintain(com.kiy.common.Maintain)
+	 */
+	@Override
+	public boolean UpdateMaintain(Maintain u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteUser(com.kiy.common.User)
+	 */
+	@Override
+	public boolean DeleteUser(User u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteRole(com.kiy.common.Role)
+	 */
+	@Override
+	public boolean DeleteRole(Role u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteZone(com.kiy.common.Zone)
+	 */
+	@Override
+	public boolean DeleteZone(Zone u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteTask(com.kiy.common.Task)
+	 */
+	@Override
+	public boolean DeleteTask(Task u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteDevice(com.kiy.common.Device)
+	 */
+	@Override
+	public boolean DeleteDevice(Device u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#DeleteMaintain(java.lang.String)
+	 */
+	@Override
+	public boolean DeleteMaintain(String id) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+
+	/* (non-Javadoc)
+	 * @see com.kiy.servo.data.DBOperation#CreateLog(com.kiy.common.User, com.kiy.protocol.Messages.Message, com.kiy.protocol.Messages.Message, long)
+	 */
+	@Override
+	public boolean CreateLog(User u, Message req, Message rsp, long time) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean CreateNotice(Notice u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean CreateFeedback(FeedBack f) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean UploadUserIcon(User u) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public String QueryUserIcon(String id) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public boolean CreateSence(Sence s) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean UpdateSence(Sence s) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean UpdateSenceStatus(String id,boolean senceStatus) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean DeleteSence(Sence s) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+
+}

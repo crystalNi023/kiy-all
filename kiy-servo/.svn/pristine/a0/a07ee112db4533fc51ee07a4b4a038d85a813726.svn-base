@@ -1,0 +1,164 @@
+package com.kiy.servo.mqtt;
+
+import java.util.Date;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.kiy.common.Device;
+import com.kiy.common.Servo;
+import com.kiy.common.Tool;
+import com.kiy.common.Types.Model;
+import com.kiy.common.Types.Origin;
+import com.kiy.common.devices.ESGateWayES0001;
+import com.kiy.common.devices.ESGateWayES0002;
+import com.kiy.common.devices.ESSwitchES0004;
+import com.kiy.common.devices.ESSwitchTouchTwoES0006;
+import com.kiy.common.devices.ESSwitchTwoES0005;
+import com.kiy.protocol.Messages.Message;
+import com.kiy.protocol.Messages.WriteDeviceStatus;
+import com.kiy.protocol.Units.MDeviceStatus;
+import com.kiy.servo.Log;
+import com.kiy.servo.cloud.Cloud;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.master.Master;
+import com.kiy.servo.master.MatcherLogon;
+
+public class MqttJsonUtil {
+
+	public static final void send(String msg) {
+		JsonObject jsonObject = new JsonParser().parse(msg).getAsJsonObject();
+		String deviceKey; // 设备id,没有则判断该消息没用,遗弃
+		String errorCode = null; //错误码，有的消息不会回复错误码
+		JsonElement deviceKeyJsonElement = jsonObject.get("deviceKey");
+		JsonElement errorCodeJsonElement = jsonObject.get("errorCode");
+		if (deviceKeyJsonElement==null)
+			return;
+		deviceKey = deviceKeyJsonElement.getAsString();
+		if (errorCodeJsonElement!=null) {
+			errorCode = errorCodeJsonElement.getAsString();
+		}
+		
+		// 通过deviceKey 取得缓存层相应设备
+		Servo servo = Data.getServo();
+		Device device = servo.getDeviceByNumber(deviceKey);
+		Model model = device.getModel();
+		
+		// 将设备消息解析后保存到相应设备缓存中
+		switch (model) {
+			case ES_0001:
+				Date date = getMqttDate(msg);
+				ESGateWayES0001 instance = (ESGateWayES0001) device;
+				instance.setDatetime(date);
+				break;
+			case ES_0002:
+				Date date1 = getMqttDate(msg);
+				ESGateWayES0002 instance1 = (ESGateWayES0002) device;
+				instance1.setDatetime(date1);
+				break;
+			case ES_0004:
+				if (errorCode!=null) {
+					int errorCode1 = Integer.parseInt(errorCode);
+					if (errorCode1 == 0) {
+						String on = jsonObject.getAsJsonObject("function").get("switch_ch1").getAsString();
+						ESSwitchES0004 instance2 = (ESSwitchES0004) device;
+						instance2.setFeed(Boolean.valueOf(on));
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					} else {
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					}
+				}
+				break;
+			case ES_0005:
+				if (errorCode!=null) {
+					int errorCode1 = Integer.parseInt(errorCode);
+					if (errorCode1 == 0) {
+						String switchOne = jsonObject.getAsJsonObject("function").get("switch_ch1").getAsString();
+						String switchTwo = jsonObject.getAsJsonObject("function").get("switch_ch2").getAsString();
+						ESSwitchTwoES0005 instance2 = (ESSwitchTwoES0005) device;
+						instance2.setSwitchOne(Boolean.valueOf(switchOne));
+						instance2.setSwitchTwo(Boolean.valueOf(switchTwo));
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					} else {
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					}
+				}
+				break;
+			case ES_0006:
+				if (errorCode!=null) { // 客户端请求
+					int errorCode1 = Integer.parseInt(errorCode);
+					if (errorCode1 == 0) {
+						String switchOne = jsonObject.getAsJsonObject("function").get("switch_ch1").getAsString();
+						String switchTwo = jsonObject.getAsJsonObject("function").get("switch_ch2").getAsString();
+						ESSwitchTouchTwoES0006 instance2 = (ESSwitchTouchTwoES0006) device;
+						instance2.setSwitchOne(Boolean.valueOf(switchOne));
+						instance2.setSwitchTwo(Boolean.valueOf(switchTwo));
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					} else {
+						device.setStatus(Tool.getStatusForErrorCode(errorCode1));
+					}
+				}else {// 设备主动上传 触摸面板有主动上传功能，没有errorCode
+					JsonObject functionObject = jsonObject.getAsJsonObject("function");
+					if (functionObject!=null) {
+						JsonElement jsonElementController= functionObject.get("controller_addr");
+						if (jsonElementController!=null) {
+							String controller_addr = jsonElementController.getAsString();
+							if ("manual".equals(controller_addr)) {
+								String switchOne = functionObject.get("switch_ch1").getAsString();
+								String switchTwo = functionObject.get("switch_ch2").getAsString();
+								ESSwitchTouchTwoES0006 instance2 = (ESSwitchTouchTwoES0006) device;
+								instance2.setSwitchOne(Boolean.valueOf(switchOne));
+								instance2.setSwitchTwo(Boolean.valueOf(switchTwo));
+								sendSetStatus(device);
+							}
+						}
+					}
+				}
+				break;
+			default:
+				break;
+		}
+		
+		device.setTickStatus(System.currentTimeMillis());
+
+	}
+
+	/**
+	 * 获取时间
+	 * 
+	 * @param msg mqtt返回消息
+	 * @return 获取的时间
+	 */
+	public static final Date getMqttDate(String msg) {
+		JsonObject asJsonObject = new JsonParser().parse(msg).getAsJsonObject().getAsJsonObject("function");
+		String date = asJsonObject.get("date").getAsString();
+		String time = asJsonObject.get("time").getAsString();
+		String dateTimeString = "20" + date + " " + time;
+		return Tool.stringToDate(dateTimeString);
+	}
+
+	/**
+	 * 发送控制设备状态消息
+	 */
+	private static void sendSetStatus(Device d) {
+		// 记录日志
+		Data.CreateDeviceStatus(d, Origin.TASK);
+
+		Message.Builder msg = Message.newBuilder();
+		WriteDeviceStatus.Builder wrsb = msg.getWriteDeviceStatusBuilder();
+		MDeviceStatus.Builder itemBuilder = wrsb.getItemBuilder();
+		
+		itemBuilder.setDeviceId(d.getId());
+		itemBuilder.setStatus(d.getStatus().getValue());
+		itemBuilder.setCreated(d.getTickStatus());
+		for (int index = 0; index < d.getFeatureCount(); index++) {
+			itemBuilder.putItems(index, d.getFeature(index).getValue());
+		}
+		// 发送
+		wrsb.setItem(itemBuilder);
+		Message m = msg.build();
+		Cloud.send(m);
+		Master.getGroup().writeAndFlush(m, MatcherLogon.Logon);
+	}
+	
+}

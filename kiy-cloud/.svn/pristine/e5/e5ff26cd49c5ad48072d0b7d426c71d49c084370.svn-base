@@ -1,0 +1,87 @@
+package com.kiy.cloud.data.dao.impl;
+
+import java.util.List;
+
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+
+import com.kiy.cloud.data.Data;
+import com.kiy.cloud.data.bean.SingleProductUserBean;
+import com.kiy.cloud.data.dao.SingleProductUserDao;
+
+public class SingleProductUserDaoImpl implements SingleProductUserDao {
+
+	@Override
+	public boolean create(SingleProductUserBean singleProductUserBean){
+        SqlSessionFactory factory = Data.getSqlSessionFactory();
+        SqlSession session = factory.openSession();
+        int insert = session.insert("singleProductUser.create",singleProductUserBean);
+        session.commit();
+        session.close();
+        return insert == 1;
+	}
+	
+	@Override
+	public boolean relationXMDeviceAccount(SingleProductUserBean singleProductUserBean) {
+		SqlSessionFactory factory = Data.getSqlSessionFactory();
+		SqlSession session = factory.openSession();
+		int update = session.update("singleProductUser.relationXMDeviceAccount",singleProductUserBean);
+		session.commit();
+		session.close();
+		return update == 1;
+	}
+
+	@Override
+	public boolean delete(String id){
+		 SqlSessionFactory factory = Data.getSqlSessionFactory();
+	     SqlSession session = factory.openSession();
+	     int delete = session.delete("singleProductUser.delete",id);
+	     session.commit();
+	     session.close();
+	     return delete == 1;
+	}
+
+	@Override
+	public SingleProductUserBean selectByUsername(String username) {
+		SqlSessionFactory factory = Data.getSqlSessionFactory();
+		SqlSession session = factory.openSession();
+		SingleProductUserBean singleProductUserBean = session.selectOne(
+				"singleProductUser.selectByUsername", username);
+		session.close();
+		return singleProductUserBean;
+	}
+
+	@Override
+	public List<SingleProductUserBean> getListBySingleProductUserId(String singleProductUserId) {
+		SqlSessionFactory factory = Data.getSqlSessionFactory();
+		SqlSession session = factory.openSession();
+		List<SingleProductUserBean> singleProductUserBean = session.selectList(
+				"singleProductUser.getListBySingleProductUserId", singleProductUserId);
+		session.close();
+		return singleProductUserBean;
+	}
+
+	@Override
+	public SingleProductUserBean getOne(String id) {
+		SqlSessionFactory factory = Data.getSqlSessionFactory();
+		SqlSession session = factory.openSession();
+		SingleProductUserBean singleProductUserBean = session.selectOne(
+				"singleProductUser.select", id);
+		session.close();
+		return singleProductUserBean;
+	}
+
+	@Override
+	public boolean modifyPassword(String username,String password) {
+		SqlSessionFactory factory = Data.getSqlSessionFactory();
+		SqlSession session = factory.openSession();
+		SingleProductUserBean singleProductUserBean = new SingleProductUserBean();
+		singleProductUserBean.setUsername(username);
+		singleProductUserBean.setPassword(password);
+		int update = session.update("singleProductUser.modifyPassword",
+				singleProductUserBean);
+		session.commit();
+		session.close();
+		return update == 1;
+	}
+}

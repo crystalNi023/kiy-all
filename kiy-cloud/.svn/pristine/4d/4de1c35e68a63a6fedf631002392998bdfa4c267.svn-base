@@ -1,0 +1,53 @@
+/**
+ * 2017年6月23日
+ */
+package com.kiy.cloud.data;
+
+/**
+ * NSQL 参数对象
+ * 
+ * @author Simon(ZhangXi TEL:13883833982)
+ *
+ */
+public final class NSQLParameter {
+
+	private NSQL nsql;
+	// 参数名称
+	protected String name;
+	// 参数索引位置
+	protected int[] indexs;
+	// 参数值类型
+	protected int type;
+
+	public NSQLParameter(NSQL s) {
+		nsql = s;
+	}
+
+	public NSQL getNSQL() {
+		return nsql;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public int getFirstIndex() {
+		return indexs[0];
+	}
+
+	public int getCount() {
+		return indexs.length;
+	}
+
+	public int getIndex(int index) {
+		return indexs[index];
+	}
+
+	public int getType() {
+		return type;
+	}
+
+	public void setType(int value) {
+		type = value;
+	}
+}

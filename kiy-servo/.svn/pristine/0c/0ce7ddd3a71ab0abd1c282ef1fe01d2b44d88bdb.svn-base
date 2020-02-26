@@ -1,0 +1,41 @@
+package com.kiy.servo.test;
+
+import com.kiy.common.Weather;
+import com.kiy.servo.Config;
+import com.kiy.servo.data.Data;
+import com.kiy.servo.notice.WeatherManager;
+
+public class TestWeather {
+	public static void main(String[] args) {
+		
+		Config.load();
+		Data.initialize();
+		
+		
+		WeatherManager instance = WeatherManager.getInstance();
+		Weather weather = instance.getWeather();
+		
+		String aqi = weather.getResult().getWeather_curr();
+		System.err.println("1"+aqi);
+		
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+		}
+		
+		Weather weather1 = instance.getWeather();
+		
+		String aqi1 = weather1.getResult().getWeather_curr();
+		System.err.println("2"+aqi1);
+		
+		try {
+			Thread.sleep(6000);
+		} catch (InterruptedException e) {
+		}
+		
+		Weather weather11 = instance.getWeather();
+		
+		String aqi11 = weather11.getResult().getWeather_curr();
+		System.err.println("3"+aqi11);
+	}
+}

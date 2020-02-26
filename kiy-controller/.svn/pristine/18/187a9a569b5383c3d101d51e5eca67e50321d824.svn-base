@@ -1,0 +1,157 @@
+package com.kiy.controller;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Scale;
+import org.eclipse.swt.widgets.Shell;
+
+import com.kiy.common.Device;
+import com.kiy.common.Feature;
+import com.kiy.common.SenceDevice;
+import com.kiy.resources.Resource;
+
+public class FSelectDeviceFeature extends Dialog {
+
+	private Shell shell;
+	private Device device;
+	private CCombo combo;
+	private Scale scale;
+	private CLabel labelFeature;
+	private SenceDevice senceDevice;
+
+	/**
+	 * Launch the application.
+	 * 
+	 * @param args
+	 */
+	public FSelectDeviceFeature(Shell arg0) {
+		super(arg0);
+	}
+
+	/**
+	 * Open the window.
+	 */
+	public SenceDevice open(Device device) {
+		this.device = device;
+		Display display = Display.getDefault();
+		createContents();
+		shell.open();
+		shell.layout();
+
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+		return senceDevice;
+	}
+
+	/**
+	 * Create contents of the window.
+	 */
+	protected SenceDevice createContents() {
+		shell = new Shell(getParent(), SWT.SYSTEM_MODAL | SWT.BORDER | SWT.CLOSE);
+		shell.setBackground(Resource.getColor(SWT.COLOR_WHITE));
+		shell.setText("功能特性");
+		shell.setSize(324, 209);
+
+		CLabel label = new CLabel(shell, SWT.NONE);
+		label.setBackground(Resource.getColor(SWT.COLOR_WHITE));
+		label.setBounds(16, 16, 67, 23);
+		label.setText("特性名称：");
+
+		CLabel label_1 = new CLabel(shell, SWT.NONE);
+		label_1.setBackground(Resource.getColor(SWT.COLOR_WHITE));
+		label_1.setText("    动作：");
+		label_1.setBounds(16, 81, 67, 23);
+
+		combo = new CCombo(shell, SWT.BORDER);
+		combo.setBounds(116, 16, 99, 21);
+
+		labelFeature = new CLabel(shell, SWT.NONE);
+		labelFeature.setBackground(Resource.getColor(SWT.COLOR_WHITE));
+		labelFeature.setText("0%");
+		labelFeature.setBounds(225, 68, 77, 42);
+
+		Button btnNewButton = new Button(shell, SWT.NONE);
+		btnNewButton.setBounds(82, 138, 59, 27);
+		btnNewButton.setText("确认");
+		btnNewButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				senceDevice = new SenceDevice();
+				senceDevice.setDeviceId(device.getId());
+				// 1.取到feature的value
+				senceDevice.setFeatureValue(scale.getSelection());
+				String text = combo.getText();
+				if (!text.isEmpty()) {
+					Object data = combo.getData(text);
+					if (data == null || !(data instanceof Integer)) {
+						return;
+					}
+					// 2.取到feature下标
+					senceDevice.setFeatureIndex((Integer) data);
+				}
+				shell.close();
+			}
+		});
+
+		Button button = new Button(shell, SWT.NONE);
+		button.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				shell.close();
+			}
+		});
+		button.setText("取消");
+		button.setBounds(163, 138, 59, 27);
+		button.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				shell.close();
+			}
+		});
+		scale = new Scale(shell, SWT.NONE);
+		scale.setBackground(Resource.getColor(SWT.COLOR_WHITE));
+		scale.setBounds(91, 68, 126, 36);
+		scale.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				int maximum = scale.getMaximum();
+				if (maximum == 100) {
+					String s = String.valueOf((scale.getSelection()) + "%");
+					label.setText(s);
+				} else {
+					String s = String.valueOf((scale.getSelection()) * 100 + "%");
+					labelFeature.setText(s);
+				}
+			}
+		});
+
+		if (device != null) {
+			Feature[] features = device.getFeatures();
+			System.out.println(features.length);
+			for (Feature feature : features) {
+				if (feature.PRIMARY != true || feature.READ_ONLY == true) {
+					continue;
+				}
+				combo.add(feature.getName());
+				combo.setData(feature.getName(), feature.INDEX);
+			}
+			combo.select(0);
+			scale.setMaximum(features[0].MAXIMUM);
+			scale.setMinimum(features[0].MINIMUM);
+			scale.setIncrement(features[0].STEP);
+		} else {
+			System.out.println(device);
+		}
+		F.center(getParent(), shell);
+		return senceDevice;
+	}
+}

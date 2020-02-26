@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.project.ImageFlowMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.project.ImageFlow">
+		INSERT INTO image_flow
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="cusId != null">
+				`cus_id`=#{cusId},
+			</if>
+			<if test="flowLimit != null">
+				`flow_limit`=#{flowLimit},
+			</if>
+			<if test="flowUsed != null">
+				`flow_used`=#{flowUsed},
+			</if>
+			<if test="flowThisTime != null">
+				`flow_this_time`=#{flowThisTime},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOneByCusId"  resultType="com.dec.pro.entity.project.ImageFlow">
+		SELECT  
+			`id`        as 'id' ,
+			`cus_id`  	  as 'cusId' ,
+			`flow_limit`    as 'flowLimit' ,
+			`flow_used`  	  as 'flowUsed' ,
+			`flow_this_time`  	  as 'flowThisTime' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM image_flow
+		WHERE `cus_id`=#{cusId}
+	</select>
+		<update id="update" parameterType="com.dec.pro.entity.project.ImageFlow">
+		UPDATE image_flow 
+		<set>
+			<if test="flowThisTime != null">
+				 `flow_used`=#{flowUsed},flow_this_time=#{flowThisTime},
+			</if>
+		</set>
+		WHERE cus_id=#{cusId}
+	</update>
+</mapper>

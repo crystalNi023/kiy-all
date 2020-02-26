@@ -1,0 +1,54 @@
+#img_dialog div{
+	height:300px;
+}
+#img_dialog img{
+	width: 100%;
+	height:100%;
+}
+.img_box img{
+	width: auto;
+    max-width: 100%;
+}
+.upload_icon {
+	height: 100%;
+    width: 100%;
+    text-align: center;
+    line-height: 200px !important;
+    padding-right: 15px;
+    position: absolute;
+    font-size: 100px !important;
+    color: #d6d6d6;
+}
+#design_img {
+    background-color: rgb(242, 242, 242);
+}
+.selector_file{
+	width: 100%; height: 100%; opacity: 0;
+}
+.btn_remove{
+	width: 100%;
+    display: inline-block;
+    text-align: center;
+}
+
+.img_btn{
+	width:200px;
+	height:50px;
+	font-size:20px;
+}
+.upload_file_text{
+	height: 100%;
+    width: 100%;
+    line-height: 350px;
+    padding-right: 15px;
+	position: absolute;
+    text-align: center;
+    color: #807d7d;
+    font-size: 16px;
+}
+.upload_page{
+	position: absolute;
+    margin: 200px 105px;
+    font-size: 20px;
+    color: #807d7d;
+}

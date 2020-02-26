@@ -1,0 +1,62 @@
+
+		<div class="hea_wid">
+			<div class="clearfix hea_end_wid">
+				<div class="left logo">
+					<img src="/public/img/logo.png" />
+					<span>雅典娜装修进度管理</span>
+				</div>
+				<div class="left clearfix hea_nav">
+					<div class="left">
+						<a id="athena_project" href="/pages/project/athena_project.jsp">在建项目</a>
+					</div>
+					<div class="left">
+						<a id="athena_customer" href="/pages/customer/athena_archives.jsp">客户档案</a>
+					</div>
+					<div class="left">
+						<a id="athena_team" href="/pages/team/athena_staff.jsp">团队管理</a>
+					</div>
+				</div>
+				<div class="right exit">
+					你好!<a>
+					<span id="show_com_name"></span></a>
+					<span><a style="margin:auto 10px" id="athena_back" href="/pages/feedback/feedback.jsp">意见反馈</a></span>
+					<a onclick="exit_()" href="#">退出</a>
+				</div>
+			</div>
+		</div>
+		<script>
+		$(function(){
+			if(localStorage.getItem("com_name")==null || sessionStorage.getItem('comId')==null || sessionStorage.getItem('userId')==null){			
+				window.location.href="/pages/login/login.jsp";
+			}else{
+				$('#show_com_name').html(localStorage.getItem("com_name"));
+			}			
+			if($('body').attr('id')=='1'){
+				$('#athena_project').addClass('hea_border');
+			}
+			else if($('body').attr('id')=='2'){
+				$('#athena_customer').addClass('hea_border');
+			}
+			else if($('body').attr('id')=='3'){
+				$('#athena_team').addClass('hea_border');
+			}
+			else if($('body').attr('id')=='4'){
+				$('#athena_back').addClass('hea_border');
+			}
+			is_user_type();
+		})
+				
+		function is_user_type(){
+			var SRC_user_msg = JSON.parse(sessionStorage.getItem('SRC_user_msg'));
+			console.log(SRC_user_msg);
+			if(SRC_user_msg.type == 4 || SRC_user_msg.type == 6){
+				$('#athena_team').hide();
+			} 
+		}
+		
+		function exit_(){
+			localStorage.removeItem("com_name");
+			window.location.href="/pages/login/login.jsp";
+		}
+		//../login/login.jsp
+		</script>

@@ -1,0 +1,63 @@
+package com.dec.pro.interfaces.project;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.dec.pro.entity.project.Procedure;
+import com.dec.pro.service.project.ProcedureService;
+import com.dec.pro.util.GetField;
+import com.dec.pro.util.Page;
+
+@Controller(value="项目流程")
+public class ProcedureInterface {
+	@Autowired
+	private ProcedureService procedureService;
+	private String code="0000";
+	private String msg="成功";
+	@RequestMapping(value="app/procedure/queryList",name="分页查询流程",method={RequestMethod.POST,RequestMethod.GET})
+	@ResponseBody
+	public Map<String, Object> queryProcedureList(Procedure procedure){
+		Map<String, Object> map=new HashMap<>();
+		Page<Procedure> pages = null;
+		try {
+			pages =procedureService.getProcedureList(procedure);
+			code="0000";
+			msg="成功";
+		} catch (Exception e) {
+			msg=e.getMessage();
+			code="0001";
+		}
+		map.put("result",pages);
+		map.put("code",code);
+		map.put("msg",msg);
+		return map;
+	} 
+	@RequestMapping(value="app/procedure/modifyById",name="修改流程",method={RequestMethod.POST,RequestMethod.GET})
+	@ResponseBody
+	public Map<String, Object> modifyProcedureById(Procedure procedure){
+		Map<String, Object> map=new HashMap<>();
+		try {
+			procedure.setNotice(1);// 设置为新通知
+			GetField.getOTM(" APP修改流程:",procedure);
+			if(procedureService.update(procedure)==1){
+				code="0000";
+				msg="修改成功";
+			}else {
+				code="0001";
+				msg="修改失败";
+			}
+		} catch (Exception e) {
+			msg=e.getMessage();
+			code="0001";
+		}
+		map.put("code",code);
+		map.put("msg",msg);
+		return map;
+	} 
+}

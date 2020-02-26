@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.areaView.AreaViewMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.areaView.AreaView">
+		INSERT INTO area_view
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="proId != null">
+				`pro_id`=#{proId},
+			</if>
+			<if test="zone != null">
+				`zone`=#{zone},
+			</if>
+			<if test="cameraId != null">
+				`camera_id`=#{cameraId},
+			</if>
+			<if test="cameraSecret != null">
+				`camera_secret`=#{cameraSecret},
+			</if>
+			<if test="cameraAdress != null">
+				`camera_adress`=#{cameraAdress},
+			</if>
+			<if test="cameraSn != null">
+				`camera_sn`=#{cameraSn},
+			</if>
+			<if test="cameraSafeCode != null">
+				`camera_safe_code`=#{cameraSafeCode},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.areaView.AreaView">
+		SELECT  
+			`id`        as 'id' ,
+			`pro_id`  	  as 'proId' ,
+			`zone`    as 'zone' ,
+			`camera_id`  	  as 'cameraId' ,
+			`camera_secret`  	  as 'cameraSecret' ,
+			`camera_adress`  	  as 'cameraAdress' ,
+			`camera_sn`  	     as 'cameraSn' ,
+			`camera_safe_code`   as 'cameraSafeCode' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM area_view
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.areaView.AreaView">
+		SELECT  
+			`id`        as 'id' ,
+			`pro_id`  	  as 'proId' ,
+			`zone`    as 'zone' ,
+			`camera_id`  	  as 'cameraId' ,
+			`camera_secret`  	  as 'cameraSecret' ,
+			`camera_adress`  	  as 'cameraAdress' ,
+			`camera_sn`  	     as 'cameraSn' ,
+			`camera_safe_code`   as 'cameraSafeCode' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM area_view
+		<include refid="searchCondition"></include>
+		LIMIT #{startRow},#{pageSize}
+	</select>
+	<select id="getListByProId" resultType="com.dec.pro.entity.areaView.AreaView">
+		SELECT  
+			`id`        as 'id' ,
+			`pro_id`  	  as 'proId' ,
+			`zone`    as 'zone' ,
+			`camera_id`  	  as 'cameraId' ,
+			`camera_secret`  	  as 'cameraSecret' ,
+			`camera_adress`  	  as 'cameraAdress' ,
+			`camera_sn`  	     as 'cameraSn' ,
+			`camera_safe_code`   as 'cameraSafeCode' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+ 			 FROM area_view 
+ 			 WHERE pro_id = #{proId}
+	</select>
+	<select id="getListByUserName" resultType="com.dec.pro.entity.areaView.AreaView">
+		SELECT  
+			`id`        as 'id' ,
+			`pro_id`  	  as 'proId' ,
+			`zone`    as 'zone' ,
+			`camera_id`  	  as 'cameraId' ,
+			`camera_secret`  	  as 'cameraSecret' ,
+			`camera_adress`  	  as 'cameraAdress' ,
+			`camera_sn`  	     as 'cameraSn' ,
+			`camera_safe_code`   as 'cameraSafeCode' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+ 			 FROM area_view WHERE area_view.pro_id in(
+ 			SELECT project.id from project where project.cus_id in(
+   			SELECT c.id from customer c where c.phone = #{userName}))
+	</select>
+	<select id="getCount" parameterType="java.util.Map" resultType="int">
+		SELECT COUNT(*) FROM  area_view
+		<include refid="searchCondition"></include>
+	</select>
+	<sql id="searchCondition">
+		<where>
+				1=1
+			<if test="proId != null">
+				AND pro_id=#{proId}
+			</if>
+		</where>
+	</sql>
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM area_view WHERE `id`=#{id}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.areaView.AreaView">
+		UPDATE area_view 
+		<set>
+			<if test="zone != null">
+				 zone=#{zone},
+			</if>
+			<if test="proId != null">
+				 pro_id=#{proId},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+</mapper>

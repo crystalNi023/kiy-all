@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div>
+	<h1>注意事项</h1>
+	<hr />
+	<h2>制卡器端口查询</h2>
+	<p>1.保证电脑与制卡器已连接</p>
+	<p>2.桌面->[计算机]->右键->[设备管理器]->[端口]，查找到对应的端口号，如下图所示。</p>
+	<img src="writeCard.png" />
+	<p><a href="begin.html">上一页</a>  <a href="writeCard.html">下一页</a></p>
+</div>
+</body>
+</html>

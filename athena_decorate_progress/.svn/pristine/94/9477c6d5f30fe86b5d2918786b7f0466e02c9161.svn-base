@@ -1,0 +1,81 @@
+package com.dec.pro.util;
+
+import com.dec.pro.service.push.AndroidNotification;
+import com.dec.pro.service.push.PushClient;
+import com.dec.pro.service.push.android.AndroidUnicast;
+import com.dec.pro.service.push.ios.IOSUnicast;
+
+public class PushUtil {
+	private static final String ios_appkey = "5c667bd1f1f5567537001632";
+	private static final String ios_appMasterSecret = "gpdfjxpafabcvoy3oz3nmrpatzbate5o";
+	private static final String android_appkey = "5c667786f1f556f8600007c3";
+	private static final String android_appMasterSecret = "umfon51r1x81skkboo6prlhv6otymazc";
+	//private String timestamp = null;
+	private static PushClient client = new PushClient();
+
+	public static void sendAndroidUnicast(String tokens,String alert ) throws Exception {
+		AndroidUnicast unicast = new AndroidUnicast(android_appkey,android_appMasterSecret);
+		// TODO Set your device token
+		unicast.setDeviceToken(tokens);
+		unicast.setTicker( "Android unicast ticker");
+		unicast.setTitle(  "Athena DMS");
+		unicast.setText(alert);
+		unicast.goAppAfterOpen();
+		unicast.setDisplayType(AndroidNotification.DisplayType.NOTIFICATION);
+		// TODO Set 'production_mode' to 'false' if it's a test device. 
+		// For how to register a test device, please see the developer doc.
+		unicast.setProductionMode();
+		// Set customized fields
+		unicast.setExtraField("test", "helloworld");
+		client.send(unicast);
+	}
+	
+	
+	public static void sendAndroidLisatcast() throws Exception {
+		AndroidUnicast unicast = new AndroidUnicast(android_appkey,android_appMasterSecret);
+		// TODO Set your device token
+		unicast.setDeviceToken( "your device token");
+		unicast.setTicker( "Android unicast ticker");
+		unicast.setTitle("中文的title");
+		unicast.setText("Android unicast text");
+		unicast.goAppAfterOpen();
+		unicast.setDisplayType(AndroidNotification.DisplayType.NOTIFICATION);
+		// TODO Set 'production_mode' to 'false' if it's a test device. 
+		// For how to register a test device, please see the developer doc.
+		unicast.setProductionMode();
+		// Set customized fields
+		unicast.setExtraField("test", "helloworld");
+		client.send(unicast);
+	}
+
+	public static void sendIOSLisatcast(String tokens,String alert) throws Exception {
+		IOSUnicast unicast = new IOSUnicast(ios_appkey,ios_appMasterSecret);
+		// TODO Set your device token
+		unicast.setDeviceToken(tokens);
+		unicast.setAlert(alert);
+		unicast.setBadge( 0);
+		unicast.setSound( "default");
+		// TODO set 'production_mode' to 'true' if your app is under production mode
+		//unicast.setTestMode();
+		unicast.setProductionMode();
+		// Set customized fields
+		unicast.setCustomizedField("test", "helloworld");
+		client.send(unicast);
+	}
+	
+	public static void sendIOSUnicast(String tokens,String alert) throws Exception {
+		IOSUnicast unicast = new IOSUnicast(ios_appkey,ios_appMasterSecret);
+		// TODO Set your device token
+		unicast.setDeviceToken(tokens);
+	//	 alert="{\"title\":\"title\",\"subtitle\":\"subtitle\",\"body\":\"body\"}";
+		unicast.setAlert(alert);
+		unicast.setBadge( 0);
+		unicast.setSound( "default");
+		// TODO set 'production_mode' to 'true' if your app is under production mode
+		//unicast.setTestMode();
+		unicast.setProductionMode();
+		// Set customized fields
+		unicast.setCustomizedField("test", "helloworld");
+		client.send(unicast);
+	}
+}

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.sms.TemplateMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.sms.Template">
+			INSERT INTO sms_template
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="templateId != null">
+				`template_id`=#{templateId},
+			</if>
+			<if test="type != null">
+				`type`=#{type},
+			</if>
+			<if test="templateName != null">
+				`template_name`=#{templateName},
+			</if>
+			<if test="autograph != null">
+				`autograph`=#{autograph},
+			</if>
+			<if test="content != null">
+				`content`=#{content},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.sms.Template">
+		SELECT  
+			id      		  as 'id' ,
+			template_id  	  as 'templateId' ,
+			type			  as 'type' ,
+			template_name     as 'templateName' ,
+			autograph     	  as 'autograph' ,
+			content     	  as 'content' ,
+			remark   		  as 'remark' ,
+			created   		  as 'created' ,
+			updated   		  as 'updated' 
+		FROM sms_template
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList"  parameterType="java.util.Map" resultType="com.dec.pro.entity.sms.Template">
+		SELECT  
+			id      		  as 'id' ,
+			template_id  	  as 'templateId' ,
+			type			  as 'type' ,
+			template_name     as 'templateName' ,
+			autograph     	  as 'autograph' ,
+			content     	  as 'content' ,
+			remark   		  as 'remark' ,
+			created   		  as 'created' ,
+			updated   		  as 'updated' 
+		FROM sms_template
+	</select>
+	
+</mapper>

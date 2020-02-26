@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.test.TestMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.test.TestEntity">
+		INSERT INTO test
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="name != null">
+				`name`=#{name},
+			</if>
+			<if test="type != null">
+				`type`=#{type},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.test.TestEntity">
+		SELECT  `id` AS 'id',
+				`name` AS 'name',
+				`type` AS 'type',
+				`created` AS 'created'
+		FROM test
+		WHERE `id`=#{id}
+	</select>
+</mapper>

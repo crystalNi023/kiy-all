@@ -1,0 +1,201 @@
+package com.dec.pro.service.company;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.dec.pro.entity.company.Position;
+import com.dec.pro.entity.company.PunchRecord;
+import com.dec.pro.mapper.company.PunchRecordMapper;
+import com.dec.pro.service.BaseService;
+import com.dec.pro.service.user.UserService;
+import com.dec.pro.util.Check;
+import com.dec.pro.util.GetField;
+import com.dec.pro.util.Page;
+
+@Service
+public class PunchRecordService extends BaseService<PunchRecord>{
+	@Autowired
+	private PositionService pService;
+	@Autowired
+	private UserService userService;
+	@Autowired
+	private PunchRecordMapper punchRecordMapper;
+	/**
+	 * 添加打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	@Transactional
+	public PunchRecord addPunchRecord(PunchRecord punchRecord,Position position) throws Exception{
+		String constructorId = punchRecord.getConstructorId();
+		Date date = punchRecord.getWorkingTime();
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		PunchRecord qPunchRecord = getOnePunchRecord(constructorId,date);//查询是否有打卡记录，有则修改，无则新增；
+		if(qPunchRecord == null){
+			int count1 = this.add(punchRecord);
+			position.setConstructorId(constructorId);//位置与员工关联
+			int count2 = pService.add(position);
+			if(count1!=1 || count2!=1) throw new RuntimeException("打卡信息添加失败，稍后重试！");
+		}else{
+			punchRecord.setId(qPunchRecord.getId());
+			int count1 = this.update(punchRecord);
+			position.setConstructorId(qPunchRecord.getId());//位置与员工关联
+			int count2 = pService.add(position);
+			if(count1!=1 || count2!=1) throw new RuntimeException("打卡信息添加失败，稍后重试！");
+		}
+		return punchRecord;
+	}
+	/**
+	 * 删除打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public int deletePunchRecord(String id) throws Exception{
+		int count = this.delete(id);
+		if(count > 1) throw new RuntimeException("数据误操作，请联系管理员！");
+		if(count != 1) throw new RuntimeException("打卡信息移除失败，稍后重试！");
+		return count;
+	}
+	/**
+	 * 修改打卡信息（下班打卡）
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	@Transactional
+	public int updatePunchRecord(PunchRecord punchRecord,Position position) throws Exception{
+		if(Check.isEmpty(punchRecord.getConstructorId())) throw new RuntimeException("请关联施工员！");
+		int count1 = this.update(punchRecord);
+		position.setConstructorId(punchRecord.getConstructorId());//位置与施工员关联
+		int count2 = pService.add(position);
+		if(count1!=1 || count2!=1) throw new RuntimeException("打卡失败，稍后重试！");
+		return count1;
+	}
+	/**
+	 * 分页查询打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public Page<PunchRecord> getPageListPunchRecord(PunchRecord punchRecord) throws Exception{
+		pages.setPageNo(punchRecord.getPageNo());
+		pages.setPageSize(punchRecord.getPageSize());
+		Page<PunchRecord> resultPage;
+		resultPage = getPage(pages, GetField.getOTM(" 分页查询打卡信息:",punchRecord));//按条件查询
+		return resultPage;
+	}
+	/**
+	 * 获取单个打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public PunchRecord getOnePunchRecord(String constructorId,Date date) throws Exception{
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		if(date==null) throw new RuntimeException("请输入日期！");
+		return punchRecordMapper.getOnePunchRecord(constructorId,date);
+	}
+	//============主管==========
+	/**
+	 * 主管获取员工打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getListStaffPunchRecord(String groId,Date date) throws Exception{
+		if(Check.isEmpty(groId)) throw new RuntimeException("请关联主管！");
+		if(date==null) throw new RuntimeException("请输入日期！");
+		return punchRecordMapper.getListStaffPunchRecord(groId,date);
+	}
+	
+	//已用
+	/**
+	 * 查询单个员工某一时间段打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getPunchRecordPeriodByConstructorId(String constructorId,Date startDate,Date endDate) throws Exception{
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		if(startDate==null) throw new RuntimeException("请输入起始日期！");
+		if(endDate==null) throw new RuntimeException("请输入终止日期！");
+		return punchRecordMapper.getPunchRecordPeriodByConstructorId(constructorId,startDate,endDate);
+	}
+	/**
+	 * 查询某天公司下施工员打卡信息
+	 * @param companyId
+	 * @param date
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getListByCompany(String companyId,String userId,Date date) throws Exception{
+		if(Check.isEmpty(companyId)) throw new RuntimeException("请关联公司！");
+		if (date == null) throw new RuntimeException("请输入查询时间日期！");
+		// type（6项目经理）判断为项目经理时只能查询项目关联施工员
+		if (userService.getOne(userId).getType() == 6) {
+			return punchRecordMapper.getListByCompanyManager(companyId, userId, date);
+		} else {
+			return punchRecordMapper.getListByCompany(companyId, date);
+		}
+	}
+	/**
+	 * 查询某天公司下施工员打卡统计信息
+	 * @param companyId
+	 * @param userId
+	 * @param date
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getListCountByCompany(String companyId,String userId,Date date) throws Exception{
+		if(Check.isEmpty(companyId)) throw new RuntimeException("请关联公司！");
+		if(date==null) throw new RuntimeException("请输入查询时间日期！");
+		List<PunchRecord> list = new ArrayList<PunchRecord>();
+		List<PunchRecord> listByCompany;
+		//type（6项目经理）判断为项目经理时只能查询项目关联施工员
+		if (userService.getOne(userId).getType()==6) {
+			listByCompany = punchRecordMapper.getListByCompanyManager(companyId, userId, date);
+		}else {
+			listByCompany = punchRecordMapper.getListByCompany(companyId,date);
+		}
+		int successCount = 0;
+		for (PunchRecord punchRecord : listByCompany) {
+			successCount = successCount+punchRecord.getStatus();//计算已打卡数量
+		}
+		PunchRecord punchRecord = new PunchRecord();
+		punchRecord.setStatus(1);
+		punchRecord.setTitle("打卡成功");//自定义返回标题
+		punchRecord.setContent((successCount)+"人");//拼接返回数据
+		PunchRecord punchRecord1 = new PunchRecord();
+		punchRecord1.setStatus(0);
+		punchRecord1.setTitle("未打卡");
+		punchRecord1.setContent((listByCompany.size()-successCount)+"人");
+		list.add(punchRecord);
+		list.add(punchRecord1);
+		return list;
+	}
+	/**
+	 * 查询某天公司下施工员打卡信息(根据打卡状态)
+	 * @param companyId
+	 * @param status
+	 * @param date
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getStatusListByCompany(String companyId,int status,String userId,Date date) throws Exception{
+		if(Check.isEmpty(companyId)) throw new RuntimeException("请关联公司！");
+		if(date==null) throw new RuntimeException("请输入查询时间日期！");
+		//type（6项目经理）判断为项目经理时只能查询项目关联施工员
+		if (userService.getOne(userId).getType()==8) {
+			return punchRecordMapper.getStatusListByCompanyManager(companyId, userId, status, date);
+		}else {
+			return punchRecordMapper.getStatusListByCompany(companyId,status,date);
+		}
+	}
+}

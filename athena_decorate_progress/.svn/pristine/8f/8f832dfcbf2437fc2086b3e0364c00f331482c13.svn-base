@@ -1,0 +1,17 @@
+package com.dec.pro.mapper.company;
+
+import java.util.Date;
+import java.util.List;
+
+import org.apache.ibatis.annotations.Param;
+
+import com.dec.pro.entity.company.PunchRecord;
+import com.dec.pro.mapper.BaseMapper;
+
+public interface PunchRecordMapper extends BaseMapper<PunchRecord>{
+	public PunchRecord getOnePunchRecord(@Param("constructorId")String constructorId,@Param("date")Date date );
+	public List<PunchRecord> getListStaffPunchRecord(@Param("groId")String groId,@Param("date")Date date );
+	public List<PunchRecord> getStaffWorkingStatus(@Param("groId")String groId,@Param("date")Date date );
+	public List<PunchRecord> getPunchRecordPeriodByConstructorId(@Param("constructorId")String constructorId,@Param("startDate")Date startDate,@Param("endDate")Date endDate);
+
+}

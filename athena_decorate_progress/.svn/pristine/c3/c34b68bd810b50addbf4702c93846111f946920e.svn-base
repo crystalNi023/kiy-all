@@ -1,0 +1,152 @@
+html,body{
+	height: auto;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+}
+.register_size{
+	width: 40%;
+	min-width: 300px;
+	height: auto;
+	margin:auto;
+	margin-top: 20px;
+	padding: 20px;
+	background-image: linear-gradient(
+		#ffffff, 
+		#ffffff), 
+	linear-gradient(
+		#eff6fe, 
+		#eff6fe);
+	background-blend-mode: normal, 
+		normal;
+	box-shadow: 0px 0px 27px 0px 
+		rgba(173, 173, 174, 0.46);
+	border-radius: 2px;
+	border: solid 1px rgba(68, 82, 213, 0.28);
+
+}
+.register_text{
+	font-size: 24px;
+	display: inline-block;
+}
+.message_code input{
+}
+.message_code button{
+	height: auto;
+	text-overflow: ellipsis;
+	word-wrap: break-word !important;
+  word-break: break-all !important;
+  white-space: normal !important;
+}
+.form_margin{
+	margin-top: 20px;
+}
+.register_sub input{
+	margin-top: 20px;
+	width: 100%;
+	background: #029dd5;
+	color: #FFFFFF;
+	font-size: 24px;
+	margin-bottom: 20px;
+}
+.retrieve_nav{
+	font-size: 26px;
+	width: 100%;
+	margin: auto;
+	text-align: center;
+	margin-top: 70px;
+	white-space: normal;
+	font-weight: 700;
+}
+.ret_size{
+	width: 40%;
+	min-width: 300px;
+	margin: auto;
+	height: auto;
+	margin-top: 20px;
+	padding: 20px;
+	background-image: linear-gradient(
+		#ffffff, 
+		#ffffff), 
+	linear-gradient(
+		#eff6fe, 
+		#eff6fe);
+	background-blend-mode: normal, 
+		normal;
+	box-shadow: 0px 0px 27px 0px 
+		rgba(173, 173, 174, 0.46);
+	border-radius: 2px;
+	border: solid 1px rgba(68, 82, 213, 0.28);
+
+}
+.step{
+	font-size: 14px;
+	color: #ff7800;
+}
+.step_bg{
+	height: 10px;
+	background: rgb(153,153,153);
+}
+.step_yuan{
+	  width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ff7800;
+    margin-top: -5px;
+    margin-left: -2px;
+    color: #FFFFFF;text-align: center;
+}
+.step_line{
+	  height: 10px;
+    background: #ff7800;
+}
+.step_padding{
+	padding: 0;
+}
+.ret_success{
+	text-align: center;
+	color: #69bfd3;
+}
+.ret_success i{
+	font-size: 200px;
+}
+.ret_mar{
+	margin-top: 20px;
+}
+
+
+/*-----------------------*/
+.thr_box{
+	font-size: 16px;
+}
+.thr_box i{
+	font-size: 50px;
+	color: #0088CC;
+}
+.complete_btn{
+	width:50%;font-size: 24px;
+}
+.upload_img_box{
+	width: 100%; height: 94%; border: 1px solid #ccc;
+}
+/*上传图片样式*/
+.preview_icon{
+	position: absolute;
+  font-size: 70px;
+  left: 45%;
+  top: 40%;
+  color: #ccc;
+}
+#file_prev{
+	width: 100%;height: 100%;opacity: 0;
+}
+#img_preview{
+	position: absolute;
+}
+.img_text{
+	position: absolute;
+    left: 43%;
+    top: 60%;
+    color: #ccc;
+    font-size: 20px;
+}

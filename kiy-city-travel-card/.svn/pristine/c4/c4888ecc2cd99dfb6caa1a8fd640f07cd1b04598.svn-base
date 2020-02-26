@@ -1,0 +1,74 @@
+package com.kiy.common;
+
+import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class DataCache{
+	
+	private ConcurrentHashMap<Long, User> users;
+	
+	
+	
+	private  User user;
+	
+	private DataCache() {
+		users = new ConcurrentHashMap<Long, User>();
+	}
+	
+	private static DataCache dataCache;
+	
+	public static DataCache getInstance() {
+		if(dataCache ==null) {
+			dataCache = new DataCache();
+		}
+		return dataCache;
+	}
+	
+	/**
+	 * 设置登录用户
+	 * @param u
+	 */
+	public void setUser(User u) {
+		user = u;
+	}
+	
+	/**
+	 * 获取登录用户
+	 * @return
+	 */
+	public User getUser() {
+		return user;
+	}
+	
+	/**
+	 * 获取用户
+	 * @param id
+	 * @return
+	 */
+	public User getUser(long id) {
+		return users.get(id);
+	}
+	
+	/**
+	 * 添加用户
+	 * @param user
+	 */
+	public void addUser(User user) {
+		if(getUser(user.getId())!=null) {
+			return;
+		}
+		users.put(user.getId(), user);
+	}
+	
+	/**
+	 * 获取所有用户
+	 * @return
+	 */
+	public HashSet<User> getUsers() {
+		return new HashSet<User>(users.values());
+	}
+	
+	public void removeAll(){
+		users.clear();
+	}
+}

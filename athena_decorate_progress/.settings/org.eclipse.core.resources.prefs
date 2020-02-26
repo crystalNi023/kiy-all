@@ -1,0 +1,16 @@
+eclipse.preferences.version=1
+encoding//src/main/java=UTF-8
+encoding//src/main/resources=UTF-8
+encoding//src/main/resources/properties/database.properties=UTF-8
+encoding//src/main/resources/properties/log4j.properties=UTF-8
+encoding//src/main/webapp/index.jsp=UTF-8
+encoding//src/main/webapp/pages/customer/athena_sponsor_project.jsp=UTF-8
+encoding//src/main/webapp/pages/error.jsp=UTF-8
+encoding//src/main/webapp/pages/index.jsp=UTF-8
+encoding//src/main/webapp/pages/public/end.html=UTF-8
+encoding//src/main/webapp/pages/public/header.html=UTF-8
+encoding//src/main/webapp/pages/test/test.jsp=UTF-8
+encoding//src/main/webapp/pages/unauthor.jsp=UTF-8
+encoding//src/main/webapp/public/css/team/staff.css=UTF-8
+encoding//src/test/java=UTF-8
+encoding/<project>=UTF-8

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.sms.SMSMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.sms.SMS">
+		INSERT INTO sms_content
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="cId != null">
+				`c_id`=#{cId},
+			</if>
+			<if test="templateId != null">
+				`template_id`=#{templateId},
+			</if>
+			<if test="status != null">
+				`status`=#{status},
+			</if>
+			<if test="content != null">
+				`content`=#{content},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+			<if test="msg != null">
+				`msg`=#{msg},
+			</if>
+			<if test="smsId != null">
+				`sms_id`=#{smsId},
+			</if>
+		</set>
+	</insert>
+	<insert id="addClient" parameterType="com.dec.pro.entity.sms.SMS">
+		INSERT INTO sms_client
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="name != null">
+				`name`=#{name},
+			</if>
+			<if test="phone != null">
+				`phone`=#{phone},
+			</if>
+			<if test="idCard != null">
+				`id_card`=#{idCard},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	
+	<insert id="addBatch" parameterType="java.util.List">
+		INSERT INTO sms_content
+			(`id`,`c_id`,`status`,`content`,`remark`,`msg`,`sms_id`)
+		VALUES
+			<foreach collection="list" item="sms" index="index" separator=",">
+			(#{sms.id},#{sms.cId},#{sms.status},#{sms.content},#{sms.remark},#{sms.msg},#{sms.smsId})
+			</foreach>	
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.sms.SMS">
+		SELECT  
+			`id`        as 'id' ,
+			`name`  	  as 'name' ,
+			`phone`     as 'phone' ,
+			`id_card`   as 'idCard' ,
+			`remark`    as 'remark' ,
+			`created`  as 'created' ,
+			`updated`   as 'updated' ,
+			`repay_date` as 'repayDate' ,
+			`stage`      as 'stage' ,
+			`used`		   as 'used',
+			`explain`    as 'explain',
+			`is_contect` as 'isContect'
+		FROM sms_client
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList"  parameterType="java.util.Map" resultType="com.dec.pro.entity.sms.SMS">
+		SELECT  
+			`id`        as 'id' ,
+			`name`  	   as 'name' ,
+			`phone`      as 'phone' ,
+			`id_card`    as 'idCard' ,
+			`remark`     as 'remark' ,
+			`created`    as 'created' ,
+			`updated`    as 'updated' ,
+			`repay_date` as 'repayDate' ,
+			`stage`      as 'stage' ,
+			`used`	   as 'used',
+			`explain`    as 'explain',
+			`is_contect` as 'isContect'
+		FROM sms_client
+		<include refid="searchCondition"></include>
+	</select>
+	<select id="getCount" parameterType="java.util.Map" resultType="int">
+		SELECT COUNT(*) FROM  sms_client
+		<include refid="searchCondition"></include>
+	</select>
+	<sql id="searchCondition">
+		<where>
+				1=1
+			<if test="name != null">
+				AND `name` LIKE '%${name}%'
+			</if>
+			<if test="phone != null">
+				AND `phone` LIKE '%${phone}'
+			</if>
+			<if test="repayDate != null">
+				AND `repay_date`=#{repayDate}
+			</if>
+			<if test="isContect != 0">
+				AND `is_contect`=#{isContect}
+			</if>
+		</where>
+	</sql>
+	<update id="update" parameterType="com.dec.pro.entity.sms.SMS">
+		UPDATE sms_client
+		<set>
+			<if test="explain != null">
+				`explain`=#{explain},
+			</if>
+			<if test="isContect != null">
+				`is_contect`=#{isContect},
+			</if>
+		</set>
+		WHERE `phone`=#{phone}
+	</update>
+</mapper>

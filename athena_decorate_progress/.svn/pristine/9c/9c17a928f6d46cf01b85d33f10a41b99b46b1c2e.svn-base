@@ -1,0 +1,56 @@
+.file_box{
+	width: 100%;
+    min-height: 200px;
+    height: auto;
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    padding-bottom: 30px;
+}
+.row div{
+	height:150px;
+}
+.file_box img {
+    width: 100%;
+    height: 100%;
+}
+.feed_con{
+	width: 50%;margin: 100px auto;
+}
+.upload_icon {
+	text-align: center;
+    height: 100%;
+    width: 100%;
+    line-height: 130px;
+    padding-right: 30px;
+    position: absolute;
+    font-size: 50px !important;
+    color: #d6d6d6;
+}
+.selector_file {
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+}
+#img_dialog div {
+    height: 150px;
+}
+.btn_remove {
+    width: 100%;
+    display: inline-block;
+    text-align: center;
+}
+.feed_img_box{
+	width:100%;height:100%;border:1px solid #ccc;border-radius:5px;
+	margin:2px;
+}
+.feed_margin{
+	margin-top:30px;
+}
+.back_upload_text{
+	text-align: center;
+    width: 100%;
+    top: 65%;
+    padding-right: 30px;
+    position: absolute;
+    color: #807d7d;
+    }

@@ -1,0 +1,155 @@
+package com.dec.pro.service.company;
+
+import java.util.Date;
+import java.util.List;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.dec.pro.entity.company.Position;
+import com.dec.pro.entity.company.PunchRecord;
+import com.dec.pro.mapper.company.PunchRecordMapper;
+import com.dec.pro.service.BaseService;
+import com.dec.pro.util.Check;
+import com.dec.pro.util.GetField;
+import com.dec.pro.util.Page;
+
+@Service
+public class PunchRecordService extends BaseService<PunchRecord>{
+	private static Logger logger=Logger.getLogger(PunchRecordService.class);
+	@Autowired
+	private PositionService pService;
+	@Autowired
+	private PunchRecordMapper punchRecordMapper;
+	/**
+	 * 添加打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	@Transactional
+	public PunchRecord addPunchRecord(PunchRecord punchRecord,Position position) throws Exception{
+		String constructorId = punchRecord.getConstructorId();
+		Date date = punchRecord.getWorkingTime();
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		PunchRecord qPunchRecord = getOnePunchRecord(constructorId,date);//查询是否已有打卡记录
+		
+		logger.error("根据constructorId："+constructorId);
+		logger.error("根据日期date："+date);
+		logger.error("根据日期查询结果："+qPunchRecord);
+		if(qPunchRecord != null){
+			throw new RuntimeException("已打卡，请勿重复打卡！");
+		}
+		int count1 = this.add(punchRecord);
+		position.setConstructorId(constructorId);//位置与员工关联
+		int count2 = pService.add(position);
+		if(count1!=1 || count2!=1) throw new RuntimeException("打卡信息添加失败，稍后重试！");
+		return punchRecord;
+	}
+	/**
+	 * 删除打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public int deletePunchRecord(String id) throws Exception{
+		int count = this.delete(id);
+		if(count > 1) throw new RuntimeException("数据误操作，请联系管理员！");
+		if(count != 1) throw new RuntimeException("打卡信息移除失败，稍后重试！");
+		return count;
+	}
+	/**
+	 * 修改打卡信息（下班打卡）
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	@Transactional
+	public int updatePunchRecord(PunchRecord punchRecord,Position position) throws Exception{
+		if(Check.isEmpty(punchRecord.getConstructorId())) throw new RuntimeException("请关联施工员！");
+		int count1 = this.update(punchRecord);
+		position.setConstructorId(punchRecord.getConstructorId());//位置与施工员关联
+		int count2 = pService.add(position);
+		if(count1!=1 || count2!=1) throw new RuntimeException("打卡失败，稍后重试！");
+		return count1;
+	}
+	/**
+	 * 分页查询打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public Page<PunchRecord> getPageListPunchRecord(PunchRecord punchRecord) throws Exception{
+		pages.setPageNo(punchRecord.getPageNo());
+		pages.setPageSize(punchRecord.getPageSize());
+		Page<PunchRecord> resultPage;
+		resultPage = getPage(pages, GetField.getOTM(" 分页查询打卡信息:",punchRecord));//按条件查询
+		return resultPage;
+	}
+	/**
+	 * 获取单个打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public PunchRecord getOnePunchRecord(String constructorId,Date date) throws Exception{
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		if(date==null) throw new RuntimeException("请输入日期！");
+		return punchRecordMapper.getOnePunchRecord(constructorId,date);
+	}
+	//============主管==========
+	/**
+	 * 主管获取员工打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getListStaffPunchRecord(String groId,Date date) throws Exception{
+		if(Check.isEmpty(groId)) throw new RuntimeException("请关联主管！");
+		if(date==null) throw new RuntimeException("请输入日期！");
+		return punchRecordMapper.getListStaffPunchRecord(groId,date);
+	}
+	/**
+	 * 主管获取员工工作状态（含打卡状态）
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getStaffWorkingStatus(String groId,Date date) throws Exception{
+		if(Check.isEmpty(groId)) throw new RuntimeException("请关联主管！");
+		if(date==null) throw new RuntimeException("请输入日期！");
+		int countGrop=0;//组总数
+		int countPunch=0;//已打卡数量
+		int index=0;//记录未打卡统计位置
+		 List<PunchRecord> list = punchRecordMapper.getStaffWorkingStatus(groId,date);
+		if(list!=null && list.size()>0){
+			for (int i = 0; i < list.size(); i++) {
+				PunchRecord p = list.get(i);
+				if(p != null && p.getWorkTasks().equals("组总人数")){
+					countGrop=p.getCount();
+					index=i;
+				}
+				if(p != null && p.getWorkTasks().equals("打卡成功")){
+					countPunch=p.getCount();
+				}
+			}
+		}
+		list.get(index).setCount(countGrop-countPunch);//组内总人数-打卡人数=未打卡人数
+		list.get(index).setWorkTasks("未打卡");//
+		return list;
+	}
+	/**
+	 * 查询单个员工某一时间段打卡信息
+	 * @param punchRecord
+	 * @return
+	 * @throws Exception
+	 */
+	public List<PunchRecord> getPunchRecordPeriodByConstructorId(String constructorId,Date startDate,Date endDate) throws Exception{
+		if(Check.isEmpty(constructorId)) throw new RuntimeException("请关联员工！");
+		if(startDate==null) throw new RuntimeException("请输入起始日期！");
+		if(endDate==null) throw new RuntimeException("请输入终止日期！");
+		return punchRecordMapper.getPunchRecordPeriodByConstructorId(constructorId,startDate,endDate);
+	}
+}

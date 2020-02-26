@@ -1,0 +1,425 @@
+package com.kiy.data;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.kiy.common.Card;
+import com.kiy.common.Types.Power;
+import com.kiy.common.User;
+import com.kiy.common.Util;
+import com.kiy.driver.Log;
+
+/**
+ * 数据库操作类
+ * @author HLX Tel:18996470535
+ * @date 2018年4月2日 Copyright:Copyright(c) 2018
+ */
+public class DataOperation {
+	
+	private static final String LOGIN = "SELECT `id`,`username`,`power`,`realname`,`begin_number`,`end_number`,`enable` FROM `users` WHERE `username`=?username AND `password`=?password";
+	private static final String SELECT_USER = "SELECT * FROM `users`";
+	
+	private static final String QUERY_WRITE_CARD_RECORD = "SELECT * FROM `write_card_record` WHERE (?user IS NULL OR `user`=?user) AND `created`>=?begin AND `created`<=?end ORDER BY `created`";
+	private static final String QUERY_READ_CARD_RECORD = "SELECT * FROM `read_card_record` WHERE (?user IS NULL OR `user`=?user) AND `created`>=?begin AND `created`<=?end ORDER BY `created`";
+	private static final String QUERY_GET_CARD_RECORD = "SELECT * FROM `get_card_record` WHERE (?user IS NULL OR `user`=?user) AND `created`>=?begin AND `created`<=?end ORDER BY `created`";
+	
+	private static final String CREATE_USER = "INSERT INTO `users`(`username`,`password`,`power`,`realname`,`phone`,`begin_number`,`end_number`,`remark`,`enable`) VALUES(?username,?password,?power,?realname,?phone,?begin_number,?end_number,?remark,?enable)";
+	private static final String CREATE_CARD = "INSERT INTO `cards`(`user`,`number`,`type`,`remark`) VALUES(?user,?number,?type,?remark)";
+	private static final String CREATE_WRITE_RECORD = "INSERT INTO `write_card_record`(`user`,`number`,`type`,`remark`) VALUES(?user,?number,?type,?remark)";
+	private static final String CREATE_READ_RECORD = "INSERT INTO `read_card_record`(`user`,`number`,`type`,`remark`) VALUES(?user,?number,?type,?remark)";
+	private static final String CREATE_GET_CARD_RECORD = "INSERT INTO `get_card_record`(`give_user`,`get_user`,`begin`,`end`,`count`,`remark`) VALUES(?give_user,?get_user,?begin,?end,?count,?remark)";
+	
+	private static final String UPDATE_USER = "UPDATE `users` SET `username`=?username ,`password`=?password,`power`=?power,`realname`=?realname,`phone`=?phone,`begin_number`=?begin_number,`end_number`=?end_number,`remark`=?remark,`enable`=?enable WHERE `id`=?id";
+	private static final String UPDATE_USER_ENABLE = "UPDATE `users` SET `enable`=?enable WHERE `id`=?id";
+	private static final String UPDATE_USER_PASSOWRD= "UPDATE `users` SET `password`=?password WHERE `id`=?id";
+	
+	
+	/**
+	 * 登录 
+	 * @param username 用户名
+	 * @param password	密码(MD5加密)
+	 * @return 如果为空，则登录失败
+	 */
+	public static User login(String username,String  password) {
+		if(Util.isEmpty(username)||Util.isEmpty(password))
+			return null;
+		Connection connection = Data.getConnection();
+		if (connection == null)
+			return null;
+		NSQL sql = NSQL.get(LOGIN);
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "username", username);
+			sql.setParameter(ps, "password", password);
+			rs = ps.executeQuery();
+			if(rs.next()) {
+				User user = new User();
+				user.setId((rs.getLong("id")));
+				user.setUsername(rs.getString("username"));
+				user.setPower(Power.valueOf(rs.getInt("power")));
+				user.setRealname(rs.getString("realname"));
+				user.setBeginNumber(rs.getLong("begin_number"));
+				user.setEndNumber(rs.getLong("end_number"));
+				user.setEnable(rs.getBoolean("enable"));
+				if(user.isEnable()) {
+					Log.debug("用户被禁用");
+					return null;
+				}
+				return user;
+			}
+		} catch (SQLException e) {
+			Log.error(e);
+			return null;
+		} finally {
+			Data.closeResultSet(rs);
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+		return null;
+	}
+	
+	/**
+	 * 创建卡
+	 * @param card
+	 * @return true 成功
+	 */
+	public static boolean createCard(Card card) {
+		if(card==null)
+			return false;
+		Connection connection = Data.getConnection();
+		if (connection == null)
+			return false;
+		NSQL sql = NSQL.get(CREATE_CARD);
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "user", card.getUserId());
+			sql.setParameter(ps, "number", card.getNumber());
+			sql.setParameter(ps, "type", card.getKind().getValue());
+			sql.setParameter(ps, "remark", card.getRemark());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	/**
+	 * 创建制卡记录
+	 * @param card
+	 * @return true 成功
+	 */
+	public static boolean createWriteCard(Card card) {
+		if(card==null)
+			return false;
+		Connection connection = Data.getConnection();
+		if (connection == null)
+			return false;
+		NSQL sql = NSQL.get(CREATE_WRITE_RECORD);
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "user", card.getUserId());
+			sql.setParameter(ps, "number", card.getNumber());
+			sql.setParameter(ps, "type", card.getKind().getValue());
+			sql.setParameter(ps, "remark", card.getRemark());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	/**
+	 * 创建读卡记录
+	 * @param card
+	 * @return true 成功
+	 */
+	public static boolean createReadCard(Card card) {
+		if(card==null)
+			return false;
+		Connection connection = Data.getConnection();
+		if (connection == null)
+			return false;
+		NSQL sql = NSQL.get(CREATE_READ_RECORD);
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "user", card.getUserId());
+			sql.setParameter(ps, "number", card.getNumber());
+			sql.setParameter(ps, "type", card.getKind().getValue());
+			sql.setParameter(ps, "remark", card.getRemark());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+
+	/**
+	 * 创建领卡记录
+	 * @param userId 用户ID
+	 * @param begin 开始卡号
+	 * @param end 结束卡号
+	 * @param remark 备注
+	 * @return
+	 */
+	public static boolean createGetCardRecord(long userId,long begin,long end,String remark) {
+		if(userId ==0)
+			return false;
+		if(begin ==0)
+			return false;
+		if(end ==0)
+			return false;
+		if(begin>end)
+			return false;
+		
+		Connection connection = Data.getConnection();
+		if (connection == null)
+			return false;
+		NSQL sql = NSQL.get(CREATE_GET_CARD_RECORD);
+		PreparedStatement ps = null;
+		
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "give_user", userId);
+			sql.setParameter(ps, "get_user", userId);
+			sql.setParameter(ps, "begin", begin);
+			sql.setParameter(ps, "end", end);
+			sql.setParameter(ps, "count", end-begin);
+			sql.setParameter(ps, "remark", remark);
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	/**
+	 * 获取所有用户
+	 * @return
+	 */
+	public static List<User> selectUser(){
+		NSQL sql = NSQL.get(SELECT_USER);
+		
+		List<User> items = new ArrayList<User>();
+		Connection connection = Data.getConnection();
+		if(connection==null) {
+			return null;
+		}
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+		
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			rs = ps.executeQuery();
+			while(rs.next()) {
+				User user = new User();
+				user.setId(rs.getLong("id"));
+				user.setUsername(rs.getString("username"));
+				user.setPassword(rs.getString("password"));
+				user.setPower(Power.valueOf(rs.getInt("power")));
+				user.setRealname(rs.getString("realname"));
+				user.setPhone(rs.getString("phone"));
+				user.setBeginNumber(rs.getLong("begin_number"));
+				user.setEndNumber(rs.getLong("end_number"));
+				user.setRemark(rs.getString("remark"));
+				user.setEnable(rs.getBoolean("enable"));
+				user.setCreated(rs.getDate("created"));
+				user.setUpdated(rs.getDate("updated"));
+				items.add(user);
+			}
+			return items;
+		} catch (SQLException e) {
+			Log.error(e);
+			return null;
+		}finally {
+			Data.closeResultSet(rs);
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+		
+	}
+	
+	/**
+	 * 创建用户
+	 * @param user
+	 * @return
+	 */
+	public static boolean CreateUser(User user){
+		NSQL sql = NSQL.get(CREATE_USER);
+		Connection connection = Data.getConnection();
+		if(connection==null) {
+			return false;
+		}
+		PreparedStatement ps = null;
+		
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "username", user.getUsername());
+			sql.setParameter(ps, "password", user.getPassword());
+			sql.setParameter(ps, "power", user.getPower().getValue());
+			sql.setParameter(ps, "realname", user.getRealname());
+			sql.setParameter(ps, "phone", user.getPhone());
+			sql.setParameter(ps, "begin_number", user.getBeginNumber());
+			sql.setParameter(ps, "end_number", user.getEndNumber());
+			sql.setParameter(ps, "remark", user.getRemark());
+			sql.setParameter(ps, "enable", user.isEnable());
+			
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	/**
+	 * 更新用户
+	 * @param user
+	 * @return
+	 */
+	public static boolean UpdateUser(User user){
+		NSQL sql = NSQL.get(UPDATE_USER);
+		
+		Connection connection = Data.getConnection();
+		if(connection==null) {
+			return false;
+		}
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "username", user.getUsername());
+			sql.setParameter(ps, "password", user.getPassword());
+			sql.setParameter(ps, "power", user.getPower().getValue());
+			sql.setParameter(ps, "realname", user.getRealname());
+			sql.setParameter(ps, "phone", user.getPhone());
+			sql.setParameter(ps, "begin_number", user.getBeginNumber());
+			sql.setParameter(ps, "end_number", user.getEndNumber());
+			sql.setParameter(ps, "remark", user.getRemark());
+			sql.setParameter(ps, "enable", user.isEnable());
+			sql.setParameter(ps, "id", user.getId());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+		
+	}
+	
+	/**
+	 * 设置用户enable属性
+	 * @param user
+	 * @return
+	 */
+	public static boolean setEnableForUser(User user){
+		NSQL sql = NSQL.get(UPDATE_USER_ENABLE);
+		
+		Connection connection = Data.getConnection();
+		if(connection==null) {
+			return false;
+		}
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "enable", !user.isEnable());
+			sql.setParameter(ps, "id", user.getId());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	
+	/**
+	 * 设置用户password
+	 * @param user
+	 * @return
+	 */
+	public static boolean setPasswordForUser(User user){
+		NSQL sql = NSQL.get(UPDATE_USER_PASSOWRD);
+		
+		Connection connection = Data.getConnection();
+		if(connection==null) {
+			return false;
+		}
+		PreparedStatement ps = null;
+		try {
+			ps = connection.prepareStatement(sql.getSql());
+			sql.setParameter(ps, "password", user.getPassword());
+			sql.setParameter(ps, "id", user.getId());
+			return ps.executeUpdate()==1;
+		} catch (SQLException e) {
+			Log.error(e);
+			return false;
+		}finally {
+			Data.closePreparedStatement(ps);
+			Data.closeConnection(connection);
+		}
+	}
+	
+	/**
+	 * 查询制卡记录
+	 * @param id
+	 * @param begin
+	 * @param end
+	 * @return
+	 */
+//	public List<ULog> QueryWriteCardRecord(String id, Date begin, Date end) {
+//		NSQL sql = NSQL.get(QUERY_LOG);
+//
+//		List<ULog> items = new ArrayList<ULog>();
+//		Connection connection = dbc.get();
+//		try (PreparedStatement ps = connection.prepareStatement(sql.getSql())) {
+//			if (Tool.isEmpty(id))
+//				sql.setParameter(ps, "user", null);
+//			else
+//				sql.setParameter(ps, "user", id);
+//			sql.setParameter(ps, "begin", begin);
+//			sql.setParameter(ps, "end", end);
+//			ResultSet rs = ps.executeQuery();
+//			while (rs.next()) {
+//				ULog s = new ULog();
+//				s.setId(rs.getString("id"));
+//				s.setUserId(rs.getString("user"));
+//				s.setName(rs.getString("name"));
+//				s.setCommand(rs.getInt("command"));
+//				s.setStatus(rs.getInt("status"));
+//				s.setParameter(rs.getString("parameter"));
+//				s.setRemark(rs.getString("remark"));
+//				s.setCreated(rs.getTimestamp("created"));
+//				items.add(s);
+//			}
+//		} catch (SQLException ex) {
+//			Log.error(ex);
+//		}
+//		return items;
+//	}
+}

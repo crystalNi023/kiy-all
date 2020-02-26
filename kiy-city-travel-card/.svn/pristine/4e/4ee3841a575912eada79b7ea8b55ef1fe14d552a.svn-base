@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<helps>
+	<item title="开始使用" url="begin.html"/>
+	<item title="注意事项" url="attention.html"/>
+	<item title="软件操作">
+		<item title="制卡" url="writeCard.html"/>
+		<item title="读卡" url="readCard.html"/>
+		<item title="制卡记录查询" url="writeCardQuery.html"/>
+		<item title="读卡记录查询" url="readCardQuery.html"/>
+		<item title="领卡记录查询" url="getCardQuery.html"/>
+		<item title="用户管理" url="userManager.html"/>
+	</item>
+</helps>

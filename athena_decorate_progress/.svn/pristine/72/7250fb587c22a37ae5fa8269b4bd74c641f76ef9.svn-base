@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.project.ChangeRecordMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.project.ChangeRecord">
+		INSERT INTO change_record
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="procId != null">
+				`proc_id`=#{procId},
+			</if>
+			<if test="changeContent != null">
+				`change_content`=#{changeContent},
+			</if>
+			<if test="changeTime != null">
+				`change_time`=#{changeTime},
+			</if>
+			<if test="changeReply != null">
+				`change_reply`=#{changeReply},
+			</if>
+			<if test="replyTime != null">
+				`reply_time`=#{replyTime},
+			</if>
+			<if test="replyType != null">
+				`reply_type`=#{replyType},
+			</if>
+			<if test="notice != null">
+				`notice`=#{notice},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.project.ChangeRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`proc_id`  	  as 'procId' ,
+			`change_content`    as 'changeContent' ,
+			`change_time`  	  as 'changeTime' ,
+			`change_reply`  	  as 'changeReply' ,
+			`reply_time`  	  as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`notice`  	  as 'notice' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM change_record
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.project.ChangeRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`proc_id`  	  as 'procId' ,
+			`change_content`    as 'changeContent' ,
+			`change_time`  	  as 'changeTime' ,
+			`change_reply`  	  as 'changeReply' ,
+			`reply_time`  	  as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`notice`  	  as 'notice' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM change_record
+		<include refid="searchCondition"></include>
+		LIMIT #{startRow},#{pageSize}
+	</select>
+	<select id="getListByProcId" parameterType="java.util.Map" resultType="com.dec.pro.entity.project.ChangeRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`proc_id`  	  as 'procId' ,
+			`change_content`    as 'changeContent' ,
+			`change_time`  	  as 'changeTime' ,
+			`change_reply`  	  as 'changeReply' ,
+			`reply_time`  	  as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`notice`  	  as 'notice' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM change_record
+		WHERE proc_id=#{procId}
+		ORDER BY `created`
+	</select>
+	<select id="getCount" parameterType="java.util.Map" resultType="int">
+		SELECT COUNT(*) FROM  change_record
+		<include refid="searchCondition"></include>
+	</select>
+	<sql id="searchCondition">
+		<where>
+				1=1
+			<if test="changeTime != null">
+				AND change_time =#{changeTime}
+			</if>
+		</where>
+	</sql>
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM change_record WHERE `id`=#{id}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.project.ChangeRecord">
+		UPDATE change_record 
+		<set>
+			<if test="changeContent != null">
+				 change_content=#{changeContent},
+			</if>
+			<if test="changeTime != null">
+				 change_time=#{changeTime},
+			</if>
+			<if test="changeReply != null">
+				 change_reply=#{changeReply},
+			</if>
+			<if test="replyTime != null">
+				 reply_time=#{replyTime},
+			</if>
+			<if test="replyType != null">
+				 reply_type=#{replyType},
+			</if>
+			<if test="notice != null">
+				 notice=#{notice},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+	<select id="getNews" resultType="int">
+		SELECT COUNT(*) FROM change_record JOIN 
+		(SELECT * FROM `procedure` p WHERE p.pro_id=#{proId})
+		as t ON t.id=change_record.proc_id AND change_record.notice=1
+	</select>
+</mapper>

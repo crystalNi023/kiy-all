@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.project.ProgressRecordMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.project.ProgressRecord">
+		INSERT INTO progress_record
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="progId != null">
+				`prog_id`=#{progId},
+			</if>
+			<if test="promptMsg != null">
+				`prompt_msg`=#{promptMsg},
+			</if>
+			<if test="promptTime != null">
+				`prompt_time`=#{promptTime},
+			</if>
+			<if test="promptType != null">
+				`prompt_type`=#{promptType},
+			</if>
+			<if test="status != null">
+				`status`=#{status},
+			</if>
+			<if test="timeAssess != null">
+				`time_assess`=#{timeAssess},
+			</if>
+			<if test="assessDate != null">
+				`assess_date`=#{assessDate},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.project.ProgressRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`prog_id`  	  as 'progId' ,
+			`prompt_msg`    as 'promptMsg' ,
+			`prompt_time`  	  as 'promptTime' ,
+			`prompt_type`  	  as 'promptType' ,
+			`reply_content`  	  as 'replyContent' ,
+			`reply_time`    as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`status`   as 'status',
+			`time_assess`  	  as 'timeAssess' ,
+			`assess_date`  	  as 'assessDate' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM progress_record
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.project.ProgressRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`prog_id`  	  as 'progId' ,
+			`prompt_msg`    as 'promptMsg' ,
+			`prompt_time`  	  as 'promptTime' ,
+			`prompt_type`  	  as 'promptType' ,
+			`reply_content`  	  as 'replyContent' ,
+			`reply_time`    as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`status`   as 'status',
+			`time_assess`  	  as 'timeAssess' ,
+			`assess_date`  	  as 'assessDate' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM progress_record
+		WHERE `prog_id` = #{progId}
+	</select>
+	<select id="getOneByProgId" resultType="com.dec.pro.entity.project.ProgressRecord">
+		SELECT  
+			`id`        as 'id' ,
+			`prog_id`  	  as 'progId' ,
+			`prompt_msg`    as 'promptMsg' ,
+			`prompt_time`  	  as 'promptTime' ,
+			`prompt_type`  	  as 'promptType' ,
+			`reply_content`  	  as 'replyContent' ,
+			`reply_time`    as 'replyTime' ,
+			`reply_type`  	  as 'replyType' ,
+			`status`   as 'status',
+			`time_assess`  	  as 'timeAssess' ,
+			`assess_date`  	  as 'assessDate' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM progress_record
+		WHERE `prog_id` = #{progId}
+	</select>
+	
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM progress_record WHERE `id`=#{id}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.project.ProgressRecord">
+		UPDATE progress_record 
+		<set>
+			<if test="replyContent != null">
+				`reply_content`=#{replyContent},
+			</if>
+			<if test="replyTime != null">
+				`reply_time`=#{replyTime},
+			</if>
+			<if test="replyType != null">
+				`reply_type`=#{replyType},
+			</if>
+			<if test="status != null">
+				`status`=#{status},
+			</if>
+			<if test="timeAssess != null">
+				`time_assess`=#{timeAssess},
+			</if>
+			<if test="assessDate != null">
+				`assess_date`=#{assessDate},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+</mapper>

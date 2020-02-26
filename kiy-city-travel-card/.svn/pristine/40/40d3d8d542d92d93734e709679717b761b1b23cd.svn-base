@@ -1,0 +1,279 @@
+
+package com.kiy.view;
+
+import java.util.List;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.VerifyEvent;
+import org.eclipse.swt.events.VerifyListener;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.kiy.common.Card;
+import com.kiy.common.DataCache;
+import com.kiy.common.Types.Kind;
+import com.kiy.common.User;
+import com.kiy.data.Data;
+import com.kiy.data.DataOperation;
+import com.kiy.driver.CardSerialPort;
+import com.kiy.driver.ConfigDriver;
+import com.kiy.driver.Executor;
+import com.kiy.driver.Log;
+import com.kiy.driver.MCard;
+
+
+
+public class FWriteCard extends Dialog{
+	
+	private Shell shell;
+	private Text number;
+	private CCombo port;
+	private CCombo type;
+	private CLabel info;
+	private CLabel infoBig;
+	
+	public static void main(String[] args) {
+		try {
+			com.kiy.common.Config.load();
+			Executor.initialize();
+			Data.initialize();
+			Shell shell = new Shell();
+			FWriteCard window = new FWriteCard(shell);
+			window.open();
+		} catch (Exception e) {
+		}
+	}
+	
+	/**
+	 * Create the dialog.
+	 * 
+	 * @param parent
+	 * @param style
+	 */
+	public FWriteCard(Shell arg0) {
+		super(arg0);
+		shell = arg0;
+	}
+
+
+	/**
+	 * Open the dialog.
+	 * 
+	 * @return the result
+	 * @wbp.parser.entryPoint
+	 */
+	public void open() {
+		
+//		Display.setAppName("制卡工具");
+		Display display = Display.getDefault();
+		createContents();
+
+		shell.setToolTipText("都市一日游制卡工具");
+		
+		shell.open();
+		shell.layout();
+
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	/**
+	 * Create contents of the dialog.
+	 */
+	private void createContents() {
+		shell = new Shell(getParent(), SWT.DIALOG_TRIM | SWT.SYSTEM_MODAL);
+		shell.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		shell.setSize(460, 275);
+		shell.setText("都市一日游制卡工具");
+		
+		CLabel lblNewLabel = new CLabel(shell, SWT.NONE);
+		lblNewLabel.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		lblNewLabel.setBounds(16, 12, 67, 23);
+		lblNewLabel.setText("\u7AEF\u53E3:");
+		
+		port = new CCombo(shell, SWT.BORDER);
+		port.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		port.setEditable(false);
+		port.setBounds(85, 12, 108, 21);
+		List<String> allPort = CardSerialPort.getAllPort();
+		for (String string : allPort) {
+			port.add(string);
+		}
+		port.select(0);
+		
+		CLabel lblNewLabel_1 = new CLabel(shell, SWT.NONE);
+		lblNewLabel_1.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		lblNewLabel_1.setBounds(16, 41, 61, 23);
+		lblNewLabel_1.setText("\u5361\u53F7:");
+		
+		number = new Text(shell, SWT.BORDER);
+		number.setBounds(85, 41, 108, 23);
+		number.setTextLimit(8);
+		number.addSelectionListener(new SelectionAdapterOne());
+		number.addVerifyListener(new VerifyListenerOne());
+		
+		CLabel lblNewLabel_2 = new CLabel(shell, SWT.NONE);
+		lblNewLabel_2.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		lblNewLabel_2.setBounds(220, 41, 61, 23);
+		lblNewLabel_2.setText("\u7C7B\u578B:");
+		
+		type = new CCombo(shell, SWT.BORDER);
+		type.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		type.setEditable(false);
+		type.setBounds(289, 41, 139, 21);
+		type.add("一次卡");
+		type.setData("一次卡",Kind.ONCE);
+		type.add("一日卡");
+		type.setData("一日卡",Kind.ONE_DAY);
+		type.add("两日卡");
+		type.setData("两日卡",Kind.TWO_DAY);
+		type.select(0);
+		type.addSelectionListener(new SelectionAdapterOne());
+		
+		Group groupCount = new Group(shell, SWT.NONE);
+		groupCount.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		groupCount.setBounds(16, 66, 412, 125);
+		
+		infoBig = new CLabel(groupCount, SWT.NONE);
+		infoBig.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		infoBig.setFont(SWTResourceManager.getFont("微软雅黑", 30, SWT.NORMAL));
+		infoBig.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		infoBig.setAlignment(SWT.CENTER);
+		infoBig.setBounds(20, 49, 368, 66);
+		infoBig.setText("");
+		
+		info = new CLabel(shell, SWT.NONE);
+		info.setBackground(SWTResourceManager.getColor(SWT.COLOR_WHITE));
+		info.setBounds(16, 204, 236, 26);
+		
+		Button writeCard = new Button(shell, SWT.NONE);
+		writeCard.setBounds(348, 203, 80, 27);
+		writeCard.setText("\u5236\u5361");
+		writeCard.addSelectionListener(new WriteSelectionAdapter());
+	}
+	
+//	private class ReadSelectionAdapter extends SelectionAdapter{
+//
+//		@Override
+//		public void widgetSelected(SelectionEvent arg0) {
+//			clear();
+//			
+//			Config.ID_CARD_SERIAL_PORT = port.getText();
+//			CardSerialPort cardSerialPort = new CardSerialPort();
+//			cardSerialPort.start();
+//			Card card = new Card();
+//			cardSerialPort.readCard(card);
+//			if(card.getCardNumber()!=null){
+//				number.setText(card.getCardNumber());
+//				if(card.getType()==Card.TIME_TYPE){
+//					isTime();
+//					time.setText(String.valueOf(card.getHour()));
+//					date.setText(Util.dateFormat(card.getDate()));
+//					type.select(1);
+//				}else{
+//					isCount();
+//					count.setSelection(card.getNumber());
+//					type.select(0);
+//				}
+//			}
+//			info.setText(card.getRemark()==null?"":card.getRemark());
+//			cardSerialPort.stop();
+//		}
+//		
+//	}
+	
+	private class WriteSelectionAdapter extends SelectionAdapter{
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			
+//			info.setText("");
+//			infoBig.setText("");
+			
+			ConfigDriver.ID_CARD_SERIAL_PORT = port.getText();
+			CardSerialPort cardSerialPort = new CardSerialPort();
+			cardSerialPort.start();
+			MCard card = new MCard();
+			Card card1 = new Card();
+			
+			card1.setNumber(Long.valueOf(number.getText()==null?"0":number.getText()));
+			card.setCardNumber(number.getText()==null?"":number.getText());
+			Kind kind = (Kind)type.getData(type.getText());
+			
+			if(kind == Kind.ONCE){
+				card1.setKind(Kind.ONCE);
+				card.setType(MCard.NUMBER_TYPE);
+				card.setNumber(1);
+			}else if(kind == Kind.ONE_DAY) {
+				card1.setKind(Kind.ONE_DAY);
+				card.setType(MCard.TIME_TYPE);
+				card.setHour(24);
+			}else if(kind == Kind.TWO_DAY){
+				card1.setKind(Kind.TWO_DAY);
+				card.setType(MCard.TIME_TYPE);
+				card.setHour(48);
+			}
+			cardSerialPort.writeCard(card);
+		
+			cardSerialPort.stop();
+			
+			infoBig.setText(card.getRemark()==null?"":card.getRemark());
+			info.setText(card.getRemark()==null?"":card.getRemark());
+			
+			if(card.getRemark().equals("制卡成功")){
+				User user = DataCache.getInstance().getUser();
+				
+				card1.setUserId(user.getId());
+				card1.setRemark("创建人:"+user.getRealname());
+				boolean createCard = DataOperation.createCard(card1);
+				if(createCard) {
+					Log.debug("创建卡成功");
+					Long valueOf = Long.valueOf(number.getText()==null?"0":number.getText())+1;
+					number.setText(String.valueOf(valueOf));
+				}
+				else{
+					Log.debug("创建卡失败");
+				}
+					
+				boolean createWriteCard = DataOperation.createWriteCard(card1);
+				if(createWriteCard) 
+				Log.debug("创建制卡记录成功");
+				else
+				Log.debug("创建制卡记录失败");
+			}
+		
+		}
+	}
+	
+	private class SelectionAdapterOne extends SelectionAdapter{
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			info.setText("");
+			infoBig.setText("");
+		}
+		
+	}
+	
+	private class VerifyListenerOne implements VerifyListener{
+
+		@Override
+		public void verifyText(VerifyEvent e) {
+			boolean b = ("0123456789".indexOf(e.text)>=0);
+				e.doit = b;
+		}
+	}
+	
+}

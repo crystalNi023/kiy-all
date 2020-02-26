@@ -1,0 +1,15 @@
+package com.kiy.common;
+
+public class GetCard {
+	/**
+	 * 领卡用户
+	 */
+	private long getUserId;
+	
+	/**
+	 * 发卡用户
+	 */
+	private long giveUserId;
+	
+	
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.project.ProcedureTemplateMapper">
+
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.project.ProcedureTemplate">
+		SELECT  
+			`id`        as 'id' ,
+			`name`    as 'name' ,
+			`type`  	  as 'type' ,
+			`com_id`     as `comId`,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM `procedure_template`
+		<include refid="searchCondition"></include>
+		ORDER BY created
+	</select>
+	<sql id="searchCondition">
+		<where>
+				1=1
+			<if test="comId != null">
+				AND `com_id`=#{comId}
+			</if>
+			<if test="type != 0">
+				AND `type`=#{type}
+			</if>
+		</where>
+	</sql>
+</mapper>

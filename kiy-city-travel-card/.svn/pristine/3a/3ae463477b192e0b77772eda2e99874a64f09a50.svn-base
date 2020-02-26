@@ -1,0 +1,169 @@
+package com.kiy.common;
+
+import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class DataCache{
+	
+	private ConcurrentHashMap<Long, User> users;
+	private ConcurrentHashMap<Long, WriteCard> writeCards;
+	private ConcurrentHashMap<Long, ReadCard> readCards;
+	private ConcurrentHashMap<Long, GetCard> getCards;
+	
+	
+	
+	private User user;
+	
+	private DataCache() {
+		users = new ConcurrentHashMap<Long, User>();
+		writeCards = new ConcurrentHashMap<Long, WriteCard>();
+		readCards = new ConcurrentHashMap<Long, ReadCard>();
+		getCards = new ConcurrentHashMap<Long, GetCard>();
+	}
+	
+	
+	private static DataCache dataCache;
+	
+	public static DataCache getInstance() {
+		if(dataCache ==null) {
+			dataCache = new DataCache();
+		}
+		return dataCache;
+	}
+	
+	/**
+	 * 设置登录用户
+	 * @param u
+	 */
+	public void setUser(User u) {
+		user = u;
+	}
+	
+	/**
+	 * 获取登录用户
+	 * @return
+	 */
+	public User getUser() {
+		return user;
+	}
+	
+	/**
+	 * 获取用户
+	 * @param id
+	 * @return
+	 */
+	public User getUser(long id) {
+		return users.get(id);
+	}
+
+	
+	/**
+	 * 添加用户
+	 * @param user
+	 */
+	public void addUser(User user) {
+		if(getUser(user.getId())!=null) {
+			return;
+		}
+		users.put(user.getId(), user);
+	}
+	
+	/**
+	 * 获取所有用户
+	 * @return
+	 */
+	public HashSet<User> getUsers() {
+		return new HashSet<User>(users.values());
+	}
+	
+	/**
+	 * 获取制卡记录
+	 * @param id
+	 * @return
+	 */
+	public WriteCard getWriteCard(long id) {
+		return writeCards.get(id);
+	}
+	
+	/**
+	 * 添加制卡记录
+	 * @param writeCard
+	 */
+	
+	public void addWriteCard(WriteCard writeCard) {
+		if(getWriteCard(writeCard.getId())!=null) {
+			return;
+		}
+		writeCards.put(writeCard.getId(), writeCard);
+	}
+	
+	/**
+	 * 获取所有制卡记录
+	 * @return
+	 */
+	public HashSet<WriteCard> getWriteCard() {
+		return new HashSet<WriteCard>(writeCards.values());
+	}
+	public void removeAll(){
+		users.clear();
+		writeCards.clear();
+		readCards.clear();
+	}
+	
+	/**
+	 * 获取读卡记录
+	 * @param id
+	 * @return
+	 */
+	public ReadCard getReadCard(long id){
+		return readCards.get(id);
+	}
+
+	/**
+	 * 添加读卡记录
+	 * @param readCard
+	 */
+	public void addReadCard(ReadCard readCard){
+		if (getReadCard(readCard.getId()) != null) {
+			return;
+		}
+		readCards.put(readCard.getId(), readCard);
+	}
+	
+	/**
+	 * 获取所有读卡记录
+	 * @return
+	 */
+	public HashSet<ReadCard> getReadCard() {
+		return new HashSet<ReadCard>(readCards.values());
+	}
+
+	/**
+	 * 获取领卡记录
+	 * @param id
+	 * @return
+	 */
+	public GetCard getGetCard(long id){
+		return getCards.get(id);
+	}
+
+	/**
+	 * 添加领卡记录
+	 * @param readCard
+	 */
+	public void addGetCard(GetCard getCard){
+		if (getReadCard(getCard.getId()) != null) {
+			return;
+		}
+		getCards.put(getCard.getId(), getCard);
+	}
+	
+	/**
+	 * 获取所有领卡记录
+	 * @return
+	 */
+	public HashSet<GetCard> getGetCard() {
+		return new HashSet<GetCard>(getCards.values());
+	}
+
+}

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.company.DeviceAllocationMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.company.DeviceAllocation">
+		INSERT INTO device_allocation
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="comId != null">
+				`com_id`=#{comId},
+			</if>
+			<if test="name != null">
+				`name`=#{name},
+			</if>
+			<if test="proId != null">
+				`pro_id`=#{proId},
+			</if>
+			<if test="serialNumber != null">
+				`serial_number`=#{serialNumber},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.company.DeviceAllocation">
+		SELECT  
+			`id`        as 'id' ,
+			`com_id`  	  as 'comId' ,
+			`name`  	  as 'name' ,
+			`pro_id`  	  as 'proId' ,
+			`serial_number`  	  as 'serialNumber' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM device_allocation
+		WHERE `id`=#{id}
+	</select>
+	<select id="getOneBySerialNumber"  resultType="com.dec.pro.entity.company.DeviceAllocation">
+		SELECT  
+			`id`        as 'id' ,
+			`com_id`  	  as 'comId' ,
+			`name`  	  as 'name' ,
+			`pro_id`  	  as 'proId' ,
+			`serial_number`  	  as 'serialNumber' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM device_allocation
+		WHERE `serial_number`=#{serialNumber}
+	</select>
+	<select id="getListByComId"  parameterType="java.util.Map" resultType="com.dec.pro.entity.company.DeviceAllocation">
+		SELECT  
+			`id`        as 'id' ,
+			`com_id`  	  as 'comId' ,
+			`name`  	  as 'name' ,
+			`pro_id`  	  as 'proId' ,
+			`serial_number`  	  as 'serialNumber' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM device_allocation
+		WHERE `com_id`=#{comId}
+	</select>
+	<select id="getListByComIdAndProId"  parameterType="java.util.Map" resultType="com.dec.pro.entity.company.DeviceAllocation">
+		SELECT  
+			`id`        as 'id' ,
+			`com_id`  	  as 'comId' ,
+			`name`  	  as 'name' ,
+			`pro_id`  	  as 'proId' ,
+			`serial_number`  	  as 'serialNumber' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM device_allocation
+		WHERE `com_id`=#{comId} AND `pro_id`=#{proId}
+	</select>
+	<select id="getListBySerialNumber"  resultType="com.dec.pro.entity.company.DeviceAllocation">
+		SELECT  
+			`id`        as 'id' ,
+			`com_id`  	  as 'comId' ,
+			`name`  	  as 'name' ,
+			`pro_id`  	  as 'proId' ,
+			`serial_number`  	  as 'serialNumber' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM device_allocation
+	    WHERE `serial_number`=#{serialNumber}
+	</select>
+	<select id="getCount" parameterType="java.util.Map" resultType="int">
+		SELECT COUNT(*) FROM  device_allocation
+		<include refid="searchCondition"></include>
+	</select>
+	<sql id="searchCondition">
+		<where>
+			<if test="name != null">
+				AND name LIKE '%${name}%'
+			</if>
+			<if test="phone != null">
+				AND phone LIKE '%${phone}'
+			</if>
+		</where>
+	</sql>
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM device_allocation WHERE `id`=#{id}
+	</delete>
+	<!-- 调用需要日志记录 -->
+	<delete id="deleteBySerialNumber" parameterType="java.util.Map">
+		DELETE FROM device_allocation WHERE `serial_number`=#{serialNumber}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.company.DeviceAllocation">
+		UPDATE device_allocation 
+		<set>
+			<if test="proId != null">
+				 pro_id=#{proId},
+			</if>
+			<if test="name != null">
+				 name=#{name},
+			</if>
+		</set>
+		WHERE `serial_number`=#{serialNumber}
+	</update>
+	<update id="updateProIdBySerialNumber" >
+		UPDATE device_allocation 
+		<set>
+				 pro_id=null
+		</set>
+		WHERE serial_number=#{serialNumber}
+	</update>
+		<update id="updateDeviceAllocationNameById">
+		UPDATE device_allocation 
+		<set>
+			<if test="name != null">
+				 name=#{name},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+</mapper>

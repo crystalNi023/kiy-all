@@ -1,0 +1,62 @@
+package com.dec.pro.interfaces.project;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.dec.pro.entity.project.Procedure;
+import com.dec.pro.entity.project.Progress;
+import com.dec.pro.service.project.ProgressService;
+import com.dec.pro.util.GetField;
+import com.dec.pro.util.Page;
+
+@Controller(value="流程进度")
+public class ProgressInterface {
+	@Autowired
+	private ProgressService progressService;
+	private String code="0000";
+	private String msg="成功";
+	@RequestMapping(value="app/progress/queryList",name="分页查询流程进度",method={RequestMethod.POST,RequestMethod.GET})
+	@ResponseBody
+	public Map<String, Object> queryProjectList(Progress progress){
+		Map<String, Object> map=new HashMap<>();
+		List<Progress> resultList = null;
+		try {
+			resultList =progressService.getProgressList(progress);
+			code = "0000";
+			msg = "获取成功";
+		} catch (Exception e) {
+			code="0001";
+			msg=e.getMessage();
+		}
+		map.put("result",resultList);
+		map.put("code",code);
+		map.put("msg",msg);
+		return map;
+	}
+	@RequestMapping(value="app/progress/queryListAll",name="分页查询项目下所有流程进度",method={RequestMethod.POST,RequestMethod.GET})
+	@ResponseBody
+	public Map<String, Object> queryListAll(Procedure procedure){
+		Map<String, Object> map=new HashMap<>();
+		Page<Procedure> progressListAll = null;
+		try {
+			GetField.getOTM(" APP分页查询所有流程进度:",procedure);
+			progressListAll = progressService.getProgressListAll(procedure);
+			code = "0000";
+			msg = "获取成功";
+		} catch (Exception e) {
+			msg=e.getMessage();
+			code="0001";
+		}
+		map.put("result", progressListAll);
+		map.put("code",code);
+		map.put("msg",msg);
+		return map;
+	}
+}

@@ -1,0 +1,24 @@
+html,body{
+	background: rgb(245, 244, 250) !important;
+}
+
+.fitment_detail{
+	display: inline-block;
+	width: 48px;
+	height: 20px;
+	border: 1px solid #4CAE4C;
+	line-height: 20px;
+	border-radius: 3px;
+	cursor: pointer;
+	color: black !important;
+}
+.popover_bell{
+	font-size:20px !important;
+}
+.bell_off {
+	color:cornflowerblue;
+}
+.bell_on{
+	position: absolute;
+    margin-left: 10px;
+}

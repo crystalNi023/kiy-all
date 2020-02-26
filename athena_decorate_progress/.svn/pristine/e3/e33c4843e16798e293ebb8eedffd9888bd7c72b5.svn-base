@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.push.PushMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.push.Push">
+		INSERT INTO push
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="userId != null">
+				`user_id`=#{userId},
+			</if>
+			<if test="deviceTokens != null">
+				`device_tokens`=#{deviceTokens},
+			</if>
+			<if test="deviceType != null">
+				`device_type`=#{deviceType},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<update id="update" parameterType="com.dec.pro.entity.push.Push">
+		UPDATE push
+		<set>
+			<if test="deviceTokens != null">
+				`device_tokens`=#{deviceTokens},
+			</if>
+			<if test="deviceType != 0">
+				`device_type`=#{deviceType},
+			</if>
+		</set>
+		WHERE `user_id`=#{userId}
+	</update>
+	
+	<!-- 调用需要日志记录 -->
+	<delete id="delete" parameterType="java.lang.String">
+		DELETE FROM push WHERE id=#{id}
+	</delete>
+	<select id="getPushByUserId"  resultType="com.dec.pro.entity.push.Push">
+		SELECT  
+			id        as 'id' ,
+			user_id   as 'userId' ,
+			device_tokens  as 'deviceTokens' ,
+			device_type  	  as 'deviceType' ,
+			remark    as 'remark' ,
+			created   as 'created' ,
+			updated   as 'updated' 
+		FROM `push`
+		WHERE `user_id`=#{userId}
+	</select>
+</mapper>

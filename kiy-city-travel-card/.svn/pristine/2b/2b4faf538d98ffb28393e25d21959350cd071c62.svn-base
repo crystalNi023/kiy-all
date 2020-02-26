@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div>
+	<h1>开始使用</h1>
+	<hr />
+	<p>开始使用将引导您快速了解都市一日游卡片管理平台(KIY-city-travel-card)的基本操作。</p>
+	<p>在此之前您需要询问系统实施人员获得登陆管理平台的基本信息，包括：用户名和密码；登录平台时需要提供这些信息。</p>
+	<h2>安装控制台</h2>
+	<p>1.获取控制台程序，通过下载或者购买的程序介质将程序包拷贝到您的电脑上任意目录。</p>
+	<p>2.控制台程序可以运行在Linux、Windows和MAC操作系统，并且无需执行安装过程便可直接运行。如果是Windows系统请执行FWriteCard.cmd或FWriteCard.exe文件启动程序；如果是Linux/Unix系统请执行FWriteCard.sh文件；如果是MAC系统请执行FWriteCard.jar。</p>
+	<h2>登录制卡管理平台</h2>
+	<p>1.启动控制台程序，稍后将出现控制台程序主界面，如下图所示。</p>
+	<img src="begin_1.png" />
+	<p>2.填入登陆管理平台所需的基本信息后点击[登陆]，登陆成功后将跳转到主界面，如下图所示。</p>
+	<img src="begin_2.png" />
+	
+	<p><a href="attention.html">下一页</a></p>
+</div>
+</body>
+</html>

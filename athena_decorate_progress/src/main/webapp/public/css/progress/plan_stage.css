@@ -1,0 +1,83 @@
+html,body{
+	background: rgb(245, 244, 250) !important;
+	height: auto;
+}
+.plan_stage_nav{
+	font-size: 16px;
+	height: 80px;
+	line-height: 80px;
+	display: inline-block;
+	/* width: 100%; */
+	/* border-bottom:1px solid rgb(96, 158, 233); ; */
+}
+.plan_dialogue{
+	width: 70%;
+	height: auto;
+	min-height: 500px;
+	background: #FFFFFF;
+}
+.plan_change_dialogue{
+	width: 80%;
+	margin: auto;
+	height: auto;
+	min-height: 500px;
+	background: #FFFFFF;
+}
+.stage_fun{
+	position: fixed;
+    right: 2.5%;
+	width: 25%;
+	height: auto;
+	background: #FFFFFF;
+	text-align: center;
+}
+.stage_fun button{
+	width: 150px;
+	margin: 20px auto;
+	height: 45px;
+}
+.talk_con{
+	width: 400px;height: 
+	auto;min-height: 60px;
+	border-radius: 5px;
+	border: 1px solid #999999;
+	padding: 10px; 
+	display: inline-block;
+}
+.plan_than{
+	color:#FFFFFF;
+	background: #1288f3;
+	border-radius: 50%;
+	width: 50px;
+	line-height: 50px;
+	text-align: center; 
+	height: 50px;
+	margin-left: -25px;
+}
+.plan_record{
+	padding-bottom:10px;
+	width:90%;height: auto;
+	min-height: 500px;
+	border-left: 1px dashed #449D44;
+}
+.plan_left_time{
+	width: auto; margin-left: 20px;
+}
+.plan_right_time{
+	width: auto; margin-right: 20px;
+}
+
+.record_img{
+	width:50px;
+	height:50px;
+	margin: 0px 10px;
+}
+.plan_header{
+	width:100%;
+	height:100%;
+	border-bottom:1px solid rgb(96, 158, 233);
+}
+.role{
+	color:#999;
+	margin:10px;
+}

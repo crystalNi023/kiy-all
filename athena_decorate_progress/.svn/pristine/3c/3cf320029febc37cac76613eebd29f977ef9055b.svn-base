@@ -1,0 +1,184 @@
+package com.dec.pro.service.project;
+
+import java.util.Date;
+import java.util.List;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.dec.pro.entity.project.Procedure;
+import com.dec.pro.entity.project.Progress;
+import com.dec.pro.entity.project.ProgressRecord;
+import com.dec.pro.entity.push.Push;
+import com.dec.pro.service.BaseService;
+import com.dec.pro.service.push.PushService;
+import com.dec.pro.util.GetField;
+import com.dec.pro.util.Page;
+import com.dec.pro.util.UUid;
+@Service
+public class ProgressService extends BaseService<Progress>{
+	private static Logger logger=Logger.getLogger(ProgressService.class);
+	@Autowired
+	private ProgressRecordService progressRecordService;
+	@Autowired
+	private ProcedureService procedureService;
+	@Autowired
+	private PushService pushService;
+	@Autowired
+	private ProjectService projectService;
+	/**
+	 * 按条件分页查询
+	 * @param u
+	 * @return
+	 * @throws Exception
+	 */
+	public List<Progress> getProgressList(Progress p) throws Exception {
+		List<Progress> resultList = getList(GetField.getOTM(" 分页查询流程进度:",p));//按条件查询流程进度
+		/*Procedure procedure = procedureService.getOne(p.getProcId());
+		if (procedure!=null) {
+			//拼接计划启动流程
+			Progress begin = new Progress();
+			begin.setCreated(procedure.getProcStartTime());
+			begin.setSchedule(0);
+			begin.setType(1);
+			ProgressRecord progressRecordBegin = new ProgressRecord();
+			progressRecordBegin.setPromptMsg("计划启动");
+			begin.setProgressRecord(progressRecordBegin);
+			resultList.add(0, begin);
+			//拼接计划完成流程
+			Progress end = new Progress();
+			end.setCreated(procedure.getProcEndTime());
+			end.setSchedule(100);
+			end.setType(1);
+			ProgressRecord progressRecordEnd = new ProgressRecord();
+			progressRecordEnd.setPromptMsg("计划完成");
+			end.setProgressRecord(progressRecordEnd);
+			resultList.add(end);
+		}*/
+		
+		if (resultList!=null) {
+			for (Progress progress : resultList) {
+				ProgressRecord record = progressRecordService.getOneByProgId(progress.getId());
+				if(record!=null){
+					progress.setProgressRecord(record);
+				}
+			}
+		}
+		return resultList;
+	}
+	/**
+	 * 添加流程进度
+	 * @param p
+	 * @return
+	 * @throws Exception
+	 */
+	public int increaseProgress(Progress p) throws Exception {
+		p.setId(UUid.getUUid());
+		Procedure one = null;
+		one = procedureService.getOne(p.getProcId());
+		one.setProcess(p.getSchedule());
+		// 项目启动
+		if (p.getSchedule() == 0) {
+			// 1.进度提示
+			one.setStatus(2);
+		}
+		//更新流程进度
+		procedureService.update(one);
+		int count = super.add(p);// 添加进度
+		if (count == 1 && p.getProgressRecord().getPromptMsg() != null) {// 计划启动
+			ProgressRecord pr = p.getProgressRecord();
+			pr.setId(UUid.getUUid());// 设置主键
+			pr.setStatus(2);// 提交之后
+			pr.setProgId(p.getId());// 获取进度
+			pr.setPromptTime(new Date());// 设置
+			pr.setPromptMsg(p.getProgressRecord().getPromptMsg());
+			progressRecordService.add(pr);// 添加进度详情
+			// 给客户发送消息（消息推送）
+			Procedure procedure  = procedureService.getOne(p.getProcId());//获取流程信息
+			String proId = procedure.getProId();
+			Push push = projectService.getPushByProId(proId);// 通过项目获取用户信息
+			int pushType=1;
+			try {
+				pushService.sendOnePushMessage(push,pushType);
+			} catch (Exception e) {
+				logger.error("消息推送异常信息："+e.getMessage());
+				throw new RuntimeException("消息推送失败！");
+			}
+		}
+		return count;
+	}
+	/**
+	 * 整改、延期申请/验收申请
+	 * @param p
+	 * @return
+	 * @throws Exception
+	 */
+	public int addPostponeAndAcceptance(Progress p) throws Exception{
+		p.setId(UUid.getUUid());
+		Procedure procedure = null;
+		procedure = procedureService.getOne(p.getProcId());
+		if (p.getType() == 3){ //验收申请流程置为100
+			p.setSchedule(100);
+		}else {
+			procedure.setProcess(p.getSchedule());
+		}
+		procedureService.update(procedure);
+		int count = super.add(p);//添加进度
+		if(count==1){
+			ProgressRecord pr=p.getProgressRecord();
+			pr.setId(UUid.getUUid());//设置主键
+			Procedure one  = procedureService.getOne(p.getProcId());
+			if (p.getType()==3) {//验收申请要拼接一串话
+				pr.setPromptMsg("您好，您的装修工程中"+one.getName()+"部分，已经完成，您可到现场验收，并在验收申请中予以确认");
+				
+			}else if (p.getType()==2) {//整改延期时间要拼接计划完成时间
+//				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+				pr.setPromptMsg("因"+pr.getPromptMsg()+","
+								+"计划"+(pr.getTimeAssess()>=0?"延期":"提前")+Math.abs(pr.getTimeAssess())+"天。");
+//								+",预计"+sdf.format(one.getProcEndTime()+pr.getTimeAssess())+"完成");
+			}
+			pr.setStatus(1);// 提交之后默认待审核
+			pr.setProgId(p.getId());// 获取进度
+			pr.setPromptTime(new Date());// 设置
+			progressRecordService.add(pr);// 添加进度详情
+
+			// 给客户发送消息（消息推送）
+			String proId = one.getProId();
+			Push push = projectService.getPushByProId(proId);// 通过项目获取用户信息
+			try {
+				pushService.sendOnePushMessage(push,p.getType());
+			} catch (Exception e) {
+				logger.error("消息推送异常信息："+e.getMessage());
+				throw new RuntimeException("消息推送失败！");
+			}
+			// 用户确认后再添加
+			/*if(timeAssess!=0){//有延期提前的需修改项目流程
+				Procedure pd = procedureService.getOne(p.getProcId());//获取项目流程
+				int orgTimeAssess=pd.getTimeAssess();
+				pd.setTimeAssess(orgTimeAssess+timeAssess);
+				procedureService.updateTimeAssess(pd);//更新流程表延期时间
+			}*/
+		}
+		return count;
+	}
+	
+	/**
+	 * 按条件分页查询(查找所有项目流程)
+	 * @param u
+	 * @return
+	 * @throws Exception
+	 */
+	public Page<Procedure> getProgressListAll(Procedure procedure) throws Exception {
+		Page<Procedure> procedureList = procedureService.getProcedureList(procedure);
+		List<Procedure> result = procedureList.getResult();
+		for (Procedure procedure2 : result) {
+			Progress progress = new Progress();
+			progress.setProcId(procedure2.getId());
+			List<Progress> progressList = this.getProgressList(progress);
+			procedure2.setProgressList(progressList);
+		}
+		procedureList.setResult(result);
+		return procedureList;
+	}
+}

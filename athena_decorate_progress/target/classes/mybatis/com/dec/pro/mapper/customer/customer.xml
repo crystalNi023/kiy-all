@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.customer.CustomerMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.customer.Customer">
+		INSERT INTO customer
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="name != null">
+				`name`=#{name},
+			</if>
+			<if test="mobile != null">
+				`mobile`=#{mobile},
+			</if>
+			<if test="phone != null">
+				`phone`=#{phone},
+			</if>
+			<if test="email != null">
+				`email`=#{email},
+			</if>
+			<if test="address != null">
+				`address`=#{address},
+			</if>
+			<if test="signTime != null">
+				`sign_time`=#{signTime},
+			</if>
+			<if test="userId != null">
+				`user_id`=#{userId},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.customer.Customer">
+		SELECT  
+			`id`        as 'id' ,
+			`name`  	  as 'name' ,
+			`mobile`    as 'mobile' ,
+			`phone`  	  as 'phone' ,
+			`email`  	  as 'email' ,
+			`address`  	  as 'address' ,
+			`sign_time`  	  as 'signTime' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM customer
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.customer.Customer">
+		 SELECT  
+			C.`id`        as 'id' ,
+			C.`name`  	  as 'name' ,
+			C.`mobile`    as 'mobile' ,
+			C.`phone`  	  as 'phone' ,
+			C.`email`  	  as 'email' ,
+			C.`address`  	  as 'address' ,
+			C.`sign_time`  	  as 'signTime' ,
+			C.`remark`    as 'remark' ,
+			C.`created`   as 'created' ,
+			C.`updated`   as 'updated' ,
+			(SELECT id FROM project WHERE project.cus_id=C.id) AS 'proId', 
+            ROUND(AVG(PD.process)) AS 'process'
+		FROM customer C 
+		JOIN `users` U  ON U.`id`=C.`user_id` 
+		LEFT JOIN project P  ON P.`cus_id`=C.`id`
+		LEFT JOIN `procedure` PD ON PD.`pro_id`=P.`id`
+		<include refid="searchCondition"></include>
+		GROUP BY C.`id`
+		ORDER BY C.`created` DESC
+	 	LIMIT #{startRow},#{pageSize} 
+	</select>
+	<select id="getCustomerByUserId" resultType="com.dec.pro.entity.customer.Customer">
+		  SELECT  
+			C.`id`        as 'id' ,
+			C.`name`  	  as 'name' ,
+			C.`mobile`    as 'mobile' ,
+			C.`phone`  	  as 'phone' ,
+			C.`email`  	  as 'email' ,
+			C.`address`  	  as 'address' ,
+			C.`sign_time`  	  as 'signTime' ,
+			C.`remark`    as 'remark' ,
+			C.`created`   as 'created' ,
+			C.`updated`   as 'updated' 
+		FROM customer C 
+			WHERE C.`user_id`=#{userId}
+	</select>
+	<select id="getCustomerByPhone" resultType="com.dec.pro.entity.customer.Customer">
+		  SELECT  
+			C.`id`        as 'id' ,
+			C.`name`  	  as 'name' ,
+			C.`mobile`    as 'mobile' ,
+			C.`phone`  	  as 'phone' ,
+			C.`email`  	  as 'email' ,
+			C.`user_id`   as 'userId',
+			C.`address`  	  as 'address' ,
+			C.`sign_time`  	  as 'signTime' ,
+			C.`remark`    as 'remark' ,
+			C.`created`   as 'created' ,
+			C.`updated`   as 'updated' 
+		FROM customer C 
+			WHERE C.`phone`=#{phone}
+	</select>
+	<select id="getCount" parameterType="java.util.Map" resultType="int">
+		SELECT COUNT(*) FROM
+		(SELECT COUNT(*) FROM customer C 
+			JOIN `users` U  ON U.`id`=C.`user_id` 
+			LEFT JOIN project P ON C.id=P.cus_id
+			LEFT JOIN `procedure` PD ON PD.`pro_id`=P.`id`
+		<include refid="searchCondition"></include>
+		GROUP BY C.`id`) S
+	</select>
+	<sql id="searchCondition">
+		<where>
+				U.`com_id` = #{comId}
+			 <if test="userId != null"> 
+				AND P.id in 
+					(SELECT pro_id from project_tecoration WHERE tec_id = 
+					(SELECT id from decoration_team where user_id=#{userId}))
+		 	 </if> 
+			<if test="name != null">
+				AND C.name LIKE '%${name}%'
+			</if>
+			<if test="mobile != null">
+				AND C.mobile LIKE '%${mobile}'
+			</if>
+			<if test="phone != null">
+				AND C.phone LIKE '%${phone}'
+			</if>
+		</where>
+	</sql>
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM customer WHERE `id`=#{id}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.customer.Customer">
+		UPDATE customer 
+		<set>
+			<if test="mobile != null">
+				 mobile=#{mobile},
+			</if>
+			<if test="phone != null">
+				 phone=#{phone},
+			</if>
+			<if test="email != null">
+				 email=#{email},
+			</if>
+			<if test="name != null">
+				 name=#{name},
+			</if>
+			<if test="address != null">
+				 address=#{address},
+			</if>
+			<if test="signTime != null">
+				`sign_time`=#{signTime},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+</mapper>

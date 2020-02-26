@@ -1,0 +1,296 @@
+package com.kiy.view;
+
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CLabel;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.kiy.common.Config;
+import com.kiy.common.DataCache;
+import com.kiy.common.Types.Power;
+import com.kiy.common.User;
+import com.kiy.data.Data;
+import com.kiy.data.DataOperation;
+import com.kiy.driver.Executor;
+
+
+
+public class FMain {
+
+	private Shell shell;
+	private Text accountText;
+	private Text passwordText;
+	private Label remarkText;
+	private Composite composite;
+	private Composite managerComposite;
+	private Button btnManager;
+	private Button btnReadRecord;
+	private Button btnReadCard;
+	private Button btnWriteCard;
+	private Button btnGetRecord;
+	private Button btnWriteRecord;
+	private User u = new User();
+	private User user;
+	
+	/**
+	 * Launch the application.
+	 * 
+	 * @param args
+	 * @wbp.parser.entryPoint
+	 */
+	public static void main(String[] args) {
+		try {
+			Config.load();
+			Executor.initialize();
+			Data.initialize();
+			FMain window = new FMain();
+			window.open();
+		} catch (Exception e) {
+		}
+	}
+	
+	/**
+	 * Create the dialog.
+	 * 
+	 * @param parent
+	 * @param style
+	 * @wbp.parser.entryPoint
+	 */
+	public FMain() {
+	}
+
+	/**
+	 * Open the dialog.
+	 * 
+	 * @return the result
+	 * @wbp.parser.entryPoint
+	 */
+	public void open() {
+		Display display = Display.getDefault();
+		createContents();
+		
+		
+		shell.open();
+		shell.layout();
+
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	}
+
+	/**
+	 * Create contents of the dialog.
+	 */
+	private void createContents() {
+		Display.setAppName("制卡工具");
+		shell = new Shell(SWT.MIN|SWT.CLOSE);
+		shell.setSize(490, 292);
+		shell.setText("都市一日游卡片管理平台");
+		
+		shell.setToolTipText("都市一日游卡片管理平台");
+		composite = new Composite(shell, SWT.NONE);
+		composite.setBounds(0, 0, 474, 254);
+		
+		CLabel lblNewLabel = new CLabel(composite, SWT.NONE);
+		lblNewLabel.setBounds(88, 96, 67, 23);
+		lblNewLabel.setText("账户:");
+		
+		accountText = new Text(composite, SWT.BORDER);
+		accountText.setBounds(161, 96, 241, 23);
+		
+		CLabel label = new CLabel(composite, SWT.NONE);
+		label.setText("密码:");
+		label.setBounds(88, 125, 67, 23);
+		
+		passwordText = new Text(composite, SWT.BORDER | SWT.PASSWORD);
+		passwordText.setBounds(161, 125, 241, 23);
+		
+		Button btnNewButton = new Button(composite, SWT.NONE);
+		btnNewButton.setBounds(324, 154, 80, 27);
+		btnNewButton.setText("登录");
+		btnNewButton.addSelectionListener(new SelectionAdapterOne());
+		
+		Label label_2 = new Label(composite, SWT.SEPARATOR | SWT.HORIZONTAL);
+		label_2.setBounds(10, 187, 454, 2);
+		
+		remarkText = new Label(composite, SWT.NONE);
+		remarkText.setBounds(10, 30, 454, 23);
+		
+		managerComposite = new Composite(shell, SWT.NONE);
+		managerComposite.setBounds(0, 0, 481, 254);
+		
+		btnManager = new Button(managerComposite, SWT.NONE);
+		btnManager.setBounds(10, 21, 124, 91);
+		btnManager.setText("用户管理");
+		btnManager.addSelectionListener(new UserManagerSelectionAdapter());
+		
+		btnWriteRecord = new Button(managerComposite, SWT.NONE);
+		btnWriteRecord.setText("制卡记录查询");
+		btnWriteRecord.setBounds(162, 21, 132, 91);
+		btnWriteRecord.addSelectionListener(new WriteCardQuerySelectionAdapter());
+		
+		btnReadRecord = new Button(managerComposite, SWT.NONE);
+		btnReadRecord.setText("读卡记录查询");
+		btnReadRecord.setBounds(319, 21, 137, 91);
+		btnReadRecord.addSelectionListener(new ReadCardQuerySelectionAdapter());
+		
+		btnGetRecord = new Button(managerComposite, SWT.NONE);
+		btnGetRecord.setText("领卡记录查询");
+		btnGetRecord.setBounds(10, 143, 124, 91);
+		btnGetRecord.addSelectionListener(new GetCardQuerySelectionAdapter());
+		
+		btnWriteCard = new Button(managerComposite, SWT.NONE);
+		btnWriteCard.setText("制卡");
+		btnWriteCard.setBounds(162, 143, 132, 91);
+		btnWriteCard.addSelectionListener(new WriteCardSelectionAdapter());
+		
+		btnReadCard = new Button(managerComposite, SWT.NONE);
+		btnReadCard.setText("读卡");
+		btnReadCard.setBounds(319, 143, 137, 91);
+		btnReadCard.addSelectionListener(new ReadCardSelectionAdapter());
+		
+		composite.setVisible(true);
+		composite.setEnabled(true);
+		
+		Label label_1 = new Label(composite, SWT.SEPARATOR | SWT.HORIZONTAL);
+		label_1.setBounds(10, 59, 454, 2);
+		managerComposite.setVisible(false);
+		managerComposite.setEnabled(false);
+		
+	}
+	
+	private class SelectionAdapterOne extends SelectionAdapter{
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			user = DataOperation.login(accountText.getText(), F.MD5(passwordText.getText()));
+			if(user!=null){
+				DataCache instance = DataCache.getInstance();
+				instance.setUser(user);
+				
+				composite.setVisible(false);
+				composite.setEnabled(false);
+				managerComposite.setVisible(true);
+				managerComposite.setEnabled(true);
+				
+				Power power = user.getPower();
+				switch (power) {
+					case ADMINISTRATOR:
+						btnManager.setEnabled(true);
+						btnWriteRecord.setEnabled(true);
+						btnReadRecord.setEnabled(true);
+						btnGetRecord.setEnabled(true);
+						btnWriteCard.setEnabled(true);
+						btnReadCard.setEnabled(true);
+						break;
+					case WRITE_CARD:
+						btnManager.setEnabled(false);
+						btnWriteRecord.setEnabled(false);
+						btnReadRecord.setEnabled(false);
+						btnGetRecord.setEnabled(false);
+						btnWriteCard.setEnabled(true);
+						btnReadCard.setEnabled(false);
+						break;	
+					case READ_CARD:
+						btnManager.setEnabled(false);
+						btnWriteRecord.setEnabled(false);
+						btnReadRecord.setEnabled(false);
+						btnGetRecord.setEnabled(false);
+						btnWriteCard.setEnabled(false);
+						btnReadCard.setEnabled(true);
+						break;
+					case READ_WRITE_CARD:
+						btnManager.setEnabled(false);
+						btnWriteRecord.setEnabled(false);
+						btnReadRecord.setEnabled(false);
+						btnGetRecord.setEnabled(false);
+						btnWriteCard.setEnabled(true);
+						btnReadCard.setEnabled(true);
+						break;
+					default:
+						break;
+				}
+				
+				
+				/**
+				 * 判断权限
+				 */
+				
+			}else{
+				/*登录失败*/
+				remarkText.setText("用户名或密码有误");
+				remarkText.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+			}
+			
+		}
+		
+	}
+	
+	
+	private class WriteCardSelectionAdapter extends SelectionAdapter{
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FWriteCard fWriteCard = new FWriteCard(shell);
+			fWriteCard.open();
+		}
+		
+	}
+	
+	private class ReadCardSelectionAdapter extends SelectionAdapter{
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FReadCard fReadCard = new FReadCard(shell);
+			fReadCard.open();
+		}
+		
+	}
+	
+	private class UserManagerSelectionAdapter extends SelectionAdapter{
+
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FUserManager fUserManager = new FUserManager();
+			fUserManager.open(user);
+		}
+		
+	}
+	
+	private class WriteCardQuerySelectionAdapter extends SelectionAdapter{
+		
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FWriteCardQuery fWriteCardQuery = new FWriteCardQuery();
+			fWriteCardQuery.open(u);
+		}
+	}
+	
+	private class ReadCardQuerySelectionAdapter extends SelectionAdapter{
+		
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FReadCardQuery fReadCardQuery = new FReadCardQuery();
+			fReadCardQuery.open(u);
+		}
+	}
+	
+	private class GetCardQuerySelectionAdapter extends SelectionAdapter{
+		
+		@Override
+		public void widgetSelected(SelectionEvent arg0) {
+			FGetCardQuery fGetCardQuery = new FGetCardQuery();
+			fGetCardQuery.open();
+		}
+	}
+	
+}

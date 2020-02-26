@@ -1,0 +1,149 @@
+html body{
+	height: auto;
+	min-height:768px;
+}
+.logo{
+	width: 100%;
+	height: 115px;
+	font-size: 30px;
+	line-height: 115px;
+	background: #2d343d;
+}
+.logo span{
+	margin: auto 20px;
+	color: #d2d9e0;
+}
+.personal{
+	font-size: 16px;
+	line-height: normal;
+	height: 100%;
+}
+.personal span{
+	margin: auto;
+}
+.per_user{
+	margin: 20px 40px 20px 0;
+}
+.current_position{
+	height: 30px;
+	width: 100%;
+	background-color: rgb(96, 158, 233);
+	font-size: 14px;
+	line-height: 30px;
+}
+.nav_position{
+	width: 95%;
+	margin: auto;
+	color:#FFFFFF;
+}
+.page_wid{
+	width: 95%;
+	margin: auto;
+}
+.page_hei{
+	height:100%;
+	min-height: 768px;
+}
+.search{
+	background: #FFFFFF;
+	height: 50px;
+	border-radius: 5px;
+	line-height: 50px;
+	/*width: 360px;*/
+}
+.search1{	
+	/* background: #FFFFFF; */
+	height: 40px;
+	border-radius: 5px;
+	line-height: 40px;
+	/*width: 360px;*/
+}
+.search_icon{
+	color: rgb(156, 156, 156);
+	font-size: 25px !important;
+}
+.search_inp{
+	font-size: 16px;
+	width: 267px;
+	height: 40px;
+}
+.btn_text{
+	font-size: 16px !important;
+	background: #67B168;
+	/*height: 100%;*/
+	height: 40px;
+	color: #FFFFFF;
+	vertical-align: top!important;
+}
+.top_margin{
+	margin-top: 20px;
+}
+.top_padding{
+	padding-top: 20px;
+}
+.bottom_margin{
+	margin-bottom:10px;
+}
+.search_css{
+	padding: 10px;
+	/*border: none;*/
+	box-sizing: border-box;
+	border: 1px solid #ccc;
+ 	border-radius: 4px;
+ 	background: #fff;
+}
+.pro_time{
+	width:auto !important;
+	height: 40px !important;
+	background: #FFFFFF !important;
+	display: inline-block !important;
+}
+.block_force{
+	display: inline-block !important;
+}
+.save_plan{
+	text-align: center;
+	margin-top: 70px;
+}
+.save_plan input{
+	display: inline-block;
+	width: 200px;
+	height: 50px;
+	font-size: 20px;
+}
+.disable {
+	pointer-events: none;
+}
+.disable div{
+	background: #c0c0c0;
+}
+
+/*============分页的css样式==================*/
+.page_turn{
+   display: inline-block;
+   padding: 6px 12px;
+   font-size: 16px;
+   margin: 20px 0;
+}
+.page_box a{
+	color: #337ab7 !important;
+}
+.page_box{
+	display: inline-block;
+	width: auto;
+}
+.page_color{
+	background: #ddd !important;
+}
+.none_con{
+	width: 100%;
+	margin:20px;
+	font-size:20px;
+	text-align:center;
+}
+#pageLimit a{
+	color: #337ab7 !important;
+}
+#pageLimit>.active>a, .pagination>.active>a:focus, .pagination>.active>a:hover, .pagination>.active>span, .pagination>.active>span:focus, .pagination>.active>span:hover {
+	color: #fff !important;
+}

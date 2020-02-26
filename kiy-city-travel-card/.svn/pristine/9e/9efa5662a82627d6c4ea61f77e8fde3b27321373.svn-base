@@ -1,0 +1,46 @@
+package com.kiy.common;
+
+import com.kiy.common.Types.Kind;
+
+public class ReadCard extends Unit{
+	/**
+	 * 制卡用户id
+	 */
+	private String userId;
+	
+	/**
+	 * 卡号
+	 */
+	private long number;
+	
+	/**
+	 * 类型
+	 */
+	private Kind kind;
+
+	public String getUserId() {
+		return userId;
+	}
+
+	public void setUserId(String userId) {
+		this.userId = userId;
+	}
+
+	public long getNumber() {
+		return number;
+	}
+
+	public void setNumber(long number) {
+		this.number = number;
+	}
+
+	public Kind getKind() {
+		return kind;
+	}
+
+	public void setKind(Kind kind) {
+		this.kind = kind;
+	}
+	
+	
+}

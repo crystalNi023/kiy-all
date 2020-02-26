@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper     PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dec.pro.mapper.project.ProgressMapper">
+	<insert id="add" parameterType="com.dec.pro.entity.project.Progress">
+		INSERT INTO progress
+		<set>
+			<if test="id != null">
+				`id`=#{id},
+			</if>
+			<if test="procId != null">
+				`proc_id`=#{procId},
+			</if>
+			<if test="schedule != null">
+				`schedule`=#{schedule},
+			</if>
+			<if test="type != null">
+				`type`=#{type},
+			</if>
+			<if test="remark != null">
+				`remark`=#{remark},
+			</if>
+			<if test="created != null">
+				`created`=#{created},
+			</if>
+			<if test="updated != null">
+				`updated`=#{updated},
+			</if>
+		</set>
+	</insert>
+	<select id="getOne"  resultType="com.dec.pro.entity.project.Progress">
+		SELECT  
+			`id`        as 'id' ,
+			`proc_id`  	  as 'procId' ,
+			`schedule`    as 'schedule' ,
+			`type`  	  as 'type' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM progress
+		WHERE `id`=#{id}
+	</select>
+	<select id="getList" parameterType="java.util.Map" resultType="com.dec.pro.entity.project.Progress">
+		SELECT  
+			`id`        as 'id' ,
+			`proc_id`  	  as 'procId' ,
+			`schedule`    as 'schedule' ,
+			`type`  	  as 'type' ,
+			`remark`    as 'remark' ,
+			`created`   as 'created' ,
+			`updated`   as 'updated' 
+		FROM progress
+		WHERE proc_id = #{procId}
+			ORDER BY created
+	</select>
+	<!-- 调用需要日志记录 -->
+	<delete id="delete">
+		DELETE FROM progress WHERE `id`=#{id}
+	</delete>
+	<update id="update" parameterType="com.dec.pro.entity.project.Progress">
+		UPDATE progress 
+		<set>
+			<if test="schedule != null">
+				 schedule=#{schedule},
+			</if>
+			<if test="remark != null">
+				 remark=#{remark},
+			</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+</mapper>
